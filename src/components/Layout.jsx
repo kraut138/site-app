@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { id: "inspections", label: "검측관리", Icon: Icon.Inspection, badgeKey: "pending" },
   { id: "ncr", label: "NCR 관리", Icon: Icon.Ncr, badgeKey: "ncr" },
   { id: "buildings", label: "동 관리", Icon: Icon.Building },
+  { id: "sitelayout", label: "배치도(3D)", Icon: Icon.Cube },
 ];
 
 const PAGE_META = {
@@ -16,6 +17,7 @@ const PAGE_META = {
   inspections: { title: "검측관리", desc: "검측 요청, 도면 위치 확인, 원클릭 승인/반려" },
   ncr: { title: "NCR 관리", desc: "부적합 사항 조치 현황과 재검측 프로세스" },
   buildings: { title: "동 관리", desc: "현장 동·층·세대 정보를 관리합니다" },
+  sitelayout: { title: "배치도(3D)", desc: "동의 대략적인 위치와 형태를 3D로 확인합니다" },
 };
 
 export default function Layout({ role, setRole, view, setView, badges = {}, children }) {

@@ -42,6 +42,13 @@ export const Icon = {
       <path d="M10.5 21v-3h3v3" />
     </svg>
   ),
+  Cube: (p) => (
+    <svg className="icon" {...iconProps} {...p}>
+      <path d="M12 3.5 20 8v8l-8 4.5L4 16V8l8-4.5Z" />
+      <path d="M4 8l8 4.5L20 8" />
+      <path d="M12 12.5V21" />
+    </svg>
+  ),
   Close: (p) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...p}>
       <path d="M6 6l12 12M18 6L6 18" />

@@ -29,6 +29,10 @@ export function deleteBuilding(id) {
   return request(`/buildings/${id}`, { method: "DELETE" });
 }
 
+export function updateBuilding(id, data) {
+  return request(`/buildings/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
 export function createInspection(data) {
   return request("/inspections", { method: "POST", body: JSON.stringify(data) });
 }

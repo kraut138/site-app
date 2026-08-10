@@ -5,6 +5,7 @@ import Checklist from "./components/Checklist.jsx";
 import Inspections from "./components/Inspections.jsx";
 import NCR from "./components/NCR.jsx";
 import Buildings from "./components/Buildings.jsx";
+import SiteLayout from "./components/SiteLayout.jsx";
 import { Toast } from "./components/UI.jsx";
 import { ROLES } from "./data.js";
 import * as api from "./api.js";
@@ -46,6 +47,12 @@ export default function App() {
   async function handleDeleteBuilding(id) {
     await api.deleteBuilding(id);
     setBuildings((prev) => prev.filter((b) => b.id !== id));
+  }
+
+  async function handleUpdateBuilding(id, data) {
+    const updated = await api.updateBuilding(id, data);
+    setBuildings((prev) => prev.map((b) => (b.id === id ? updated : b)));
+    return updated;
   }
 
   async function handleCreateInspection(data) {
@@ -106,6 +113,7 @@ export default function App() {
         {view === "buildings" && (
           <Buildings buildings={buildings} onCreate={handleCreateBuilding} onDelete={handleDeleteBuilding} canEdit={role === ROLES.SUPER} />
         )}
+        {view === "sitelayout" && <SiteLayout buildings={buildings} onUpdateBuilding={handleUpdateBuilding} notify={notify} />}
       </Layout>
       <Toast message={toast} onDone={() => setToast("")} />
     </>

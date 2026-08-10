@@ -85,6 +85,22 @@ export default async (req: Request, context: Context): Promise<Response> => {
         await setCollection("buildings", list.filter((b) => b.id !== id));
         return jsonResponse({ ok: true });
       }
+      if (method === "PATCH" && id) {
+        const body = await req.json();
+        const list = await getCollection("buildings");
+        const idx = list.findIndex((b) => b.id === id);
+        if (idx === -1) return jsonResponse({ error: "동을 찾을 수 없습니다." }, 404);
+        const updated = { ...list[idx] };
+        if (body.name !== undefined) updated.name = String(body.name);
+        if (body.floors !== undefined) updated.floors = Number(body.floors);
+        if (body.unitsPerFloor !== undefined) updated.unitsPerFloor = Number(body.unitsPerFloor);
+        if (body.siteX !== undefined) updated.siteX = body.siteX === null ? null : Number(body.siteX);
+        if (body.siteY !== undefined) updated.siteY = body.siteY === null ? null : Number(body.siteY);
+        if (body.footprint !== undefined) updated.footprint = Number(body.footprint);
+        list[idx] = updated;
+        await setCollection("buildings", list);
+        return jsonResponse(updated);
+      }
     }
 
     // ---- inspection requests ----
