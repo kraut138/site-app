@@ -1,6 +1,6 @@
 import React from "react";
 import { Icon } from "./UI.jsx";
-import { ROLES } from "../data.js";
+import { ROLES, RESTRICTED_VIEWS_FOR_SUB } from "../data.js";
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "대시보드", Icon: Icon.Dashboard },
@@ -22,6 +22,7 @@ const PAGE_META = {
 
 export default function Layout({ role, setRole, view, setView, badges = {}, children }) {
   const meta = PAGE_META[view] || {};
+  const visibleNavItems = NAV_ITEMS.filter((item) => role === ROLES.SUPER || !RESTRICTED_VIEWS_FOR_SUB.includes(item.id));
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -38,7 +39,7 @@ export default function Layout({ role, setRole, view, setView, badges = {}, chil
         </div>
 
         <nav className="sidebar-nav">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const badge = item.badgeKey ? badges[item.badgeKey] : 0;
             return (
               <button

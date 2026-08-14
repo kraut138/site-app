@@ -7,12 +7,12 @@ import NCR from "./components/NCR.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
 import { Toast } from "./components/UI.jsx";
-import { ROLES } from "./data.js";
+import { ROLES, RESTRICTED_VIEWS_FOR_SUB } from "./data.js";
 import * as api from "./api.js";
 
 export default function App() {
   const [role, setRole] = useState(ROLES.SUB);
-  const [view, setView] = useState("dashboard");
+  const [view, setView] = useState("checklist");
   const [buildings, setBuildings] = useState([]);
   const [inspections, setInspections] = useState([]);
   const [ncrs, setNcrs] = useState([]);
@@ -21,6 +21,12 @@ export default function App() {
   const [toast, setToast] = useState("");
 
   const notify = useCallback((msg) => setToast(msg), []);
+
+  useEffect(() => {
+    if (role === ROLES.SUB && RESTRICTED_VIEWS_FOR_SUB.includes(view)) {
+      setView("checklist");
+    }
+  }, [role, view]);
 
   useEffect(() => {
     let alive = true;
