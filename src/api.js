@@ -33,6 +33,14 @@ export function updateBuilding(id, data) {
   return request(`/buildings/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
+export function fetchSiteSettings() {
+  return request("/sitesettings");
+}
+
+export function updateSiteSettings(data) {
+  return request("/sitesettings", { method: "PATCH", body: JSON.stringify(data) });
+}
+
 export function createInspection(data) {
   return request("/inspections", { method: "POST", body: JSON.stringify(data) });
 }

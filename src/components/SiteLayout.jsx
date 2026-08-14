@@ -1,13 +1,18 @@
 import React, { useState, useRef, useEffect } from "react";
 import * as THREE from "three";
 import { Icon, EmptyState } from "./UI.jsx";
+import { SHAPE_OPTIONS } from "../data.js";
+import { compressImage } from "../api.js";
 
-export default function SiteLayout({ buildings, onUpdateBuilding, notify }) {
+export default function SiteLayout({ buildings, onUpdateBuilding, siteSettings, onUpdateSiteSettings, notify }) {
   const [armedId, setArmedId] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageError, setImageError] = useState("");
 
   const positioned = buildings.filter((b) => typeof b.siteX === "number" && typeof b.siteY === "number");
   const armedBuilding = buildings.find((b) => b.id === armedId) || null;
+  const layoutImage = siteSettings && siteSettings.layoutImage;
 
   async function handlePlace(x, y) {
     if (!armedId) return;
@@ -31,6 +36,43 @@ export default function SiteLayout({ buildings, onUpdateBuilding, notify }) {
     }
   }
 
+  async function handleShapeChange(id, shape) {
+    setBusyId(id);
+    try {
+      await onUpdateBuilding(id, { shape });
+      notify("동 형태가 저장되었습니다.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleImageUpload(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setImageBusy(true);
+    setImageError("");
+    try {
+      const dataUrl = await compressImage(file, 1600, 0.78);
+      await onUpdateSiteSettings({ layoutImage: dataUrl });
+      notify("배치도 이미지를 업로드했습니다.");
+    } catch (err) {
+      setImageError(err.message);
+    } finally {
+      setImageBusy(false);
+    }
+  }
+
+  async function handleImageClear() {
+    setImageBusy(true);
+    try {
+      await onUpdateSiteSettings({ layoutImage: null });
+      notify("배치도 이미지를 제거했습니다.");
+    } finally {
+      setImageBusy(false);
+    }
+  }
+
   if (buildings.length === 0) {
     return (
       <div className="card">
@@ -46,7 +88,21 @@ export default function SiteLayout({ buildings, onUpdateBuilding, notify }) {
           <div className="section-title">배치도 (2D)</div>
           <span className="eyebrow">{positioned.length}/{buildings.length}개동 배치됨</span>
         </div>
-        <SiteMap2D buildings={positioned} armed={!!armedBuilding} onPlace={handlePlace} />
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <label className="btn btn-ghost btn-sm" style={{ cursor: "pointer" }}>
+            {imageBusy ? "처리 중…" : layoutImage ? "이미지 변경" : "배치도 이미지 업로드"}
+            <input type="file" accept="image/*" hidden onChange={handleImageUpload} disabled={imageBusy} />
+          </label>
+          {layoutImage && (
+            <button className="btn btn-ghost btn-sm" onClick={handleImageClear} disabled={imageBusy}>
+              이미지 제거
+            </button>
+          )}
+        </div>
+        {imageError && <div style={{ color: "var(--fail)", fontSize: 12.5, marginBottom: 10 }}>{imageError}</div>}
+
+        <SiteMap2D buildings={positioned} armed={!!armedBuilding} onPlace={handlePlace} backgroundImage={layoutImage} />
 
         <div style={{ marginTop: 18 }}>
           {buildings.map((b) => {
@@ -55,7 +111,7 @@ export default function SiteLayout({ buildings, onUpdateBuilding, notify }) {
               <div
                 key={b.id}
                 className="list-row"
-                style={{ cursor: "default", background: armedId === b.id ? "var(--pass-bg)" : undefined }}
+                style={{ cursor: "default", flexWrap: "wrap", background: armedId === b.id ? "var(--pass-bg)" : undefined }}
               >
                 <Icon.Building width="17" height="17" style={{ color: "var(--blueprint)", flexShrink: 0 }} />
                 <div className="grow">
@@ -64,6 +120,17 @@ export default function SiteLayout({ buildings, onUpdateBuilding, notify }) {
                     {b.floors}층 · 층당 {b.unitsPerFloor}세대{hasPos ? " · 배치 완료" : " · 위치 미지정"}
                   </div>
                 </div>
+                <select
+                  className="input"
+                  style={{ width: 92, padding: "6px 8px", fontSize: 12.5 }}
+                  value={b.shape || "slab"}
+                  disabled={busyId === b.id}
+                  onChange={(e) => handleShapeChange(b.id, e.target.value)}
+                >
+                  {SHAPE_OPTIONS.map((s) => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
                 {armedId === b.id ? (
                   <span className="chip" style={{ background: "var(--pass)", color: "#fff" }}>
                     지도를 클릭하세요
@@ -97,14 +164,14 @@ export default function SiteLayout({ buildings, onUpdateBuilding, notify }) {
           <Site3DView buildings={positioned} />
         )}
         <div style={{ marginTop: 12, fontSize: 11.5, color: "var(--ink-faint)" }}>
-          건물 높이는 층수, 밑면 크기는 층당 세대수를 기준으로 한 개략적인 매싱(massing) 모델입니다. 실제 치수와는 차이가 있을 수 있습니다.
+          건물 높이는 층수, 밑면 크기는 층당 세대수, 외곽 형태는 선택한 동 형태(판상형·타워형·ㄱ형·Y형)를 기준으로 한 개략적인 매싱(massing) 모델입니다. 실제 치수·형태와는 차이가 있을 수 있습니다.
         </div>
       </div>
     </div>
   );
 }
 
-function SiteMap2D({ buildings, armed, onPlace }) {
+function SiteMap2D({ buildings, armed, onPlace, backgroundImage }) {
   function handleClick(e) {
     if (!armed) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -115,10 +182,14 @@ function SiteMap2D({ buildings, armed, onPlace }) {
 
   return (
     <div className={`drawing-frame${armed ? " editable" : ""}`} style={{ aspectRatio: "4 / 3" }} onClick={handleClick}>
-      <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "100%", display: "block" }}>
-        <rect x="0" y="0" width="400" height="300" fill="#f4f7f5" />
-        <rect x="10" y="10" width="380" height="280" fill="none" stroke="#9db3c4" strokeWidth="2" strokeDasharray="6 4" />
-      </svg>
+      {backgroundImage ? (
+        <img src={backgroundImage} alt="배치도" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      ) : (
+        <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "100%", display: "block" }}>
+          <rect x="0" y="0" width="400" height="300" fill="#f4f7f5" />
+          <rect x="10" y="10" width="380" height="280" fill="none" stroke="#9db3c4" strokeWidth="2" strokeDasharray="6 4" />
+        </svg>
+      )}
       {buildings.map((b) => (
         <div
           key={b.id}
@@ -151,6 +222,67 @@ function SiteMap2D({ buildings, armed, onPlace }) {
       {armed && <span className="drawing-hint">지도를 클릭해 위치를 지정하세요</span>}
     </div>
   );
+}
+
+// 동 형태별로 매싱 박스 파츠(local 중심좌표 x,z / 회전 rotY / 가로w·깊이d)를 계산한다.
+// 모든 파츠는 baseSize(동 하나의 기준 크기)를 기준으로 산출한다.
+function shapeParts(shape, baseSize) {
+  if (shape === "tower") {
+    const s = baseSize * 0.9;
+    return [{ w: s, d: s, x: 0, z: 0, rotY: 0 }];
+  }
+  if (shape === "l") {
+    const arm = baseSize * 1.3;
+    const thick = baseSize * 0.5;
+    return [
+      { w: arm, d: thick, x: arm / 2, z: 0, rotY: 0 },
+      { w: arm, d: thick, x: 0, z: arm / 2, rotY: -Math.PI / 2 },
+    ];
+  }
+  if (shape === "y") {
+    const arm = baseSize * 0.85;
+    const thick = baseSize * 0.48;
+    const anglesDeg = [90, 210, 330];
+    return anglesDeg.map((deg) => {
+      const rad = (deg * Math.PI) / 180;
+      return {
+        w: arm,
+        d: thick,
+        x: Math.cos(rad) * (arm / 2),
+        z: Math.sin(rad) * (arm / 2),
+        rotY: -rad,
+      };
+    });
+  }
+  // slab (판상형, 기본값)
+  return [{ w: baseSize * 1.8, d: baseSize * 0.78, x: 0, z: 0, rotY: 0 }];
+}
+
+function addBuildingMesh(group, disposables, building) {
+  const baseSize = 3 + Math.min(building.unitsPerFloor || 4, 12) * 0.8;
+  const bHeight = Math.max(1.2, (building.floors || 1) * 0.42);
+  const parts = shapeParts(building.shape || "slab", baseSize);
+
+  const wx = (building.siteX / 100) * 40 - 20;
+  const wz = (building.siteY / 100) * 40 - 20;
+
+  parts.forEach((p) => {
+    const geo = new THREE.BoxGeometry(p.w, bHeight, p.d);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x3e7cb1, roughness: 0.75, metalness: 0.05 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(wx + p.x, bHeight / 2, wz + p.z);
+    mesh.rotation.y = p.rotY;
+    group.add(mesh);
+
+    const edgesGeo = new THREE.EdgesGeometry(geo);
+    const edgesMat = new THREE.LineBasicMaterial({ color: 0x17456f });
+    const edges = new THREE.LineSegments(edgesGeo, edgesMat);
+    edges.position.copy(mesh.position);
+    edges.rotation.y = p.rotY;
+    group.add(edges);
+
+    disposables.push(geo, mat, edgesGeo, edgesMat);
+  });
 }
 
 function Site3DView({ buildings }) {
@@ -189,25 +321,7 @@ function Site3DView({ buildings }) {
 
     const group = new THREE.Group();
     const disposables = [groundGeo, groundMat];
-    buildings.forEach((b) => {
-      const footprint = 3 + Math.min(b.unitsPerFloor || 4, 12) * 0.8;
-      const bHeight = Math.max(1.2, (b.floors || 1) * 0.42);
-      const geo = new THREE.BoxGeometry(footprint, bHeight, footprint);
-      const mat = new THREE.MeshStandardMaterial({ color: 0x3e7cb1, roughness: 0.75, metalness: 0.05 });
-      const mesh = new THREE.Mesh(geo, mat);
-      const wx = (b.siteX / 100) * 40 - 20;
-      const wz = (b.siteY / 100) * 40 - 20;
-      mesh.position.set(wx, bHeight / 2, wz);
-      group.add(mesh);
-
-      const edgesGeo = new THREE.EdgesGeometry(geo);
-      const edgesMat = new THREE.LineBasicMaterial({ color: 0x17456f });
-      const edges = new THREE.LineSegments(edgesGeo, edgesMat);
-      edges.position.copy(mesh.position);
-      group.add(edges);
-
-      disposables.push(geo, mat, edgesGeo, edgesMat);
-    });
+    buildings.forEach((b) => addBuildingMesh(group, disposables, b));
     scene.add(group);
 
     let radius = 34;

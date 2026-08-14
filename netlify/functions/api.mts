@@ -51,11 +51,12 @@ export default async (req: Request, context: Context): Promise<Response> => {
         buildings = DEFAULT_BUILDINGS;
         await setCollection("buildings", buildings);
       }
-      const [inspections, ncrs] = await Promise.all([
+      const [inspections, ncrs, siteSettings] = await Promise.all([
         getCollection("inspections"),
         getCollection("ncrs"),
+        dataStore().get("site-settings", { type: "json" }),
       ]);
-      return jsonResponse({ buildings, inspections, ncrs });
+      return jsonResponse({ buildings, inspections, ncrs, siteSettings: siteSettings || {} });
     }
 
     // ---- buildings ----
@@ -97,6 +98,7 @@ export default async (req: Request, context: Context): Promise<Response> => {
         if (body.siteX !== undefined) updated.siteX = body.siteX === null ? null : Number(body.siteX);
         if (body.siteY !== undefined) updated.siteY = body.siteY === null ? null : Number(body.siteY);
         if (body.footprint !== undefined) updated.footprint = Number(body.footprint);
+        if (body.shape !== undefined) updated.shape = body.shape;
         list[idx] = updated;
         await setCollection("buildings", list);
         return jsonResponse(updated);
@@ -209,6 +211,21 @@ export default async (req: Request, context: Context): Promise<Response> => {
         }
         list[idx] = updated;
         await setCollection("ncrs", list);
+        return jsonResponse(updated);
+      }
+    }
+
+    // ---- site settings (site-wide layout background image, etc.) ----
+    if (resource === "sitesettings") {
+      if (method === "GET") {
+        const s = await dataStore().get("site-settings", { type: "json" });
+        return jsonResponse(s || {});
+      }
+      if (method === "PATCH") {
+        const body = await req.json();
+        const current = (await dataStore().get("site-settings", { type: "json" })) || {};
+        const updated = { ...current, ...body };
+        await dataStore().setJSON("site-settings", updated);
         return jsonResponse(updated);
       }
     }
