@@ -108,7 +108,9 @@ textarea {
 .sidebar {
   width: var(--sidebar-w);
   flex-shrink: 0;
-  background: var(--blueprint-deep);
+  --sidebar-bg: var(--blueprint-deep);
+  --sidebar-accent: var(--line-blue);
+  background: var(--sidebar-bg);
   color: #eef3f6;
   display: flex;
   flex-direction: column;
@@ -118,6 +120,12 @@ textarea {
   background-image: linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
   background-size: 24px 24px;
+  transition: background-color 0.25s ease;
+}
+
+.sidebar.role-sub {
+  --sidebar-bg: #12362a;
+  --sidebar-accent: #3f9169;
 }
 
 .sidebar-brand {
@@ -132,11 +140,12 @@ textarea {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: var(--line-blue);
+  background: var(--sidebar-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: background-color 0.25s ease;
 }
 
 .sidebar-brand-text .title {
@@ -185,7 +194,7 @@ textarea {
 }
 
 .sidebar-nav-item.active {
-  background: var(--line-blue);
+  background: var(--sidebar-accent);
   color: #fff;
 }
 
@@ -252,7 +261,8 @@ textarea {
 
 .role-pill.active {
   background: #fff;
-  color: var(--blueprint-deep);
+  color: var(--sidebar-bg);
+  transition: color 0.25s ease;
 }
 
 /* main content */

@@ -25,7 +25,7 @@ export default function Layout({ role, setRole, view, setView, badges = {}, chil
   const visibleNavItems = NAV_ITEMS.filter((item) => role === ROLES.SUPER || !RESTRICTED_VIEWS_FOR_SUB.includes(item.id));
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className={`sidebar${role === ROLES.SUB ? " role-sub" : ""}`}>
         <div className="sidebar-brand">
           <div className="sidebar-brand-mark">
             <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
