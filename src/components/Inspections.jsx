@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from "react";
-import { CATEGORIES, getCategory, getItem, formatDateTime, ROLES } from "../data.js";
+import { CATEGORIES, getCategory, itemsForCategory, findItemText, formatDateTime, ROLES } from "../data.js";
 import { compressImage } from "../api.js";
 import { Icon, StatusBadge, CategoryTag, Modal, EmptyState, Stamp } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 
 const TABS = ["전체", "대기", "승인", "반려"];
 
-export default function Inspections({ role, buildings, inspections, onCreate, onUpdateStatus, notify }) {
+export default function Inspections({ role, buildings, inspections, checklistItems, onCreate, onUpdateStatus, notify }) {
   const [tab, setTab] = useState("전체");
   const [showForm, setShowForm] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -81,6 +81,7 @@ export default function Inspections({ role, buildings, inspections, onCreate, on
       {showForm && (
         <InspectionForm
           buildings={buildings}
+          checklistItems={checklistItems}
           onClose={() => setShowForm(false)}
           onSubmit={async (data) => {
             await onCreate(data);
@@ -95,6 +96,7 @@ export default function Inspections({ role, buildings, inspections, onCreate, on
           insp={selected}
           building={buildings.find((b) => b.id === selected.buildingId)}
           role={role}
+          checklistItems={checklistItems}
           onClose={() => setSelectedId(null)}
           onDecide={async (status, comment) => {
             const res = await onUpdateStatus(selected.id, { status, comment, approver: "감리단 담당자" });
@@ -107,7 +109,7 @@ export default function Inspections({ role, buildings, inspections, onCreate, on
   );
 }
 
-function InspectionForm({ buildings, onClose, onSubmit }) {
+function InspectionForm({ buildings, checklistItems, onClose, onSubmit }) {
   const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
   const [buildingId, setBuildingId] = useState(buildings[0]?.id || "");
   const [floor, setFloor] = useState("");
@@ -121,6 +123,7 @@ function InspectionForm({ buildings, onClose, onSubmit }) {
   const [error, setError] = useState("");
 
   const category = getCategory(categoryId);
+  const categoryItems = itemsForCategory(checklistItems, categoryId);
 
   function toggleItem(id) {
     setCheckedItemIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -217,7 +220,10 @@ function InspectionForm({ buildings, onClose, onSubmit }) {
 
         <div className="field">
           <label>{category.name} 체크리스트 — 확인된 항목 선택</label>
-          {category.items.map((item) => (
+          {categoryItems.length === 0 && (
+            <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>등록된 체크리스트 항목이 없습니다.</div>
+          )}
+          {categoryItems.map((item) => (
             <label key={item.id} className={`checklist-item${checkedItemIds.includes(item.id) ? " checked" : ""}`}>
               <input type="checkbox" checked={checkedItemIds.includes(item.id)} onChange={() => toggleItem(item.id)} />
               <span className="txt">{item.text}</span>
@@ -270,7 +276,7 @@ function InspectionForm({ buildings, onClose, onSubmit }) {
   );
 }
 
-function InspectionDetail({ insp, building, role, onClose, onDecide }) {
+function InspectionDetail({ insp, building, role, checklistItems, onClose, onDecide }) {
   const category = getCategory(insp.categoryId);
   const [comment, setComment] = useState("");
   const [showReject, setShowReject] = useState(false);
@@ -311,11 +317,11 @@ function InspectionDetail({ insp, building, role, onClose, onDecide }) {
           <div className="eyebrow" style={{ marginBottom: 8 }}>확인된 체크 항목 ({insp.checkedItemIds.length})</div>
           {insp.checkedItemIds.length === 0 && <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>선택된 항목 없음</div>}
           {insp.checkedItemIds.map((id) => {
-            const item = getItem(insp.categoryId, id);
+            const text = findItemText(checklistItems, id);
             return (
               <div key={id} style={{ display: "flex", gap: 7, fontSize: 12.8, marginBottom: 6, color: "var(--ink-soft)" }}>
                 <Icon.Check width="14" height="14" style={{ color: "var(--pass)", flexShrink: 0, marginTop: 1 }} />
-                {item ? item.text : id}
+                {text}
               </div>
             );
           })}

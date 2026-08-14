@@ -49,6 +49,14 @@ export function deleteUnitNote(id) {
   return request(`/unitnotes/${id}`, { method: "DELETE" });
 }
 
+export function createChecklistItem(data) {
+  return request("/checklistitems", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function deleteChecklistItem(id) {
+  return request(`/checklistitems/${id}`, { method: "DELETE" });
+}
+
 export function createInspection(data) {
   return request("/inspections", { method: "POST", body: JSON.stringify(data) });
 }

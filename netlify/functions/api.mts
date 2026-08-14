@@ -37,6 +37,32 @@ const DEFAULT_BUILDINGS = [
   { id: "bldg-102", name: "102동", floors: 18, unitsPerFloor: 4, createdAt: nowIso() },
 ];
 
+const DEFAULT_CHECKLIST_ITEMS = [
+  { id: "frame-1", categoryId: "frame", text: "철근 배근 간격 및 규격 적정성" },
+  { id: "frame-2", categoryId: "frame", text: "철근 이음 위치 및 정착 길이" },
+  { id: "frame-3", categoryId: "frame", text: "거푸집 치수 및 수직·수평도" },
+  { id: "frame-4", categoryId: "frame", text: "거푸집 조립 상태 및 지지대(동바리) 고정" },
+  { id: "frame-5", categoryId: "frame", text: "콘크리트 타설 전 이물질 제거 상태" },
+  { id: "frame-6", categoryId: "frame", text: "콘크리트 타설 및 다짐 상태" },
+  { id: "frame-7", categoryId: "frame", text: "콘크리트 양생 관리(양생포·살수)" },
+  { id: "finish-1", categoryId: "finish", text: "미장 바탕면 평활도 및 균열 여부" },
+  { id: "finish-2", categoryId: "finish", text: "방수 바탕면 처리 및 방수층 두께" },
+  { id: "finish-3", categoryId: "finish", text: "타일 압착 시공 및 공극(뜬 부분) 여부" },
+  { id: "finish-4", categoryId: "finish", text: "타일 줄눈 간격 균일성 및 마감" },
+  { id: "finish-5", categoryId: "finish", text: "창호 수직·수평 및 고정 상태" },
+  { id: "finish-6", categoryId: "finish", text: "창호 주변 실링 처리 및 누수 여부" },
+  { id: "mep-1", categoryId: "mep", text: "급수·배수 배관 누수 압력 테스트" },
+  { id: "mep-2", categoryId: "mep", text: "배관 구배 및 고정 상태" },
+  { id: "mep-3", categoryId: "mep", text: "전기 간선 포설 경로 및 결속 상태" },
+  { id: "mep-4", categoryId: "mep", text: "절연 저항 측정값 기준 충족 여부" },
+  { id: "mep-5", categoryId: "mep", text: "분전반 결선 및 접지 상태" },
+  { id: "safety-1", categoryId: "safety", text: "추락 방지시설(안전난간·개구부 덮개) 설치" },
+  { id: "safety-2", categoryId: "safety", text: "가설 구조물(비계·동바리) 안전성" },
+  { id: "safety-3", categoryId: "safety", text: "개인 보호구(안전모·안전대) 착용 여부" },
+  { id: "safety-4", categoryId: "safety", text: "현장 정리정돈 및 자재 적치 상태" },
+  { id: "safety-5", categoryId: "safety", text: "화기 작업 관리 및 소화기 비치 여부" },
+];
+
 export default async (req: Request, context: Context): Promise<Response> => {
   const url = new URL(req.url);
   const segments = url.pathname.replace(/^\/api\/?/, "").split("/").filter(Boolean);
@@ -51,13 +77,18 @@ export default async (req: Request, context: Context): Promise<Response> => {
         buildings = DEFAULT_BUILDINGS;
         await setCollection("buildings", buildings);
       }
+      let checklistItems = await getCollection("checklist-items");
+      if (checklistItems.length === 0) {
+        checklistItems = DEFAULT_CHECKLIST_ITEMS.map((i) => ({ ...i, createdAt: nowIso() }));
+        await setCollection("checklist-items", checklistItems);
+      }
       const [inspections, ncrs, siteSettings, unitNotes] = await Promise.all([
         getCollection("inspections"),
         getCollection("ncrs"),
         dataStore().get("site-settings", { type: "json" }),
         getCollection("unit-notes"),
       ]);
-      return jsonResponse({ buildings, inspections, ncrs, siteSettings: siteSettings || {}, unitNotes });
+      return jsonResponse({ buildings, inspections, ncrs, siteSettings: siteSettings || {}, unitNotes, checklistItems });
     }
 
     // ---- buildings ----
@@ -261,6 +292,34 @@ export default async (req: Request, context: Context): Promise<Response> => {
       if (method === "DELETE" && id) {
         const list = await getCollection("unit-notes");
         await setCollection("unit-notes", list.filter((n) => n.id !== id));
+        return jsonResponse({ ok: true });
+      }
+    }
+
+    // ---- checklist items (감리단이 표준 체크리스트 항목을 추가/삭제) ----
+    if (resource === "checklistitems") {
+      if (method === "GET") {
+        return jsonResponse(await getCollection("checklist-items"));
+      }
+      if (method === "POST") {
+        const body = await req.json();
+        if (!body.categoryId || !body.text) {
+          return jsonResponse({ error: "categoryId, text는 필수입니다." }, 400);
+        }
+        const list = await getCollection("checklist-items");
+        const item = {
+          id: newId(),
+          categoryId: body.categoryId,
+          text: String(body.text),
+          createdAt: nowIso(),
+        };
+        list.push(item);
+        await setCollection("checklist-items", list);
+        return jsonResponse(item, 201);
+      }
+      if (method === "DELETE" && id) {
+        const list = await getCollection("checklist-items");
+        await setCollection("checklist-items", list.filter((i) => i.id !== id));
         return jsonResponse({ ok: true });
       }
     }

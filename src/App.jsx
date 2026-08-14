@@ -19,6 +19,7 @@ export default function App() {
   const [ncrs, setNcrs] = useState([]);
   const [siteSettings, setSiteSettings] = useState({});
   const [unitNotes, setUnitNotes] = useState([]);
+  const [checklistItems, setChecklistItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [toast, setToast] = useState("");
@@ -42,6 +43,7 @@ export default function App() {
         setNcrs(data.ncrs || []);
         setSiteSettings(data.siteSettings || {});
         setUnitNotes(data.unitNotes || []);
+        setChecklistItems(data.checklistItems || []);
       })
       .catch((err) => alive && setLoadError(err.message))
       .finally(() => alive && setLoading(false));
@@ -81,6 +83,17 @@ export default function App() {
   async function handleDeleteUnitNote(id) {
     await api.deleteUnitNote(id);
     setUnitNotes((prev) => prev.filter((n) => n.id !== id));
+  }
+
+  async function handleCreateChecklistItem(data) {
+    const created = await api.createChecklistItem(data);
+    setChecklistItems((prev) => [...prev, created]);
+    return created;
+  }
+
+  async function handleDeleteChecklistItem(id) {
+    await api.deleteChecklistItem(id);
+    setChecklistItems((prev) => prev.filter((i) => i.id !== id));
   }
 
   async function handleCreateInspection(data) {
@@ -126,12 +139,21 @@ export default function App() {
     <>
       <Layout role={role} setRole={setRole} view={view} setView={setView} badges={badges}>
         {view === "dashboard" && <Dashboard buildings={buildings} inspections={inspections} ncrs={ncrs} />}
-        {view === "checklist" && <Checklist />}
+        {view === "checklist" && (
+          <Checklist
+            role={role}
+            items={checklistItems}
+            onCreateItem={handleCreateChecklistItem}
+            onDeleteItem={handleDeleteChecklistItem}
+            notify={notify}
+          />
+        )}
         {view === "inspections" && (
           <Inspections
             role={role}
             buildings={buildings}
             inspections={inspections}
+            checklistItems={checklistItems}
             onCreate={handleCreateInspection}
             onUpdateStatus={handleUpdateInspectionStatus}
             notify={notify}
@@ -142,6 +164,7 @@ export default function App() {
           <UnitInfo
             buildings={buildings}
             inspections={inspections}
+            checklistItems={checklistItems}
             unitNotes={unitNotes}
             onCreateNote={handleCreateUnitNote}
             onDeleteNote={handleDeleteUnitNote}

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { CATEGORIES, getCategory, formatDateTime } from "../data.js";
+import { CATEGORIES, itemsForCategory, formatDateTime } from "../data.js";
 import { Icon, EmptyState, CategoryTag, StatusBadge } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 
@@ -15,19 +15,18 @@ function unitOptions(unitsPerFloor) {
   return Array.from({ length: n }, (_, i) => String(i + 1).padStart(2, "0"));
 }
 
-function categoryProgress(inspections, buildingId, floor, unit, categoryId) {
+function categoryProgress(inspections, checklistItems, buildingId, floor, unit, categoryId) {
   const relevant = inspections.filter(
     (i) => i.buildingId === buildingId && String(i.floor) === String(floor) && i.unit === unit && i.categoryId === categoryId
   );
-  const cat = getCategory(categoryId);
-  const total = cat ? cat.items.length : 0;
+  const total = itemsForCategory(checklistItems, categoryId).length;
   if (relevant.length === 0) return { status: "미시작", percent: 0 };
   const latest = [...relevant].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
   const percent = total ? Math.round((latest.checkedItemIds.length / total) * 100) : 0;
   return { status: latest.status, percent: latest.status === "반려" ? 0 : percent };
 }
 
-export default function UnitInfo({ buildings, inspections, unitNotes, onCreateNote, onDeleteNote, notify }) {
+export default function UnitInfo({ buildings, inspections, checklistItems, unitNotes, onCreateNote, onDeleteNote, notify }) {
   const [buildingId, setBuildingId] = useState(buildings[0]?.id || "");
   const [floor, setFloor] = useState(1);
   const [unit, setUnit] = useState("01");
@@ -144,7 +143,7 @@ export default function UnitInfo({ buildings, inspections, unitNotes, onCreateNo
               </div>
             </div>
             {CATEGORIES.map((c) => {
-              const prog = categoryProgress(inspections, buildingId, floor, unit, c.id);
+              const prog = categoryProgress(inspections, checklistItems, buildingId, floor, unit, c.id);
               return (
                 <div key={c.id} style={{ marginBottom: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
