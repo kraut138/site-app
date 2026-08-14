@@ -79,8 +79,8 @@ export const ROLES = {
   SUPER: "감리단",
 };
 
-// 하도급사 역할에게는 숨기는 탭(대시보드/동 관리/배치도) - 감리단/소장은 전체 열람 가능
-export const RESTRICTED_VIEWS_FOR_SUB = ["dashboard", "buildings", "sitelayout"];
+// 하도급사 역할에게는 숨기는 탭(대시보드/동 관리/배치도/호실 정보) - 감리단/소장은 전체 열람 가능
+export const RESTRICTED_VIEWS_FOR_SUB = ["dashboard", "buildings", "sitelayout", "unitinfo"];
 
 export const SHAPE_OPTIONS = [
   { id: "slab", label: "판상형" },

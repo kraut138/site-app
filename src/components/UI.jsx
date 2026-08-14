@@ -49,6 +49,13 @@ export const Icon = {
       <path d="M12 12.5V21" />
     </svg>
   ),
+  Door: (p) => (
+    <svg className="icon" {...iconProps} {...p}>
+      <rect x="6" y="3" width="12" height="18" rx="1" />
+      <path d="M14.3 12h.01" />
+      <path d="M6 21h12" />
+    </svg>
+  ),
   Close: (p) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...p}>
       <path d="M6 6l12 12M18 6L6 18" />

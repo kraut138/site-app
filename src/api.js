@@ -41,6 +41,14 @@ export function updateSiteSettings(data) {
   return request("/sitesettings", { method: "PATCH", body: JSON.stringify(data) });
 }
 
+export function createUnitNote(data) {
+  return request("/unitnotes", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function deleteUnitNote(id) {
+  return request(`/unitnotes/${id}`, { method: "DELETE" });
+}
+
 export function createInspection(data) {
   return request("/inspections", { method: "POST", body: JSON.stringify(data) });
 }

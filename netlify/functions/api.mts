@@ -51,12 +51,13 @@ export default async (req: Request, context: Context): Promise<Response> => {
         buildings = DEFAULT_BUILDINGS;
         await setCollection("buildings", buildings);
       }
-      const [inspections, ncrs, siteSettings] = await Promise.all([
+      const [inspections, ncrs, siteSettings, unitNotes] = await Promise.all([
         getCollection("inspections"),
         getCollection("ncrs"),
         dataStore().get("site-settings", { type: "json" }),
+        getCollection("unit-notes"),
       ]);
-      return jsonResponse({ buildings, inspections, ncrs, siteSettings: siteSettings || {} });
+      return jsonResponse({ buildings, inspections, ncrs, siteSettings: siteSettings || {}, unitNotes });
     }
 
     // ---- buildings ----
@@ -227,6 +228,40 @@ export default async (req: Request, context: Context): Promise<Response> => {
         const updated = { ...current, ...body };
         await dataStore().setJSON("site-settings", updated);
         return jsonResponse(updated);
+      }
+    }
+
+    // ---- unit notes (호실별 특이사항) ----
+    if (resource === "unitnotes") {
+      if (method === "GET") {
+        return jsonResponse(await getCollection("unit-notes"));
+      }
+      if (method === "POST") {
+        const body = await req.json();
+        const required = ["buildingId", "floor", "unit", "text"];
+        for (const field of required) {
+          if (body[field] === undefined || body[field] === null || body[field] === "") {
+            return jsonResponse({ error: `${field}는 필수입니다.` }, 400);
+          }
+        }
+        const list = await getCollection("unit-notes");
+        const item = {
+          id: newId(),
+          buildingId: body.buildingId,
+          floor: body.floor,
+          unit: body.unit,
+          text: String(body.text),
+          author: body.author || "감리단",
+          createdAt: nowIso(),
+        };
+        list.push(item);
+        await setCollection("unit-notes", list);
+        return jsonResponse(item, 201);
+      }
+      if (method === "DELETE" && id) {
+        const list = await getCollection("unit-notes");
+        await setCollection("unit-notes", list.filter((n) => n.id !== id));
+        return jsonResponse({ ok: true });
       }
     }
 

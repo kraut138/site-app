@@ -6,6 +6,7 @@ import Inspections from "./components/Inspections.jsx";
 import NCR from "./components/NCR.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
+import UnitInfo from "./components/UnitInfo.jsx";
 import { Toast } from "./components/UI.jsx";
 import { ROLES, RESTRICTED_VIEWS_FOR_SUB } from "./data.js";
 import * as api from "./api.js";
@@ -17,6 +18,7 @@ export default function App() {
   const [inspections, setInspections] = useState([]);
   const [ncrs, setNcrs] = useState([]);
   const [siteSettings, setSiteSettings] = useState({});
+  const [unitNotes, setUnitNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [toast, setToast] = useState("");
@@ -39,6 +41,7 @@ export default function App() {
         setInspections(data.inspections || []);
         setNcrs(data.ncrs || []);
         setSiteSettings(data.siteSettings || {});
+        setUnitNotes(data.unitNotes || []);
       })
       .catch((err) => alive && setLoadError(err.message))
       .finally(() => alive && setLoading(false));
@@ -67,6 +70,17 @@ export default function App() {
     const updated = await api.updateSiteSettings(data);
     setSiteSettings(updated);
     return updated;
+  }
+
+  async function handleCreateUnitNote(data) {
+    const created = await api.createUnitNote(data);
+    setUnitNotes((prev) => [...prev, created]);
+    return created;
+  }
+
+  async function handleDeleteUnitNote(id) {
+    await api.deleteUnitNote(id);
+    setUnitNotes((prev) => prev.filter((n) => n.id !== id));
   }
 
   async function handleCreateInspection(data) {
@@ -124,6 +138,16 @@ export default function App() {
           />
         )}
         {view === "ncr" && <NCR role={role} buildings={buildings} ncrs={ncrs} onUpdateStatus={handleUpdateNcrStatus} notify={notify} />}
+        {view === "unitinfo" && (
+          <UnitInfo
+            buildings={buildings}
+            inspections={inspections}
+            unitNotes={unitNotes}
+            onCreateNote={handleCreateUnitNote}
+            onDeleteNote={handleDeleteUnitNote}
+            notify={notify}
+          />
+        )}
         {view === "buildings" && (
           <Buildings buildings={buildings} onCreate={handleCreateBuilding} onDelete={handleDeleteBuilding} canEdit={role === ROLES.SUPER} />
         )}
