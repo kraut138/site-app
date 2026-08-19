@@ -45,6 +45,50 @@ export function findItemText(checklistItems, itemId) {
   return item ? item.text : "(삭제된 항목)";
 }
 
+// 카테고리별 "기본값" 목록 - 체크리스트 탭의 "기본값으로 초기화" 버튼에서 사용
+export const DEFAULT_ITEMS_BY_CATEGORY = {
+  frame: [
+    "철근 배근 간격 및 규격 적정성",
+    "철근 이음 위치 및 정착 길이",
+    "거푸집 치수 및 수직·수평도",
+    "거푸집 조립 상태 및 지지대(동바리) 고정",
+    "콘크리트 타설 전 이물질 제거 상태",
+    "콘크리트 타설 및 다짐 상태",
+    "콘크리트 양생 관리(양생포·살수)",
+  ],
+  finish: [
+    "PL창호",
+    "단열재",
+    "견출",
+    "조적",
+    "경량틀",
+    "목창호",
+    "석고판",
+    "차음재",
+    "기포 콘크리트 타설",
+    "바닥 난방 코일",
+    "방통 타설",
+    "천정",
+    "가구",
+    "도배",
+    "바닥마감",
+  ],
+  mep: [
+    "급수·배수 배관 누수 압력 테스트",
+    "배관 구배 및 고정 상태",
+    "전기 간선 포설 경로 및 결속 상태",
+    "절연 저항 측정값 기준 충족 여부",
+    "분전반 결선 및 접지 상태",
+  ],
+  safety: [
+    "추락 방지시설(안전난간·개구부 덮개) 설치",
+    "가설 구조물(비계·동바리) 안전성",
+    "개인 보호구(안전모·안전대) 착용 여부",
+    "현장 정리정돈 및 자재 적치 상태",
+    "화기 작업 관리 및 소화기 비치 여부",
+  ],
+};
+
 export const INSPECTION_STATUSES = ["대기", "승인", "반려"];
 export const NCR_STATUSES = ["발생", "조치중", "재검측요청", "완료"];
 
@@ -53,8 +97,9 @@ export const ROLES = {
   SUPER: "감리단",
 };
 
-// 하도급사 역할에게는 숨기는 탭(대시보드/동 관리/배치도/호실 정보/안전 현황) - 감리단/소장은 전체 열람 가능
-export const RESTRICTED_VIEWS_FOR_SUB = ["dashboard", "buildings", "sitelayout", "unitinfo", "safety"];
+// 하도급사 역할에게는 숨기는 탭(동 관리/배치도/호실 정보/안전 현황) - 감리단/소장은 전체 열람 가능
+// (대시보드는 이제 "현장관리" 탭 내부의 서브탭이며, OperationsHub.jsx에서 role로 별도 제한됨)
+export const RESTRICTED_VIEWS_FOR_SUB = ["buildings", "sitelayout", "unitinfo", "safety"];
 
 export const SHAPE_OPTIONS = [
   { id: "slab", label: "판상형" },

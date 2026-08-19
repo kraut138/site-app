@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Layout from "./components/Layout.jsx";
-import Dashboard from "./components/Dashboard.jsx";
+import OperationsHub from "./components/OperationsHub.jsx";
 import Checklist from "./components/Checklist.jsx";
-import Inspections from "./components/Inspections.jsx";
-import NCR from "./components/NCR.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
@@ -98,6 +96,11 @@ export default function App() {
     setChecklistItems((prev) => prev.filter((i) => i.id !== id));
   }
 
+  async function handleResetChecklistCategory(categoryId, items) {
+    const created = await api.resetChecklistCategory(categoryId, items);
+    setChecklistItems((prev) => [...prev.filter((i) => i.categoryId !== categoryId), ...created]);
+  }
+
   async function handleCreateInspection(data) {
     const created = await api.createInspection(data);
     setInspections((prev) => [...prev, created]);
@@ -123,6 +126,7 @@ export default function App() {
     ncr: ncrs.filter((n) => n.status !== "완료").length,
     safetyNcr: ncrs.filter((n) => n.categoryId === "safety" && n.status !== "완료").length,
   };
+  badges.operations = badges.pending + badges.ncr;
 
   if (!role) {
     return (
@@ -152,28 +156,30 @@ export default function App() {
   return (
     <>
       <Layout role={role} setRole={setRole} view={view} setView={setView} badges={badges}>
-        {view === "dashboard" && <Dashboard buildings={buildings} inspections={inspections} ncrs={ncrs} />}
+        {view === "operations" && (
+          <OperationsHub
+            role={role}
+            badges={badges}
+            buildings={buildings}
+            inspections={inspections}
+            ncrs={ncrs}
+            checklistItems={checklistItems}
+            onCreateInspection={handleCreateInspection}
+            onUpdateInspectionStatus={handleUpdateInspectionStatus}
+            onUpdateNcrStatus={handleUpdateNcrStatus}
+            notify={notify}
+          />
+        )}
         {view === "checklist" && (
           <Checklist
             role={role}
             items={checklistItems}
             onCreateItem={handleCreateChecklistItem}
             onDeleteItem={handleDeleteChecklistItem}
+            onResetCategory={handleResetChecklistCategory}
             notify={notify}
           />
         )}
-        {view === "inspections" && (
-          <Inspections
-            role={role}
-            buildings={buildings}
-            inspections={inspections}
-            checklistItems={checklistItems}
-            onCreate={handleCreateInspection}
-            onUpdateStatus={handleUpdateInspectionStatus}
-            notify={notify}
-          />
-        )}
-        {view === "ncr" && <NCR role={role} buildings={buildings} ncrs={ncrs} onUpdateStatus={handleUpdateNcrStatus} notify={notify} />}
         {view === "safety" && (
           <SafetyOverview
             role={role}

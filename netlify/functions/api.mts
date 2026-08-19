@@ -45,12 +45,21 @@ const DEFAULT_CHECKLIST_ITEMS = [
   { id: "frame-5", categoryId: "frame", text: "콘크리트 타설 전 이물질 제거 상태" },
   { id: "frame-6", categoryId: "frame", text: "콘크리트 타설 및 다짐 상태" },
   { id: "frame-7", categoryId: "frame", text: "콘크리트 양생 관리(양생포·살수)" },
-  { id: "finish-1", categoryId: "finish", text: "미장 바탕면 평활도 및 균열 여부" },
-  { id: "finish-2", categoryId: "finish", text: "방수 바탕면 처리 및 방수층 두께" },
-  { id: "finish-3", categoryId: "finish", text: "타일 압착 시공 및 공극(뜬 부분) 여부" },
-  { id: "finish-4", categoryId: "finish", text: "타일 줄눈 간격 균일성 및 마감" },
-  { id: "finish-5", categoryId: "finish", text: "창호 수직·수평 및 고정 상태" },
-  { id: "finish-6", categoryId: "finish", text: "창호 주변 실링 처리 및 누수 여부" },
+  { id: "finish-1", categoryId: "finish", text: "PL창호" },
+  { id: "finish-2", categoryId: "finish", text: "단열재" },
+  { id: "finish-3", categoryId: "finish", text: "견출" },
+  { id: "finish-4", categoryId: "finish", text: "조적" },
+  { id: "finish-5", categoryId: "finish", text: "경량틀" },
+  { id: "finish-6", categoryId: "finish", text: "목창호" },
+  { id: "finish-7", categoryId: "finish", text: "석고판" },
+  { id: "finish-8", categoryId: "finish", text: "차음재" },
+  { id: "finish-9", categoryId: "finish", text: "기포 콘크리트 타설" },
+  { id: "finish-10", categoryId: "finish", text: "바닥 난방 코일" },
+  { id: "finish-11", categoryId: "finish", text: "방통 타설" },
+  { id: "finish-12", categoryId: "finish", text: "천정" },
+  { id: "finish-13", categoryId: "finish", text: "가구" },
+  { id: "finish-14", categoryId: "finish", text: "도배" },
+  { id: "finish-15", categoryId: "finish", text: "바닥마감" },
   { id: "mep-1", categoryId: "mep", text: "급수·배수 배관 누수 압력 테스트" },
   { id: "mep-2", categoryId: "mep", text: "배관 구배 및 고정 상태" },
   { id: "mep-3", categoryId: "mep", text: "전기 간선 포설 경로 및 결속 상태" },
@@ -300,6 +309,21 @@ export default async (req: Request, context: Context): Promise<Response> => {
     if (resource === "checklistitems") {
       if (method === "GET") {
         return jsonResponse(await getCollection("checklist-items"));
+      }
+      if (method === "POST" && id === "reset") {
+        const body = await req.json();
+        if (!body.categoryId || !Array.isArray(body.items)) {
+          return jsonResponse({ error: "categoryId, items(배열)는 필수입니다." }, 400);
+        }
+        let list = await getCollection("checklist-items");
+        list = list.filter((i) => i.categoryId !== body.categoryId);
+        const newItems = body.items
+          .map((t: unknown) => String(t).trim())
+          .filter((t: string) => t.length > 0)
+          .map((text: string) => ({ id: newId(), categoryId: body.categoryId, text, createdAt: nowIso() }));
+        list = [...list, ...newItems];
+        await setCollection("checklist-items", list);
+        return jsonResponse(newItems, 201);
       }
       if (method === "POST") {
         const body = await req.json();

@@ -57,6 +57,10 @@ export function deleteChecklistItem(id) {
   return request(`/checklistitems/${id}`, { method: "DELETE" });
 }
 
+export function resetChecklistCategory(categoryId, items) {
+  return request("/checklistitems/reset", { method: "POST", body: JSON.stringify({ categoryId, items }) });
+}
+
 export function createInspection(data) {
   return request("/inspections", { method: "POST", body: JSON.stringify(data) });
 }

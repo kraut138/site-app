@@ -1,11 +1,15 @@
 import React, { useState } from "react";
-import { CATEGORIES, ROLES, itemsForCategory } from "../data.js";
+import { CATEGORIES, ROLES, itemsForCategory, DEFAULT_ITEMS_BY_CATEGORY } from "../data.js";
 import { Icon } from "./UI.jsx";
 
-export default function Checklist({ role, items, onCreateItem, onDeleteItem, notify }) {
-  const [openId, setOpenId] = useState(CATEGORIES[0].id);
+// 안전/환경은 별도 "안전 현황" 탭에서 다루므로 이 탭에서는 제외
+const VISIBLE_CATEGORIES = CATEGORIES.filter((c) => c.id !== "safety");
+
+export default function Checklist({ role, items, onCreateItem, onDeleteItem, onResetCategory, notify }) {
+  const [openId, setOpenId] = useState(VISIBLE_CATEGORIES[0].id);
   const [newText, setNewText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetConfirmId, setResetConfirmId] = useState(null);
   const canEdit = role === ROLES.SUPER;
 
   async function handleAdd(e) {
@@ -31,15 +35,29 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, not
     }
   }
 
+  async function handleReset(categoryId) {
+    setBusy(true);
+    try {
+      await onResetCategory(categoryId, DEFAULT_ITEMS_BY_CATEGORY[categoryId] || []);
+      notify("체크리스트를 기본값으로 초기화했습니다.");
+    } finally {
+      setBusy(false);
+      setResetConfirmId(null);
+    }
+  }
+
   return (
     <div>
       <div className="grid grid-4" style={{ marginBottom: 22 }}>
-        {CATEGORIES.map((c) => {
+        {VISIBLE_CATEGORIES.map((c) => {
           const count = itemsForCategory(items, c.id).length;
           return (
             <button
               key={c.id}
-              onClick={() => setOpenId(c.id)}
+              onClick={() => {
+                setOpenId(c.id);
+                setResetConfirmId(null);
+              }}
               className="card"
               style={{
                 padding: "16px 16px",
@@ -61,7 +79,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, not
         })}
       </div>
 
-      {CATEGORIES.filter((c) => c.id === openId).map((c) => {
+      {VISIBLE_CATEGORIES.filter((c) => c.id === openId).map((c) => {
         const catItems = itemsForCategory(items, c.id);
         return (
           <div className="card card-pad" key={c.id}>
@@ -70,7 +88,22 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, not
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: c.color, display: "inline-block" }} />
                 {c.name} 표준 체크리스트
               </div>
-              <span className="eyebrow mono">TEMPLATE · {c.id.toUpperCase()}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span className="eyebrow mono">TEMPLATE · {c.id.toUpperCase()}</span>
+                {canEdit && DEFAULT_ITEMS_BY_CATEGORY[c.id] && (
+                  resetConfirmId === c.id ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 11.5, color: "var(--fail)" }}>현재 항목을 모두 지우고 기본값으로 바꿀까요?</span>
+                      <button className="btn btn-fail btn-sm" disabled={busy} onClick={() => handleReset(c.id)}>확인</button>
+                      <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setResetConfirmId(null)}>취소</button>
+                    </div>
+                  ) : (
+                    <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setResetConfirmId(c.id)}>
+                      기본값으로 초기화
+                    </button>
+                  )
+                )}
+              </div>
             </div>
             {catItems.length === 0 ? (
               <div style={{ fontSize: 12.5, color: "var(--ink-faint)", padding: "10px 4px" }}>등록된 항목이 없습니다.</div>
@@ -123,7 +156,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, not
       <div style={{ marginTop: 18, display: "flex", gap: 8, alignItems: "flex-start", color: "var(--ink-soft)", fontSize: 12.5 }}>
         <Icon.Bell width="15" height="15" style={{ flexShrink: 0, marginTop: 1 }} />
         <span>
-          이 템플릿은 검측관리 탭에서 검측 요청을 작성할 때 자동으로 불러와 항목별로 체크할 수 있습니다.
+          이 템플릿은 검측관리 탭에서 검측 요청을 작성할 때 자동으로 불러와 항목별로 체크할 수 있습니다. 안전/환경 공종은 "안전 현황" 탭에서 별도로 관리합니다.
           {canEdit ? " 항목 추가·삭제는 감리단/소장만 가능합니다." : ""}
         </span>
       </div>
