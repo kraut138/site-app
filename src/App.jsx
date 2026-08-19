@@ -7,12 +7,13 @@ import NCR from "./components/NCR.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
+import RoleSelect from "./components/RoleSelect.jsx";
 import { Toast } from "./components/UI.jsx";
 import { ROLES, RESTRICTED_VIEWS_FOR_SUB } from "./data.js";
 import * as api from "./api.js";
 
 export default function App() {
-  const [role, setRole] = useState(ROLES.SUB);
+  const [role, setRole] = useState(null);
   const [view, setView] = useState("checklist");
   const [buildings, setBuildings] = useState([]);
   const [inspections, setInspections] = useState([]);
@@ -120,6 +121,17 @@ export default function App() {
     pending: inspections.filter((i) => i.status === "대기").length,
     ncr: ncrs.filter((n) => n.status !== "완료").length,
   };
+
+  if (!role) {
+    return (
+      <RoleSelect
+        onSelect={(chosenRole, startView) => {
+          setRole(chosenRole);
+          setView(startView);
+        }}
+      />
+    );
+  }
 
   if (loading) {
     return <CenterMessage>불러오는 중…</CenterMessage>;
