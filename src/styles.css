@@ -167,7 +167,23 @@ textarea {
   padding: 16px 12px;
   display: flex;
   flex-direction: column;
+}
+
+.sidebar-nav-group {
+  display: flex;
+  flex-direction: column;
   gap: 3px;
+  margin-bottom: 14px;
+}
+
+.sidebar-nav-group-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #7e94a6;
+  padding: 4px 12px 7px;
 }
 
 .sidebar-nav-item {
@@ -1075,6 +1091,12 @@ textarea.input {
     width: 100%;
     justify-content: space-around;
   }
+  .sidebar-nav-group {
+    display: contents;
+  }
+  .sidebar-nav-group-label {
+    display: none;
+  }
   .sidebar-nav-item {
     flex-direction: column;
     gap: 3px;
@@ -1106,13 +1128,24 @@ textarea.input {
   align-items: center;
   justify-content: center;
   padding: 24px;
+  position: relative;
+  background: #0a1f36 url("/site-background.svg") center bottom / cover no-repeat;
+}
+
+.role-select-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 16, 28, 0.55) 0%, rgba(8, 16, 28, 0.35) 45%, rgba(8, 16, 28, 0.72) 100%);
 }
 
 .role-select-card {
+  position: relative;
+  z-index: 1;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-l);
-  box-shadow: var(--shadow-pop);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
   padding: 40px 36px 32px;
   max-width: 420px;
   width: 100%;

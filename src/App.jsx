@@ -8,6 +8,7 @@ import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
 import RoleSelect from "./components/RoleSelect.jsx";
+import SafetyOverview from "./components/SafetyOverview.jsx";
 import { Toast } from "./components/UI.jsx";
 import { ROLES, RESTRICTED_VIEWS_FOR_SUB } from "./data.js";
 import * as api from "./api.js";
@@ -120,6 +121,7 @@ export default function App() {
   const badges = {
     pending: inspections.filter((i) => i.status === "대기").length,
     ncr: ncrs.filter((n) => n.status !== "완료").length,
+    safetyNcr: ncrs.filter((n) => n.categoryId === "safety" && n.status !== "완료").length,
   };
 
   if (!role) {
@@ -172,6 +174,16 @@ export default function App() {
           />
         )}
         {view === "ncr" && <NCR role={role} buildings={buildings} ncrs={ncrs} onUpdateStatus={handleUpdateNcrStatus} notify={notify} />}
+        {view === "safety" && (
+          <SafetyOverview
+            role={role}
+            buildings={buildings}
+            inspections={inspections}
+            ncrs={ncrs}
+            onUpdateNcrStatus={handleUpdateNcrStatus}
+            notify={notify}
+          />
+        )}
         {view === "unitinfo" && (
           <UnitInfo
             buildings={buildings}

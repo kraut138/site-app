@@ -56,6 +56,12 @@ export const Icon = {
       <path d="M6 21h12" />
     </svg>
   ),
+  Shield: (p) => (
+    <svg className="icon" {...iconProps} {...p}>
+      <path d="M12 3.5 19 6.5v5.2c0 4.4-3 7.6-7 8.8-4-1.2-7-4.4-7-8.8V6.5L12 3.5Z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
   Close: (p) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...p}>
       <path d="M6 6l12 12M18 6L6 18" />

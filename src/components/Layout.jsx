@@ -2,14 +2,23 @@ import React from "react";
 import { Icon } from "./UI.jsx";
 import { ROLES, RESTRICTED_VIEWS_FOR_SUB } from "../data.js";
 
-const NAV_ITEMS = [
-  { id: "dashboard", label: "대시보드", Icon: Icon.Dashboard },
-  { id: "checklist", label: "체크리스트", Icon: Icon.Checklist },
-  { id: "inspections", label: "검측관리", Icon: Icon.Inspection, badgeKey: "pending" },
-  { id: "ncr", label: "NCR 관리", Icon: Icon.Ncr, badgeKey: "ncr" },
-  { id: "unitinfo", label: "호실 정보", Icon: Icon.Door },
-  { id: "buildings", label: "동 관리", Icon: Icon.Building },
-  { id: "sitelayout", label: "배치도(3D)", Icon: Icon.Cube },
+const NAV_GROUPS = [
+  {
+    label: "공사현황",
+    items: [
+      { id: "dashboard", label: "대시보드", Icon: Icon.Dashboard },
+      { id: "checklist", label: "체크리스트", Icon: Icon.Checklist },
+      { id: "inspections", label: "검측관리", Icon: Icon.Inspection, badgeKey: "pending" },
+      { id: "ncr", label: "NCR 관리", Icon: Icon.Ncr, badgeKey: "ncr" },
+      { id: "unitinfo", label: "호실 정보", Icon: Icon.Door },
+      { id: "buildings", label: "동 관리", Icon: Icon.Building },
+      { id: "sitelayout", label: "배치도(3D)", Icon: Icon.Cube },
+    ],
+  },
+  {
+    label: "안전관리",
+    items: [{ id: "safety", label: "안전 현황", Icon: Icon.Shield, badgeKey: "safetyNcr" }],
+  },
 ];
 
 const PAGE_META = {
@@ -20,11 +29,11 @@ const PAGE_META = {
   unitinfo: { title: "호실 정보", desc: "동·호수를 선택해 공종별 진행도, 특이사항, 평면도를 확인합니다" },
   buildings: { title: "동 관리", desc: "현장 동·층·세대 정보를 관리합니다" },
   sitelayout: { title: "배치도(3D)", desc: "동의 대략적인 위치와 형태를 3D로 확인합니다" },
+  safety: { title: "안전 현황", desc: "안전/환경 공종의 검측·NCR 현황만 모아서 확인합니다" },
 };
 
 export default function Layout({ role, setRole, view, setView, badges = {}, children }) {
   const meta = PAGE_META[view] || {};
-  const visibleNavItems = NAV_ITEMS.filter((item) => role === ROLES.SUPER || !RESTRICTED_VIEWS_FOR_SUB.includes(item.id));
   return (
     <div className="app-shell">
       <aside className={`sidebar${role === ROLES.SUB ? " role-sub" : ""}`}>
@@ -41,18 +50,27 @@ export default function Layout({ role, setRole, view, setView, badges = {}, chil
         </div>
 
         <nav className="sidebar-nav">
-          {visibleNavItems.map((item) => {
-            const badge = item.badgeKey ? badges[item.badgeKey] : 0;
+          {NAV_GROUPS.map((group) => {
+            const visibleItems = group.items.filter((item) => role === ROLES.SUPER || !RESTRICTED_VIEWS_FOR_SUB.includes(item.id));
+            if (visibleItems.length === 0) return null;
             return (
-              <button
-                key={item.id}
-                className={`sidebar-nav-item${view === item.id ? " active" : ""}`}
-                onClick={() => setView(item.id)}
-              >
-                <item.Icon className="icon" />
-                {item.label}
-                {!!badge && <span className="sidebar-nav-badge">{badge > 99 ? "99+" : badge}</span>}
-              </button>
+              <div className="sidebar-nav-group" key={group.label}>
+                <div className="sidebar-nav-group-label">{group.label}</div>
+                {visibleItems.map((item) => {
+                  const badge = item.badgeKey ? badges[item.badgeKey] : 0;
+                  return (
+                    <button
+                      key={item.id}
+                      className={`sidebar-nav-item${view === item.id ? " active" : ""}`}
+                      onClick={() => setView(item.id)}
+                    >
+                      <item.Icon className="icon" />
+                      {item.label}
+                      {!!badge && <span className="sidebar-nav-badge">{badge > 99 ? "99+" : badge}</span>}
+                    </button>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>

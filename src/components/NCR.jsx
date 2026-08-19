@@ -72,7 +72,7 @@ export default function NCR({ role, buildings, ncrs, onUpdateStatus, notify }) {
   );
 }
 
-function NCRDetail({ ncr, building, role, onClose, onAdvance }) {
+export function NCRDetail({ ncr, building, role, onClose, onAdvance }) {
   const category = getCategory(ncr.categoryId);
   const [comment, setComment] = useState("");
   const [actionPhotos, setActionPhotos] = useState([]);
