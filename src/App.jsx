@@ -22,6 +22,7 @@ export default function App() {
   const [unitNotes, setUnitNotes] = useState([]);
   const [checklistItems, setChecklistItems] = useState([]);
   const [workers, setWorkers] = useState([]);
+  const [unitFloorPlan, setUnitFloorPlan] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [toast, setToast] = useState("");
@@ -47,6 +48,7 @@ export default function App() {
         setUnitNotes(data.unitNotes || []);
         setChecklistItems(data.checklistItems || []);
         setWorkers(data.workers || []);
+        setUnitFloorPlan(data.unitFloorPlan || {});
       })
       .catch((err) => alive && setLoadError(err.message))
       .finally(() => alive && setLoading(false));
@@ -74,6 +76,12 @@ export default function App() {
   async function handleUpdateSiteSettings(data) {
     const updated = await api.updateSiteSettings(data);
     setSiteSettings(updated);
+    return updated;
+  }
+
+  async function handleUpdateUnitFloorPlan(data) {
+    const updated = await api.updateUnitFloorPlan(data);
+    setUnitFloorPlan(updated);
     return updated;
   }
 
@@ -181,6 +189,7 @@ export default function App() {
             inspections={inspections}
             ncrs={ncrs}
             checklistItems={checklistItems}
+            unitFloorPlan={unitFloorPlan}
             onCreateInspection={handleCreateInspection}
             onUpdateInspectionStatus={handleUpdateInspectionStatus}
             onUpdateNcrStatus={handleUpdateNcrStatus}
@@ -205,6 +214,7 @@ export default function App() {
             inspections={inspections}
             ncrs={ncrs}
             workers={workers}
+            unitFloorPlan={unitFloorPlan}
             onUpdateNcrStatus={handleUpdateNcrStatus}
             onUpdateWorkerStatus={handleUpdateWorkerStatus}
             notify={notify}
@@ -216,6 +226,7 @@ export default function App() {
             inspections={inspections}
             checklistItems={checklistItems}
             unitNotes={unitNotes}
+            unitFloorPlan={unitFloorPlan}
             onCreateNote={handleCreateUnitNote}
             onDeleteNote={handleDeleteUnitNote}
             notify={notify}
@@ -230,6 +241,8 @@ export default function App() {
             onUpdateBuilding={handleUpdateBuilding}
             siteSettings={siteSettings}
             onUpdateSiteSettings={handleUpdateSiteSettings}
+            unitFloorPlan={unitFloorPlan}
+            onUpdateUnitFloorPlan={handleUpdateUnitFloorPlan}
             notify={notify}
           />
         )}

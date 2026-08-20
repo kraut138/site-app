@@ -5,7 +5,7 @@ import { NCRDetail } from "./NCR.jsx";
 
 const SAFETY_ID = "safety";
 
-export default function SafetyOverview({ role, buildings, inspections, ncrs, workers, onUpdateNcrStatus, onUpdateWorkerStatus, notify }) {
+export default function SafetyOverview({ role, buildings, inspections, ncrs, workers, unitFloorPlan, onUpdateNcrStatus, onUpdateWorkerStatus, notify }) {
   const [selectedNcrId, setSelectedNcrId] = useState(null);
   const [workerBusyId, setWorkerBusyId] = useState(null);
 

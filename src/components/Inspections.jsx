@@ -6,7 +6,7 @@ import DrawingPin from "./DrawingPin.jsx";
 
 const TABS = ["전체", "대기", "승인", "반려"];
 
-export default function Inspections({ role, buildings, inspections, checklistItems, onCreate, onUpdateStatus, notify }) {
+export default function Inspections({ role, buildings, inspections, checklistItems, unitFloorPlan, onCreate, onUpdateStatus, notify }) {
   const [tab, setTab] = useState("전체");
   const [showForm, setShowForm] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -82,6 +82,7 @@ export default function Inspections({ role, buildings, inspections, checklistIte
         <InspectionForm
           buildings={buildings}
           checklistItems={checklistItems}
+          unitFloorPlan={unitFloorPlan}
           onClose={() => setShowForm(false)}
           onSubmit={async (data) => {
             await onCreate(data);
@@ -97,6 +98,7 @@ export default function Inspections({ role, buildings, inspections, checklistIte
           building={buildings.find((b) => b.id === selected.buildingId)}
           role={role}
           checklistItems={checklistItems}
+          unitFloorPlan={unitFloorPlan}
           onClose={() => setSelectedId(null)}
           onDecide={async (status, comment) => {
             const res = await onUpdateStatus(selected.id, { status, comment, approver: "감리단 담당자" });
@@ -109,7 +111,7 @@ export default function Inspections({ role, buildings, inspections, checklistIte
   );
 }
 
-function InspectionForm({ buildings, checklistItems, onClose, onSubmit }) {
+function InspectionForm({ buildings, checklistItems, unitFloorPlan, onClose, onSubmit }) {
   const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
   const [buildingId, setBuildingId] = useState(buildings[0]?.id || "");
   const [floor, setFloor] = useState("");
@@ -233,7 +235,7 @@ function InspectionForm({ buildings, checklistItems, onClose, onSubmit }) {
 
         <div className="field">
           <label>도면 위치 지정</label>
-          <DrawingPin pin={pin} onPin={setPin} pinColor="#17456f" />
+          <DrawingPin pin={pin} onPin={setPin} pinColor="#17456f" dxfData={unitFloorPlan?.shapes ? unitFloorPlan : null} />
         </div>
 
         <div className="field">
@@ -276,7 +278,7 @@ function InspectionForm({ buildings, checklistItems, onClose, onSubmit }) {
   );
 }
 
-function InspectionDetail({ insp, building, role, checklistItems, onClose, onDecide }) {
+function InspectionDetail({ insp, building, role, checklistItems, unitFloorPlan, onClose, onDecide }) {
   const category = getCategory(insp.categoryId);
   const [comment, setComment] = useState("");
   const [showReject, setShowReject] = useState(false);
@@ -338,7 +340,7 @@ function InspectionDetail({ insp, building, role, checklistItems, onClose, onDec
         </div>
         <div>
           <div className="eyebrow" style={{ marginBottom: 8 }}>도면 위치</div>
-          {insp.pin ? <DrawingPin pin={insp.pin} pinColor={category?.color} /> : <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>지정된 위치 없음</div>}
+          {insp.pin ? <DrawingPin pin={insp.pin} pinColor={category?.color} dxfData={unitFloorPlan?.shapes ? unitFloorPlan : null} /> : <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>지정된 위치 없음</div>}
         </div>
       </div>
 

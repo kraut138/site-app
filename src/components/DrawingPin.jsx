@@ -1,6 +1,7 @@
 import React from "react";
+import DxfView from "./DxfView.jsx";
 
-// 대표 평면도(예시 84㎡ 타입) - 실제 배포 시 현장 도면 이미지로 교체 가능
+// 대표 평면도(예시 84㎡ 타입) - 감리단이 실제 DXF 도면을 업로드하기 전까지 보여주는 기본값
 const ROOMS = [
   { x: 30, y: 24, w: 170, h: 84, label: "침실1" },
   { x: 30, y: 108, w: 170, h: 84, label: "침실2" },
@@ -60,8 +61,9 @@ function PinMarker({ x, y, color = "#17456f" }) {
  * - onPin: fn({x,y}) 도면 클릭 시 호출 → editable 모드로 전환됨
  * - pins: [{x,y,color}] 여러 핀을 동시에 표시(읽기 전용, 대시보드 등)
  * - pinColor: 단일 pin의 색상
+ * - dxfData: {shapes, bounds} 감리단이 업로드한 실제 호실 평면도(DXF 파싱 결과). 없으면 예시 평면도 사용
  */
-export default function DrawingPin({ pin, onPin, pins, pinColor = "#17456f" }) {
+export default function DrawingPin({ pin, onPin, pins, pinColor = "#17456f", dxfData }) {
   const editable = typeof onPin === "function";
 
   function handleClick(e) {
@@ -74,7 +76,7 @@ export default function DrawingPin({ pin, onPin, pins, pinColor = "#17456f" }) {
 
   return (
     <div className={`drawing-frame${editable ? " editable" : ""}`} onClick={handleClick}>
-      <FloorPlanSvg />
+      {dxfData ? <DxfView data={dxfData} /> : <FloorPlanSvg />}
       {pin && <PinMarker x={pin.x} y={pin.y} color={pinColor} />}
       {pins && pins.map((p, i) => <PinMarker key={i} x={p.x} y={p.y} color={p.color} />)}
       {editable && <span className="drawing-hint">도면을 클릭해 위치를 지정하세요</span>}

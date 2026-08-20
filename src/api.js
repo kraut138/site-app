@@ -93,7 +93,7 @@ async function ensureSeeded() {
 
 export async function fetchBootstrap() {
   await ensureSeeded();
-  const [buildingsSnap, inspectionsSnap, ncrsSnap, unitNotesSnap, checklistItemsSnap, workersSnap, siteSettingsSnap] = await Promise.all([
+  const [buildingsSnap, inspectionsSnap, ncrsSnap, unitNotesSnap, checklistItemsSnap, workersSnap, siteSettingsSnap, unitFloorPlanSnap] = await Promise.all([
     getDocs(collection(db, "buildings")),
     getDocs(collection(db, "inspections")),
     getDocs(collection(db, "ncrs")),
@@ -101,6 +101,7 @@ export async function fetchBootstrap() {
     getDocs(collection(db, "checklistItems")),
     getDocs(collection(db, "workers")),
     getDoc(doc(db, "meta", "siteSettings")),
+    getDoc(doc(db, "meta", "unitFloorPlan")),
   ]);
   return {
     buildings: snapToArray(buildingsSnap),
@@ -110,6 +111,7 @@ export async function fetchBootstrap() {
     checklistItems: snapToArray(checklistItemsSnap),
     workers: snapToArray(workersSnap),
     siteSettings: siteSettingsSnap.exists() ? siteSettingsSnap.data() : {},
+    unitFloorPlan: unitFloorPlanSnap.exists() ? unitFloorPlanSnap.data() : {},
   };
 }
 
@@ -158,6 +160,18 @@ export async function fetchSiteSettings() {
 export async function updateSiteSettings(data) {
   await setDoc(doc(db, "meta", "siteSettings"), data, { merge: true });
   const snap = await getDoc(doc(db, "meta", "siteSettings"));
+  return snap.data();
+}
+
+// 호실 내부 평면도(DXF)는 용량이 커질 수 있어 site-settings와 별도 문서에 저장한다.
+export async function fetchUnitFloorPlan() {
+  const snap = await getDoc(doc(db, "meta", "unitFloorPlan"));
+  return snap.exists() ? snap.data() : {};
+}
+
+export async function updateUnitFloorPlan(data) {
+  await setDoc(doc(db, "meta", "unitFloorPlan"), data, { merge: true });
+  const snap = await getDoc(doc(db, "meta", "unitFloorPlan"));
   return snap.data();
 }
 

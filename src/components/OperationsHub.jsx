@@ -17,6 +17,7 @@ export default function OperationsHub({
   inspections,
   ncrs,
   checklistItems,
+  unitFloorPlan,
   onCreateInspection,
   onUpdateInspectionStatus,
   onUpdateNcrStatus,
@@ -44,7 +45,7 @@ export default function OperationsHub({
         })}
       </div>
 
-      {activeSubTab === "dashboard" && <Dashboard buildings={buildings} inspections={inspections} ncrs={ncrs} />}
+      {activeSubTab === "dashboard" && <Dashboard buildings={buildings} inspections={inspections} ncrs={ncrs} unitFloorPlan={unitFloorPlan} />}
 
       {activeSubTab === "inspections" && (
         <Inspections
@@ -52,6 +53,7 @@ export default function OperationsHub({
           buildings={buildings}
           inspections={inspections}
           checklistItems={checklistItems}
+          unitFloorPlan={unitFloorPlan}
           onCreate={onCreateInspection}
           onUpdateStatus={onUpdateInspectionStatus}
           notify={notify}
@@ -59,7 +61,7 @@ export default function OperationsHub({
       )}
 
       {activeSubTab === "ncr" && (
-        <NCR role={role} buildings={buildings} ncrs={ncrs} onUpdateStatus={onUpdateNcrStatus} notify={notify} />
+        <NCR role={role} buildings={buildings} ncrs={ncrs} unitFloorPlan={unitFloorPlan} onUpdateStatus={onUpdateNcrStatus} notify={notify} />
       )}
     </div>
   );
