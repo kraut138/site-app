@@ -32,7 +32,7 @@ export default function RoleSelect({ onSelect }) {
       <div className="role-select-scrim" aria-hidden="true" />
       <div className="role-select-card">
         <div className="role-select-logo">
-          <img src="/logo-kwangwoon.png" alt="광운건설" />
+          <img src={`${import.meta.env.BASE_URL}logo-kwangwoon.png`} alt="광운건설" />
         </div>
         <h1>현장검측</h1>
         <p>어떤 역할로 접속하시나요?</p>

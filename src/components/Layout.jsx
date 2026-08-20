@@ -86,7 +86,7 @@ export default function Layout({ role, setRole, view, setView, badges = {}, chil
             </div>
           </div>
           <div className="sidebar-company-logo">
-            <img src="/logo-kwangwoon.png" alt="광운건설" />
+            <img src={`${import.meta.env.BASE_URL}logo-kwangwoon.png`} alt="광운건설" />
           </div>
         </div>
       </aside>
