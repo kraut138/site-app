@@ -73,6 +73,21 @@ export function updateNcrStatus(id, data) {
   return request(`/ncrs/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
+function createWorker(data) {
+  return request("/workers", { method: "POST", body: JSON.stringify(data) });
+}
+
+// data: { companyName, categoryId, names: string[] } - 이름별로 병렬 등록
+export function createWorkers({ companyName, categoryId, names }) {
+  return Promise.all(
+    names.map((workerName) => createWorker({ companyName, categoryId, workerName, requestedBy: companyName }))
+  );
+}
+
+export function updateWorkerStatus(id, data) {
+  return request(`/workers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
 // 브라우저에서 이미지를 리사이즈/압축하여 base64 데이터 URL로 변환
 export function compressImage(file, maxSize = 1100, quality = 0.68) {
   return new Promise((resolve, reject) => {

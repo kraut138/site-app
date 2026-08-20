@@ -62,6 +62,13 @@ export const Icon = {
       <path d="M9 12l2 2 4-4" />
     </svg>
   ),
+  Worker: (p) => (
+    <svg className="icon" {...iconProps} {...p}>
+      <path d="M4 14.5a8 8 0 0 1 16 0Z" />
+      <path d="M3 14.5h18" />
+      <path d="M9.5 5.5a2.5 2.5 0 0 1 5 0" />
+    </svg>
+  ),
   Close: (p) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...p}>
       <path d="M6 6l12 12M18 6L6 18" />

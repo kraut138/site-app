@@ -97,9 +97,20 @@ export const ROLES = {
   SUPER: "감리단",
 };
 
-// 하도급사 역할에게는 숨기는 탭(동 관리/배치도/호실 정보/안전 현황) - 감리단/소장은 전체 열람 가능
-// (대시보드는 이제 "현장관리" 탭 내부의 서브탭이며, OperationsHub.jsx에서 role로 별도 제한됨)
-export const RESTRICTED_VIEWS_FOR_SUB = ["buildings", "sitelayout", "unitinfo", "safety"];
+// 뷰(탭)별 접근 가능한 역할. 값을 생략하면 두 역할 모두 접근 가능.
+// (대시보드는 "현장관리" 탭 내부의 서브탭이며, OperationsHub.jsx에서 role로 별도 제한됨)
+export const VIEW_ROLES = {
+  workers: [ROLES.SUB],
+  buildings: [ROLES.SUPER],
+  sitelayout: [ROLES.SUPER],
+  unitinfo: [ROLES.SUPER],
+  safety: [ROLES.SUPER],
+};
+
+export function isViewAllowed(viewId, role) {
+  const allowed = VIEW_ROLES[viewId];
+  return !allowed || allowed.includes(role);
+}
 
 export const SHAPE_OPTIONS = [
   { id: "slab", label: "판상형" },

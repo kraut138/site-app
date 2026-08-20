@@ -91,13 +91,14 @@ export default async (req: Request, context: Context): Promise<Response> => {
         checklistItems = DEFAULT_CHECKLIST_ITEMS.map((i) => ({ ...i, createdAt: nowIso() }));
         await setCollection("checklist-items", checklistItems);
       }
-      const [inspections, ncrs, siteSettings, unitNotes] = await Promise.all([
+      const [inspections, ncrs, siteSettings, unitNotes, workers] = await Promise.all([
         getCollection("inspections"),
         getCollection("ncrs"),
         dataStore().get("site-settings", { type: "json" }),
         getCollection("unit-notes"),
+        getCollection("workers"),
       ]);
-      return jsonResponse({ buildings, inspections, ncrs, siteSettings: siteSettings || {}, unitNotes, checklistItems });
+      return jsonResponse({ buildings, inspections, ncrs, siteSettings: siteSettings || {}, unitNotes, checklistItems, workers });
     }
 
     // ---- buildings ----
@@ -344,6 +345,62 @@ export default async (req: Request, context: Context): Promise<Response> => {
       if (method === "DELETE" && id) {
         const list = await getCollection("checklist-items");
         await setCollection("checklist-items", list.filter((i) => i.id !== id));
+        return jsonResponse({ ok: true });
+      }
+    }
+
+    // ---- site workers (하도급사 현장인력 등록/감리단 승인) ----
+    if (resource === "workers") {
+      if (method === "GET") {
+        return jsonResponse(await getCollection("workers"));
+      }
+      if (method === "POST") {
+        const body = await req.json();
+        const required = ["companyName", "categoryId", "workerName"];
+        for (const field of required) {
+          if (!body[field] || String(body[field]).trim() === "") {
+            return jsonResponse({ error: `${field}는 필수입니다.` }, 400);
+          }
+        }
+        const list = await getCollection("workers");
+        const item = {
+          id: newId(),
+          companyName: String(body.companyName).trim(),
+          categoryId: body.categoryId,
+          workerName: String(body.workerName).trim(),
+          status: "대기",
+          requestedBy: body.requestedBy || String(body.companyName).trim(),
+          createdAt: nowIso(),
+          history: [{ action: "등록", at: nowIso(), by: body.requestedBy || String(body.companyName).trim() }],
+        };
+        list.push(item);
+        await setCollection("workers", list);
+        return jsonResponse(item, 201);
+      }
+      if (method === "PATCH" && id) {
+        const body = await req.json();
+        if (!["승인", "반려"].includes(body.status)) {
+          return jsonResponse({ error: "status는 승인 또는 반려여야 합니다." }, 400);
+        }
+        const list = await getCollection("workers");
+        const idx = list.findIndex((w) => w.id === id);
+        if (idx === -1) return jsonResponse({ error: "인력 등록 정보를 찾을 수 없습니다." }, 404);
+        const updated = {
+          ...list[idx],
+          status: body.status,
+          approver: body.approver || "감리단",
+          history: [
+            ...(list[idx].history || []),
+            { action: body.status, at: nowIso(), by: body.approver || "감리단", comment: body.comment || "" },
+          ],
+        };
+        list[idx] = updated;
+        await setCollection("workers", list);
+        return jsonResponse(updated);
+      }
+      if (method === "DELETE" && id) {
+        const list = await getCollection("workers");
+        await setCollection("workers", list.filter((w) => w.id !== id));
         return jsonResponse({ ok: true });
       }
     }

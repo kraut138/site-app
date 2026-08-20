@@ -1,12 +1,13 @@
 import React, { useState } from "react";
-import { formatDateTime } from "../data.js";
-import { StatusBadge, EmptyState } from "./UI.jsx";
+import { CATEGORIES, formatDateTime } from "../data.js";
+import { StatusBadge, EmptyState, CategoryTag, Icon } from "./UI.jsx";
 import { NCRDetail } from "./NCR.jsx";
 
 const SAFETY_ID = "safety";
 
-export default function SafetyOverview({ role, buildings, inspections, ncrs, onUpdateNcrStatus, notify }) {
+export default function SafetyOverview({ role, buildings, inspections, ncrs, workers, onUpdateNcrStatus, onUpdateWorkerStatus, notify }) {
   const [selectedNcrId, setSelectedNcrId] = useState(null);
+  const [workerBusyId, setWorkerBusyId] = useState(null);
 
   const safetyInspections = inspections.filter((i) => i.categoryId === SAFETY_ID);
   const safetyNcrs = ncrs.filter((n) => n.categoryId === SAFETY_ID);
@@ -25,6 +26,26 @@ export default function SafetyOverview({ role, buildings, inspections, ncrs, onU
     .sort((a, b) => b.count - a.count);
 
   const sortedNcrs = [...safetyNcrs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const approvedWorkers = workers.filter((w) => w.status === "승인");
+  const pendingWorkers = [...workers.filter((w) => w.status === "대기")].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  const companiesForMatrix = [...new Set(approvedWorkers.map((w) => w.companyName))].sort();
+  const matrixRows = companiesForMatrix.map((company) => {
+    const counts = CATEGORIES.map((c) => approvedWorkers.filter((w) => w.companyName === company && w.categoryId === c.id).length);
+    return { company, counts, total: counts.reduce((a, b) => a + b, 0) };
+  });
+  const columnTotals = CATEGORIES.map((c, i) => matrixRows.reduce((sum, r) => sum + r.counts[i], 0));
+  const grandTotal = columnTotals.reduce((a, b) => a + b, 0);
+
+  async function handleWorkerDecision(id, status) {
+    setWorkerBusyId(id);
+    try {
+      await onUpdateWorkerStatus(id, { status, approver: "감리단" });
+      notify(status === "승인" ? "인력을 승인했습니다." : "인력 등록을 반려했습니다.");
+    } finally {
+      setWorkerBusyId(null);
+    }
+  }
 
   return (
     <div>
@@ -75,6 +96,96 @@ export default function SafetyOverview({ role, buildings, inspections, ncrs, onU
               </div>
             );
           })
+        )}
+      </div>
+
+      <div className="hairline" />
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ padding: "16px 20px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div className="section-title">인력 승인 대기</div>
+          <span className="eyebrow">{pendingWorkers.length}건</span>
+        </div>
+        {pendingWorkers.length === 0 ? (
+          <EmptyState message="승인 대기 중인 인력 등록이 없습니다." />
+        ) : (
+          <div style={{ padding: "8px 4px" }}>
+            {pendingWorkers.map((w) => {
+              const cat = CATEGORIES.find((c) => c.id === w.categoryId);
+              return (
+                <div className="list-row" key={w.id} style={{ cursor: "default" }}>
+                  <span className="loc">{w.companyName}</span>
+                  <div className="grow">
+                    <div className="title">{w.workerName}</div>
+                    <div className="meta">{formatDateTime(w.createdAt)}</div>
+                  </div>
+                  <CategoryTag category={cat} />
+                  <button
+                    className="btn btn-pass btn-sm"
+                    disabled={workerBusyId === w.id}
+                    onClick={() => handleWorkerDecision(w.id, "승인")}
+                  >
+                    <Icon.Check width="13" height="13" /> 승인
+                  </button>
+                  <button
+                    className="btn btn-fail btn-sm"
+                    disabled={workerBusyId === w.id}
+                    onClick={() => handleWorkerDecision(w.id, "반려")}
+                  >
+                    <Icon.Close width="12" height="12" /> 반려
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="card card-pad">
+        <div className="section-head">
+          <div className="section-title">현장 인력 현황 (건설사별 · 공종별)</div>
+          <span className="eyebrow">승인 완료 {grandTotal}명</span>
+        </div>
+        {matrixRows.length === 0 ? (
+          <EmptyState message="승인된 인력이 없습니다." />
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "1.5px solid var(--line-strong)", color: "var(--ink-soft)", fontSize: 12 }}>건설사</th>
+                  {CATEGORIES.map((c) => (
+                    <th key={c.id} style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1.5px solid var(--line-strong)", color: "var(--ink-soft)", fontSize: 12 }}>
+                      {c.shortName}
+                    </th>
+                  ))}
+                  <th style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1.5px solid var(--line-strong)", color: "var(--ink-soft)", fontSize: 12 }}>합계</th>
+                </tr>
+              </thead>
+              <tbody>
+                {matrixRows.map((r) => (
+                  <tr key={r.company}>
+                    <td style={{ padding: "9px 10px", borderBottom: "1px solid var(--line)", fontWeight: 600 }}>{r.company}</td>
+                    {r.counts.map((n, i) => (
+                      <td key={i} className="mono" style={{ textAlign: "right", padding: "9px 10px", borderBottom: "1px solid var(--line)", color: n > 0 ? "var(--ink)" : "var(--ink-faint)" }}>
+                        {n}
+                      </td>
+                    ))}
+                    <td className="mono" style={{ textAlign: "right", padding: "9px 10px", borderBottom: "1px solid var(--line)", fontWeight: 700 }}>{r.total}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td style={{ padding: "9px 10px", fontWeight: 700 }}>전체 합계</td>
+                  {columnTotals.map((n, i) => (
+                    <td key={i} className="mono" style={{ textAlign: "right", padding: "9px 10px", fontWeight: 700 }}>{n}</td>
+                  ))}
+                  <td className="mono" style={{ textAlign: "right", padding: "9px 10px", fontWeight: 700, color: "var(--blueprint)" }}>{grandTotal}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         )}
       </div>
 

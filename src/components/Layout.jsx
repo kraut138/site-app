@@ -1,6 +1,6 @@
 import React from "react";
 import { Icon } from "./UI.jsx";
-import { ROLES, RESTRICTED_VIEWS_FOR_SUB } from "../data.js";
+import { ROLES, isViewAllowed } from "../data.js";
 
 const NAV_GROUPS = [
   {
@@ -8,6 +8,7 @@ const NAV_GROUPS = [
     items: [
       { id: "operations", label: "현장관리", Icon: Icon.Dashboard, badgeKey: "operations" },
       { id: "checklist", label: "체크리스트", Icon: Icon.Checklist },
+      { id: "workers", label: "인력 등록", Icon: Icon.Worker, badgeKey: "workersPending" },
       { id: "unitinfo", label: "호실 정보", Icon: Icon.Door },
       { id: "buildings", label: "동 관리", Icon: Icon.Building },
       { id: "sitelayout", label: "배치도(3D)", Icon: Icon.Cube },
@@ -15,17 +16,18 @@ const NAV_GROUPS = [
   },
   {
     label: "안전관리",
-    items: [{ id: "safety", label: "안전 현황", Icon: Icon.Shield, badgeKey: "safetyNcr" }],
+    items: [{ id: "safety", label: "안전 현황", Icon: Icon.Shield, badgeKey: "safetyTotal" }],
   },
 ];
 
 const PAGE_META = {
   operations: { title: "현장관리", desc: "대시보드·검측관리·NCR 관리를 한 곳에서 확인합니다" },
   checklist: { title: "표준 체크리스트", desc: "공종별 표준 검측 항목을 확인합니다" },
+  workers: { title: "인력 등록", desc: "건설사·공종을 선택해 현장 인력을 등록하고 승인 현황을 확인합니다" },
   unitinfo: { title: "호실 정보", desc: "동·호수를 선택해 공종별 진행도, 특이사항, 평면도를 확인합니다" },
   buildings: { title: "동 관리", desc: "현장 동·층·세대 정보를 관리합니다" },
   sitelayout: { title: "배치도(3D)", desc: "동의 대략적인 위치와 형태를 3D로 확인합니다" },
-  safety: { title: "안전 현황", desc: "안전/환경 공종의 검측·NCR 현황만 모아서 확인합니다" },
+  safety: { title: "안전 현황", desc: "안전/환경 공종의 검측·NCR과 현장 인력 현황을 모아서 확인합니다" },
 };
 
 export default function Layout({ role, setRole, view, setView, badges = {}, children }) {
@@ -47,7 +49,7 @@ export default function Layout({ role, setRole, view, setView, badges = {}, chil
 
         <nav className="sidebar-nav">
           {NAV_GROUPS.map((group) => {
-            const visibleItems = group.items.filter((item) => role === ROLES.SUPER || !RESTRICTED_VIEWS_FOR_SUB.includes(item.id));
+            const visibleItems = group.items.filter((item) => isViewAllowed(item.id, role));
             if (visibleItems.length === 0) return null;
             return (
               <div className="sidebar-nav-group" key={group.label}>

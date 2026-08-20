@@ -2,13 +2,14 @@ import React, { useState, useEffect, useCallback } from "react";
 import Layout from "./components/Layout.jsx";
 import OperationsHub from "./components/OperationsHub.jsx";
 import Checklist from "./components/Checklist.jsx";
+import Workers from "./components/Workers.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
 import RoleSelect from "./components/RoleSelect.jsx";
 import SafetyOverview from "./components/SafetyOverview.jsx";
 import { Toast } from "./components/UI.jsx";
-import { ROLES, RESTRICTED_VIEWS_FOR_SUB } from "./data.js";
+import { ROLES, isViewAllowed } from "./data.js";
 import * as api from "./api.js";
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
   const [siteSettings, setSiteSettings] = useState({});
   const [unitNotes, setUnitNotes] = useState([]);
   const [checklistItems, setChecklistItems] = useState([]);
+  const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [toast, setToast] = useState("");
@@ -27,8 +29,8 @@ export default function App() {
   const notify = useCallback((msg) => setToast(msg), []);
 
   useEffect(() => {
-    if (role === ROLES.SUB && RESTRICTED_VIEWS_FOR_SUB.includes(view)) {
-      setView("checklist");
+    if (role && !isViewAllowed(view, role)) {
+      setView(role === ROLES.SUPER ? "operations" : "checklist");
     }
   }, [role, view]);
 
@@ -44,6 +46,7 @@ export default function App() {
         setSiteSettings(data.siteSettings || {});
         setUnitNotes(data.unitNotes || []);
         setChecklistItems(data.checklistItems || []);
+        setWorkers(data.workers || []);
       })
       .catch((err) => alive && setLoadError(err.message))
       .finally(() => alive && setLoading(false));
@@ -101,6 +104,18 @@ export default function App() {
     setChecklistItems((prev) => [...prev.filter((i) => i.categoryId !== categoryId), ...created]);
   }
 
+  async function handleCreateWorkers(data) {
+    const created = await api.createWorkers(data);
+    setWorkers((prev) => [...prev, ...created]);
+    return created;
+  }
+
+  async function handleUpdateWorkerStatus(id, data) {
+    const updated = await api.updateWorkerStatus(id, data);
+    setWorkers((prev) => prev.map((w) => (w.id === id ? updated : w)));
+    return updated;
+  }
+
   async function handleCreateInspection(data) {
     const created = await api.createInspection(data);
     setInspections((prev) => [...prev, created]);
@@ -125,8 +140,10 @@ export default function App() {
     pending: inspections.filter((i) => i.status === "대기").length,
     ncr: ncrs.filter((n) => n.status !== "완료").length,
     safetyNcr: ncrs.filter((n) => n.categoryId === "safety" && n.status !== "완료").length,
+    workersPending: workers.filter((w) => w.status === "대기").length,
   };
   badges.operations = badges.pending + badges.ncr;
+  badges.safetyTotal = badges.safetyNcr + badges.workersPending;
 
   if (!role) {
     return (
@@ -180,13 +197,16 @@ export default function App() {
             notify={notify}
           />
         )}
+        {view === "workers" && <Workers workers={workers} onCreateWorkers={handleCreateWorkers} notify={notify} />}
         {view === "safety" && (
           <SafetyOverview
             role={role}
             buildings={buildings}
             inspections={inspections}
             ncrs={ncrs}
+            workers={workers}
             onUpdateNcrStatus={handleUpdateNcrStatus}
+            onUpdateWorkerStatus={handleUpdateWorkerStatus}
             notify={notify}
           />
         )}
