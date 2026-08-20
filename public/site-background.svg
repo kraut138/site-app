@@ -1,0 +1,125 @@
+<svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a1f36" />
+      <stop offset="42%" stop-color="#123a5e" />
+      <stop offset="72%" stop-color="#3c5f7d" />
+      <stop offset="100%" stop-color="#c98a4f" />
+    </linearGradient>
+    <radialGradient id="sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffd9a0" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#ffd9a0" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a1420" stop-opacity="0" />
+      <stop offset="100%" stop-color="#0a1420" stop-opacity="0.55" />
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="900" fill="url(#sky)" />
+  <circle cx="1180" cy="650" r="260" fill="url(#sun)" />
+
+  <!-- distant small silhouettes for depth -->
+  <g fill="#0d2b47" opacity="0.55">
+    <rect x="1280" y="480" width="120" height="180" />
+    <rect x="1420" y="520" width="90" height="140" />
+    <rect x="30" y="520" width="100" height="140" />
+  </g>
+
+  <!-- crane (background, right of main crane) -->
+  <g stroke="#0b2035" stroke-width="4" opacity="0.55" fill="none">
+    <line x1="1230" y1="660" x2="1230" y2="300" />
+    <line x1="1230" y1="300" x2="1360" y2="300" />
+    <line x1="1230" y1="300" x2="1170" y2="300" />
+    <line x1="1230" y1="330" x2="1290" y2="300" />
+    <line x1="1300" y1="620" x2="1300" y2="330" />
+  </g>
+
+  <!-- buildings -->
+  <g>
+    <rect x="70" y="380" width="170" height="280" fill="#123a5e" />
+    <g stroke="#1c4870" stroke-width="2" opacity="0.6">
+      <line x1="70" y1="430" x2="240" y2="430" />
+      <line x1="70" y1="480" x2="240" y2="480" />
+      <line x1="70" y1="530" x2="240" y2="530" />
+      <line x1="70" y1="580" x2="240" y2="580" />
+      <line x1="70" y1="630" x2="240" y2="630" />
+    </g>
+  </g>
+
+  <g>
+    <rect x="300" y="560" width="230" height="100" fill="#173f66" />
+    <rect x="300" y="230" width="230" height="330" fill="none" stroke="#3e7cb1" stroke-width="3" />
+    <g stroke="#3e7cb1" stroke-width="2">
+      <line x1="300" y1="270" x2="530" y2="270" />
+      <line x1="300" y1="310" x2="530" y2="310" />
+      <line x1="300" y1="350" x2="530" y2="350" />
+      <line x1="300" y1="390" x2="530" y2="390" />
+      <line x1="300" y1="430" x2="530" y2="430" />
+      <line x1="300" y1="470" x2="530" y2="470" />
+      <line x1="300" y1="510" x2="530" y2="510" />
+      <line x1="300" y1="550" x2="530" y2="550" />
+      <line x1="365" y1="230" x2="365" y2="560" />
+      <line x1="465" y1="230" x2="465" y2="560" />
+    </g>
+  </g>
+
+  <g>
+    <rect x="580" y="470" width="170" height="190" fill="#0f3252" />
+    <g stroke="#1c4870" stroke-width="2" opacity="0.6">
+      <line x1="580" y1="520" x2="750" y2="520" />
+      <line x1="580" y1="570" x2="750" y2="570" />
+      <line x1="580" y1="620" x2="750" y2="620" />
+    </g>
+  </g>
+
+  <g>
+    <rect x="800" y="500" width="210" height="160" fill="#123a5e" />
+    <g stroke="#1c4870" stroke-width="2" opacity="0.6">
+      <line x1="800" y1="540" x2="1010" y2="540" />
+      <line x1="800" y1="580" x2="1010" y2="580" />
+      <line x1="800" y1="620" x2="1010" y2="620" />
+    </g>
+  </g>
+
+  <g>
+    <rect x="1040" y="440" width="150" height="220" fill="#173f66" />
+    <g stroke="#3e7cb1" stroke-width="2" opacity="0.7">
+      <line x1="1040" y1="480" x2="1190" y2="480" />
+      <line x1="1040" y1="520" x2="1190" y2="520" />
+      <line x1="1040" y1="560" x2="1190" y2="560" />
+      <line x1="1040" y1="600" x2="1190" y2="600" />
+      <line x1="1040" y1="640" x2="1190" y2="640" />
+    </g>
+  </g>
+
+  <!-- main crane -->
+  <g stroke="#0a1f36" stroke-width="7" fill="none" stroke-linecap="round">
+    <line x1="405" y1="660" x2="405" y2="150" />
+    <line x1="405" y1="150" x2="640" y2="150" />
+    <line x1="405" y1="150" x2="320" y2="150" />
+    <line x1="320" y1="150" x2="320" y2="185" />
+    <line x1="405" y1="185" x2="470" y2="150" />
+    <line x1="590" y1="150" x2="590" y2="300" />
+  </g>
+  <rect x="392" y="150" width="26" height="22" fill="#0a1f36" />
+
+  <!-- crane lights -->
+  <circle cx="405" cy="150" r="5" fill="#ffcf8a" opacity="0.9" />
+
+  <!-- site accent lights -->
+  <g fill="#ffcf8a">
+    <circle cx="140" cy="430" r="3.5" opacity="0.85" />
+    <circle cx="200" cy="480" r="3" opacity="0.6" />
+    <circle cx="360" cy="310" r="3.5" opacity="0.8" />
+    <circle cx="440" cy="390" r="3" opacity="0.55" />
+    <circle cx="650" cy="530" r="3.5" opacity="0.8" />
+    <circle cx="880" cy="560" r="3" opacity="0.6" />
+    <circle cx="1100" cy="500" r="3.5" opacity="0.85" />
+    <circle cx="1150" cy="560" r="3" opacity="0.55" />
+  </g>
+
+  <!-- ground -->
+  <rect x="0" y="655" width="1600" height="245" fill="#0a1420" />
+  <rect x="0" y="620" width="1600" height="280" fill="url(#fade)" />
+</svg>

@@ -11,8 +11,7 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@netlify/blobs": "^8.1.0",
-    "@netlify/functions": "^2.8.2",
+    "firebase": "^11.0.0",
     "three": "^0.160.0"
   },
   "devDependencies": {

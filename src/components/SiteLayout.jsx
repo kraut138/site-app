@@ -53,7 +53,7 @@ export default function SiteLayout({ buildings, onUpdateBuilding, siteSettings, 
     setImageBusy(true);
     setImageError("");
     try {
-      const dataUrl = await compressImage(file, 1600, 0.78);
+      const dataUrl = await compressImage(file, 1100, 0.65);
       await onUpdateSiteSettings({ layoutImage: dataUrl });
       notify("배치도 이미지를 업로드했습니다.");
     } catch (err) {
