@@ -111,8 +111,9 @@ export default function App() {
   }
 
   async function handleCreateInspection(data) {
-    const created = await api.createInspection(data);
-    setInspections((prev) => [...prev, created]);
+    const created = await api.createInspections(data);
+    setInspections((prev) => [...prev, ...created]);
+    return created;
   }
 
   async function handleUpdateInspectionStatus(id, data) {

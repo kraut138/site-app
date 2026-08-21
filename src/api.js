@@ -262,6 +262,30 @@ export async function createInspection(data) {
   return { id: docRef.id, ...payload };
 }
 
+// 여러 호실을 한 번에 선택해 동일한 공종·체크리스트·사진으로 일괄 제출
+// data: { categoryId, buildingId, units: [{floor, unit}], checkedItemIds, photos, pin, memo, requestedBy }
+export async function createInspections(data) {
+  if (!Array.isArray(data.units) || data.units.length === 0) {
+    throw new Error("units(선택한 호실 목록)는 최소 1개 이상이어야 합니다.");
+  }
+  const photos = capPhotos(data.photos); // 여러 호실에 동일 사진을 재업로드하지 않도록 한 번만 처리
+  return Promise.all(
+    data.units.map((u) =>
+      createInspection({
+        categoryId: data.categoryId,
+        buildingId: data.buildingId,
+        floor: u.floor,
+        unit: u.unit,
+        checkedItemIds: data.checkedItemIds,
+        photos,
+        pin: data.pin,
+        memo: data.memo,
+        requestedBy: data.requestedBy,
+      })
+    )
+  );
+}
+
 export async function updateInspectionStatus(id, data) {
   if (!["승인", "반려"].includes(data.status)) {
     throw new Error("status는 승인 또는 반려여야 합니다.");

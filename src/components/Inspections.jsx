@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { CATEGORIES, getCategory, itemsForCategory, findItemText, formatDateTime, ROLES } from "../data.js";
+import { CATEGORIES, getCategory, itemsForCategory, findItemText, formatDateTime, unitOptions, ROLES } from "../data.js";
 import { compressImage } from "../api.js";
 import { Icon, StatusBadge, CategoryTag, Modal, EmptyState, Stamp } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
@@ -85,9 +85,9 @@ export default function Inspections({ role, buildings, inspections, checklistIte
           unitFloorPlan={unitFloorPlan}
           onClose={() => setShowForm(false)}
           onSubmit={async (data) => {
-            await onCreate(data);
+            const created = await onCreate(data);
             setShowForm(false);
-            notify("검측 요청이 제출되었습니다.");
+            notify(created.length > 1 ? `${created.length}개 호실에 대해 검측 요청을 제출했습니다.` : "검측 요청이 제출되었습니다.");
           }}
         />
       )}
@@ -114,8 +114,7 @@ export default function Inspections({ role, buildings, inspections, checklistIte
 function InspectionForm({ buildings, checklistItems, unitFloorPlan, onClose, onSubmit }) {
   const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
   const [buildingId, setBuildingId] = useState(buildings[0]?.id || "");
-  const [floor, setFloor] = useState("");
-  const [unit, setUnit] = useState("");
+  const [selectedUnits, setSelectedUnits] = useState(new Set()); // "floor-unit" 키 집합
   const [checkedItemIds, setCheckedItemIds] = useState([]);
   const [pin, setPin] = useState(null);
   const [photos, setPhotos] = useState([]);
@@ -126,6 +125,44 @@ function InspectionForm({ buildings, checklistItems, unitFloorPlan, onClose, onS
 
   const category = getCategory(categoryId);
   const categoryItems = itemsForCategory(checklistItems, categoryId);
+  const selectedBuilding = buildings.find((b) => b.id === buildingId) || null;
+  const floorsList = selectedBuilding ? Array.from({ length: selectedBuilding.floors || 1 }, (_, i) => i + 1).reverse() : [];
+  const unitsPerFloorList = selectedBuilding ? unitOptions(selectedBuilding.unitsPerFloor) : [];
+
+  function unitKey(floor, unit) {
+    return `${floor}-${unit}`;
+  }
+
+  function toggleUnit(floor, unit) {
+    const key = unitKey(floor, unit);
+    setSelectedUnits((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleFloor(floor) {
+    const keys = unitsPerFloorList.map((u) => unitKey(floor, u));
+    const allOn = keys.every((k) => selectedUnits.has(k));
+    setSelectedUnits((prev) => {
+      const next = new Set(prev);
+      keys.forEach((k) => (allOn ? next.delete(k) : next.add(k)));
+      return next;
+    });
+  }
+
+  function selectAllUnits() {
+    const all = new Set();
+    floorsList.forEach((f) => unitsPerFloorList.forEach((u) => all.add(unitKey(f, u))));
+    setSelectedUnits(all);
+  }
+
+  function handleBuildingChange(id) {
+    setBuildingId(id);
+    setSelectedUnits(new Set());
+  }
 
   function toggleItem(id) {
     setCheckedItemIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -146,18 +183,21 @@ function InspectionForm({ buildings, checklistItems, unitFloorPlan, onClose, onS
 
   async function submit(e) {
     e.preventDefault();
-    if (!buildingId || !floor || !requestedBy) {
-      setError("동, 층, 요청자 이름은 필수입니다.");
+    if (!buildingId || selectedUnits.size === 0 || !requestedBy) {
+      setError("동, 호실 선택(1개 이상), 요청자 이름은 필수입니다.");
       return;
     }
     setBusy(true);
     setError("");
     try {
+      const units = Array.from(selectedUnits).map((key) => {
+        const [floorStr, unit] = key.split("-");
+        return { floor: Number(floorStr), unit };
+      });
       await onSubmit({
         categoryId,
         buildingId,
-        floor: Number(floor),
-        unit,
+        units,
         checkedItemIds,
         photos,
         pin,
@@ -173,51 +213,93 @@ function InspectionForm({ buildings, checklistItems, unitFloorPlan, onClose, onS
   return (
     <Modal title="검측 요청 작성" onClose={onClose} width="700px">
       <form onSubmit={submit}>
-        <div className="field">
-          <label>공종 선택</label>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {CATEGORIES.map((c) => (
-              <button
-                type="button"
-                key={c.id}
-                onClick={() => {
-                  setCategoryId(c.id);
-                  setCheckedItemIds([]);
-                }}
-                className="cat-tag"
-                style={{
-                  cursor: "pointer",
-                  border: "1.5px solid",
-                  borderColor: categoryId === c.id ? c.color : "var(--line)",
-                  background: categoryId === c.id ? c.color + "1c" : "var(--surface)",
-                  color: categoryId === c.id ? c.color : "var(--ink-soft)",
-                  padding: "7px 12px",
-                }}
-              >
-                <span className="cat-dot" style={{ background: c.color }} />
-                {c.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="field-row">
           <div className="field">
+            <label>체크리스트(공종) 선택</label>
+            <select
+              className="input"
+              value={categoryId}
+              onChange={(e) => {
+                setCategoryId(e.target.value);
+                setCheckedItemIds([]);
+              }}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
             <label>동</label>
-            <select className="input" value={buildingId} onChange={(e) => setBuildingId(e.target.value)}>
+            <select className="input" value={buildingId} onChange={(e) => handleBuildingChange(e.target.value)}>
               {buildings.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
           </div>
-          <div className="field">
-            <label>층</label>
-            <input className="input" type="number" placeholder="예: 12" value={floor} onChange={(e) => setFloor(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>호 (선택)</label>
-            <input className="input" placeholder="예: 02" value={unit} onChange={(e) => setUnit(e.target.value)} />
-          </div>
+        </div>
+
+        <div className="field">
+          <label>호실 선택 {selectedUnits.size > 0 ? `(${selectedUnits.size}개 선택됨)` : ""}</label>
+          {!selectedBuilding ? (
+            <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>먼저 동을 선택해주세요.</div>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={selectAllUnits}>
+                  이 동 전체 선택
+                </button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelectedUnits(new Set())}>
+                  선택 해제
+                </button>
+              </div>
+              <div style={{ maxHeight: 260, overflowY: "auto", border: "1px solid var(--line)", borderRadius: "var(--radius-s)", padding: "8px 10px" }}>
+                {floorsList.map((f) => {
+                  const keys = unitsPerFloorList.map((u) => unitKey(f, u));
+                  const allOn = keys.every((k) => selectedUnits.has(k));
+                  return (
+                    <div key={f} style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 0" }}>
+                      <button
+                        type="button"
+                        onClick={() => toggleFloor(f)}
+                        className="mono"
+                        style={{
+                          width: 42,
+                          flexShrink: 0,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: allOn ? "var(--blueprint)" : "var(--ink-faint)",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          padding: 0,
+                        }}
+                      >
+                        {f}층
+                      </button>
+                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                        {unitsPerFloorList.map((u) => {
+                          const active = selectedUnits.has(unitKey(f, u));
+                          return (
+                            <button
+                              type="button"
+                              key={u}
+                              onClick={() => toggleUnit(f, u)}
+                              className={`unit-picker-btn${active ? " active" : ""}`}
+                              style={{ minWidth: 34, padding: "5px 8px", fontSize: 11.5 }}
+                            >
+                              {u}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="field">
