@@ -1,9 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 
-const SIZE = 260;
-const CENTER = SIZE / 2;
-const ORBIT_R = 92;
-const INDICATOR_ANGLE = -90; // 화면 기준: 0=오른쪽, 90=아래, -90=위쪽
+const RADIUS = 150;
 
 function normalizeAngle(a) {
   let x = a % 360;
@@ -12,14 +9,40 @@ function normalizeAngle(a) {
   return x;
 }
 
+// 동 하나의 입면(정면) 실루엣 - 층수에 비례한 높이, 층 구분선으로 골조 느낌
+function BuildingElevation({ building, selected }) {
+  const floors = Math.max(1, building.floors || 1);
+  const floorH = Math.max(4, Math.min(11, 190 / floors));
+  const height = Math.round(floors * floorH);
+  const width = Math.max(70, Math.min(120, 26 + (building.unitsPerFloor || 4) * 11));
+  const rows = Math.min(floors, 40);
+
+  return (
+    <div className="carousel-elevation">
+      <div
+        className={`carousel-building${selected ? " selected" : ""}`}
+        style={{ width, height }}
+      >
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="carousel-floor-line" style={{ height: height / rows }}>
+            {Array.from({ length: Math.min(building.unitsPerFloor || 4, 6) }).map((__, j) => (
+              <span key={j} className="carousel-window" />
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className={`carousel-label${selected ? " selected" : ""}`}>{building.name}</div>
+    </div>
+  );
+}
+
 /**
  * props:
- * - buildings: [{id, name}]
- * - selectedId: 현재 선택된 동 id
- * - onSelect: fn(id)
+ * - buildings: [{id, name, floors, unitsPerFloor}]
+ * - selectedId, onSelect(id)
  */
 export default function RevolverSelector({ buildings, selectedId, onSelect }) {
-  const wrapRef = useRef(null);
+  const stageRef = useRef(null);
   const dragInfo = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [dragRotation, setDragRotation] = useState(null);
@@ -34,21 +57,9 @@ export default function RevolverSelector({ buildings, selectedId, onSelect }) {
     setDragRotation(null);
   }, [selectedId]);
 
-  function baseAngleFor(i) {
-    return INDICATOR_ANGLE + i * step;
-  }
-
-  function angleAt(clientX, clientY) {
-    const rect = wrapRef.current.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    return Math.atan2(clientY - cy, clientX - cx) * (180 / Math.PI);
-  }
-
   function onPointerDown(e) {
     if (n === 0) return;
-    const startPointerAngle = angleAt(e.clientX, e.clientY);
-    dragInfo.current = { startPointerAngle, startRotation: currentRotation };
+    dragInfo.current = { startX: e.clientX, startRotation: currentRotation };
     setDragRotation(currentRotation);
     setDragging(true);
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -56,9 +67,8 @@ export default function RevolverSelector({ buildings, selectedId, onSelect }) {
 
   function onPointerMove(e) {
     if (!dragInfo.current) return;
-    const nowAngle = angleAt(e.clientX, e.clientY);
-    const delta = nowAngle - dragInfo.current.startPointerAngle;
-    setDragRotation(dragInfo.current.startRotation + delta);
+    const dx = e.clientX - dragInfo.current.startX;
+    setDragRotation(dragInfo.current.startRotation + dx * 0.45);
   }
 
   function onPointerUp() {
@@ -69,8 +79,8 @@ export default function RevolverSelector({ buildings, selectedId, onSelect }) {
     let bestIdx = selectedIndex;
     let bestDiff = Infinity;
     for (let i = 0; i < n; i++) {
-      const angle = normalizeAngle(baseAngleFor(i) + finalRotation);
-      const diff = Math.abs(normalizeAngle(angle - INDICATOR_ANGLE));
+      const angle = normalizeAngle(i * step + finalRotation);
+      const diff = Math.abs(angle);
       if (diff < bestDiff) {
         bestDiff = diff;
         bestIdx = i;
@@ -84,53 +94,44 @@ export default function RevolverSelector({ buildings, selectedId, onSelect }) {
   if (n === 0) return null;
 
   return (
-    <div className="revolver-outer">
+    <div className="carousel-outer">
       <div
-        ref={wrapRef}
-        className="revolver-wrap"
-        style={{ width: SIZE, height: SIZE }}
+        ref={stageRef}
+        className="carousel-stage"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <div className="revolver-ring" />
-        <div className="revolver-hub" />
+        <div className="carousel-turntable" />
         <div
-          className="revolver-dial"
+          className="carousel-ring"
           style={{
-            transform: `rotate(${currentRotation}deg)`,
-            transition: dragging ? "none" : "transform 0.35s cubic-bezier(0.2,0.8,0.3,1)",
+            transform: `rotateY(${currentRotation}deg)`,
+            transition: dragging ? "none" : "transform 0.4s cubic-bezier(0.2,0.8,0.3,1)",
           }}
         >
           {buildings.map((b, i) => {
-            const angle = baseAngleFor(i);
-            const rad = (angle * Math.PI) / 180;
-            const x = CENTER + ORBIT_R * Math.cos(rad);
-            const y = CENTER + ORBIT_R * Math.sin(rad);
-            const isSelected = b.id === selectedId;
+            const angle = i * step;
+            const effective = normalizeAngle(angle + currentRotation);
+            const closeness = (Math.cos((effective * Math.PI) / 180) + 1) / 2; // 0(뒤)~1(정면)
             return (
-              <div key={b.id} className="revolver-chamber-pos" style={{ left: x, top: y }}>
-                <div
-                  className={`revolver-chamber${isSelected ? " selected" : ""}`}
-                  style={{
-                    transform: `rotate(${-currentRotation}deg)`,
-                    transition: dragging ? "none" : "transform 0.35s cubic-bezier(0.2,0.8,0.3,1)",
-                  }}
-                >
-                  {b.name}
-                </div>
+              <div
+                key={b.id}
+                className="carousel-item"
+                style={{
+                  transform: `rotateY(${angle}deg) translateZ(${RADIUS}px)`,
+                  opacity: 0.32 + 0.68 * closeness,
+                  zIndex: Math.round(closeness * 100),
+                }}
+              >
+                <BuildingElevation building={b} selected={b.id === selectedId} />
               </div>
             );
           })}
         </div>
-        <div className="revolver-indicator">
-          <svg viewBox="0 0 20 14" width="20" height="14">
-            <path d="M2 1 L10 12 L18 1" fill="none" stroke="var(--blueprint)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
       </div>
-      <div className="revolver-hint">드래그해서 돌리고, 위쪽 화살표에 맞는 동을 확인하세요</div>
+      <div className="carousel-hint">좌우로 드래그해서 동을 돌려보세요</div>
     </div>
   );
 }

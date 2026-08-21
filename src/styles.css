@@ -1313,96 +1313,163 @@ textarea.input {
   }
 }
 
-/* ============ Revolver building selector ============ */
-.revolver-outer {
+/* ============ Building elevation carousel (turntable) ============ */
+.carousel-outer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 0 4px;
 }
 
-.revolver-wrap {
+.carousel-stage {
   position: relative;
+  width: 100%;
+  height: 270px;
+  perspective: 950px;
   touch-action: none;
   cursor: grab;
   user-select: none;
+  overflow: hidden;
 }
 
-.revolver-wrap:active {
+.carousel-stage:active {
   cursor: grabbing;
 }
 
-.revolver-ring {
+.carousel-turntable {
   position: absolute;
-  inset: 6px;
-  border-radius: 50%;
-  border: 1.5px dashed var(--line-strong);
-  background: radial-gradient(circle at 50% 42%, #ffffff 0%, var(--bg) 78%);
-}
-
-.revolver-hub {
-  position: absolute;
+  bottom: 26px;
   left: 50%;
-  top: 50%;
-  width: 14px;
-  height: 14px;
+  width: 270px;
+  height: 50px;
+  transform: translateX(-50%);
   border-radius: 50%;
-  background: var(--blueprint-deep);
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 4px var(--surface), 0 0 0 5px var(--line);
-  z-index: 2;
+  background: radial-gradient(ellipse at 50% 40%, var(--surface-alt) 0%, var(--bg) 78%);
+  border: 1.5px solid var(--line-strong);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.1);
 }
 
-.revolver-dial {
+.carousel-ring {
   position: absolute;
-  inset: 0;
+  bottom: 51px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
 }
 
-.revolver-chamber-pos {
+.carousel-item {
   position: absolute;
-  transform: translate(-50%, -50%);
+  bottom: 0;
+  left: 0;
+  transform-style: preserve-3d;
 }
 
-.revolver-chamber {
-  width: 66px;
-  height: 66px;
-  border-radius: 50%;
-  background: var(--surface);
-  border: 2px solid var(--line-strong);
+.carousel-elevation {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.carousel-building {
+  display: flex;
+  flex-direction: column-reverse;
+  border: 1.5px solid var(--blueprint-deep);
+  background: #e7edf1;
+  box-shadow: 3px 5px 12px rgba(15, 50, 82, 0.22);
+}
+
+.carousel-building.selected {
+  background: #dbe6ee;
+  border-color: var(--blueprint);
+  box-shadow: 4px 8px 20px rgba(15, 50, 82, 0.35);
+}
+
+.carousel-floor-line {
   display: flex;
   align-items: center;
   justify-content: center;
-  text-align: center;
+  gap: 3px;
+  border-top: 1px solid rgba(15, 50, 82, 0.16);
+  flex-shrink: 0;
+}
+
+.carousel-window {
+  flex: 1;
+  max-width: 8px;
+  height: 55%;
+  background: rgba(23, 69, 111, 0.28);
+  border-radius: 1px;
+}
+
+.carousel-label {
+  margin-top: 8px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--ink-soft);
-  box-shadow: var(--shadow-card);
-  padding: 4px;
-  line-height: 1.2;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  white-space: nowrap;
 }
 
-.revolver-chamber.selected {
-  background: var(--blueprint);
-  border-color: var(--blueprint-deep);
-  color: #fff;
-  transform: scale(1.12);
-  box-shadow: 0 4px 14px rgba(23, 69, 111, 0.4);
+.carousel-label.selected {
+  color: var(--blueprint-deep);
+  font-size: 13px;
 }
 
-.revolver-indicator {
-  position: absolute;
-  top: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15));
-}
-
-.revolver-hint {
-  margin-top: 10px;
+.carousel-hint {
+  margin-top: 6px;
   font-size: 11.5px;
   color: var(--ink-faint);
   text-align: center;
+}
+
+/* ============ 3D frame/skeleton progress diagram ============ */
+.frame3d-stage {
+  perspective: 780px;
+  padding: 20px 10px 30px;
+  display: flex;
+  justify-content: center;
+}
+
+.frame3d-box {
+  position: relative;
+  transform-style: preserve-3d;
+}
+
+.frame3d-face {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-style: preserve-3d;
+}
+
+.frame3d-front {
+  display: flex;
+  flex-direction: column-reverse;
+  border: 1.5px solid var(--blueprint-deep);
+  overflow: hidden;
+  box-shadow: 3px 6px 16px rgba(15, 50, 82, 0.28);
+}
+
+.frame3d-floor {
+  width: 100%;
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
+  flex-shrink: 0;
+}
+
+.frame3d-side {
+  background: linear-gradient(90deg, rgba(15, 50, 82, 0.32), rgba(15, 50, 82, 0.14));
+  border: 1.5px solid var(--blueprint-deep);
+  border-left: none;
+}
+
+.frame3d-top {
+  background: #dbe6ee;
+  border: 1.5px solid var(--blueprint-deep);
+  border-bottom: none;
 }
 
 .unit-picker-row {

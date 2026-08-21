@@ -18,7 +18,6 @@ export default function App() {
   const [buildings, setBuildings] = useState([]);
   const [inspections, setInspections] = useState([]);
   const [ncrs, setNcrs] = useState([]);
-  const [siteSettings, setSiteSettings] = useState({});
   const [unitNotes, setUnitNotes] = useState([]);
   const [checklistItems, setChecklistItems] = useState([]);
   const [workers, setWorkers] = useState([]);
@@ -44,7 +43,6 @@ export default function App() {
         setBuildings(data.buildings || []);
         setInspections(data.inspections || []);
         setNcrs(data.ncrs || []);
-        setSiteSettings(data.siteSettings || {});
         setUnitNotes(data.unitNotes || []);
         setChecklistItems(data.checklistItems || []);
         setWorkers(data.workers || []);
@@ -65,18 +63,6 @@ export default function App() {
   async function handleDeleteBuilding(id) {
     await api.deleteBuilding(id);
     setBuildings((prev) => prev.filter((b) => b.id !== id));
-  }
-
-  async function handleUpdateBuilding(id, data) {
-    const updated = await api.updateBuilding(id, data);
-    setBuildings((prev) => prev.map((b) => (b.id === id ? updated : b)));
-    return updated;
-  }
-
-  async function handleUpdateSiteSettings(data) {
-    const updated = await api.updateSiteSettings(data);
-    setSiteSettings(updated);
-    return updated;
   }
 
   async function handleUpdateUnitFloorPlan(data) {
@@ -238,9 +224,6 @@ export default function App() {
         {view === "sitelayout" && (
           <SiteLayout
             buildings={buildings}
-            onUpdateBuilding={handleUpdateBuilding}
-            siteSettings={siteSettings}
-            onUpdateSiteSettings={handleUpdateSiteSettings}
             unitFloorPlan={unitFloorPlan}
             onUpdateUnitFloorPlan={handleUpdateUnitFloorPlan}
             inspections={inspections}
