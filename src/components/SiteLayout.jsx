@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect } from "react";
-import * as THREE from "three";
-import { Icon, EmptyState } from "./UI.jsx";
-import { SHAPE_OPTIONS } from "../data.js";
+import React, { useState } from "react";
+import { Icon, EmptyState, StatusBadge, CategoryTag } from "./UI.jsx";
+import { SHAPE_OPTIONS, CATEGORIES, unitOptions, categoryProgress } from "../data.js";
 import { compressImage } from "../api.js";
 import { parseDxf } from "../dxf.js";
 import DxfView from "./DxfView.jsx";
 import DrawingPin from "./DrawingPin.jsx";
+import RevolverSelector from "./RevolverSelector.jsx";
 
 export default function SiteLayout({
   buildings,
@@ -14,6 +14,8 @@ export default function SiteLayout({
   onUpdateSiteSettings,
   unitFloorPlan,
   onUpdateUnitFloorPlan,
+  inspections,
+  checklistItems,
   notify,
 }) {
   const [armedId, setArmedId] = useState(null);
@@ -22,12 +24,22 @@ export default function SiteLayout({
   const [imageError, setImageError] = useState("");
   const [unitPlanBusy, setUnitPlanBusy] = useState(false);
   const [unitPlanError, setUnitPlanError] = useState("");
+  const [finderBuildingId, setFinderBuildingId] = useState(buildings[0]?.id || "");
+  const [finderFloor, setFinderFloor] = useState(1);
+  const [finderUnit, setFinderUnit] = useState("01");
 
   const positioned = buildings.filter((b) => typeof b.siteX === "number" && typeof b.siteY === "number");
   const armedBuilding = buildings.find((b) => b.id === armedId) || null;
   const layoutImage = siteSettings && siteSettings.layoutImage;
   const layoutDxf = siteSettings && siteSettings.layoutDxf;
   const hasUnitPlan = !!(unitFloorPlan && unitFloorPlan.shapes);
+  const finderBuilding = buildings.find((b) => b.id === finderBuildingId) || buildings[0] || null;
+
+  function handleFinderSelectBuilding(id) {
+    setFinderBuildingId(id);
+    setFinderFloor(1);
+    setFinderUnit("01");
+  }
 
   async function handlePlace(x, y) {
     if (!armedId) return;
@@ -212,17 +224,48 @@ export default function SiteLayout({
 
       <div className="card card-pad">
         <div className="section-head">
-          <div className="section-title">3D 배치 모델</div>
-          <span className="eyebrow">드래그: 회전 · 휠: 확대</span>
+          <div className="section-title">호실 빠른 찾기</div>
+          <span className="eyebrow">DRAG TO SELECT</span>
         </div>
-        {positioned.length === 0 ? (
-          <EmptyState message="왼쪽에서 동 위치를 지정하면 3D 모델이 표시됩니다." />
-        ) : (
-          <Site3DView buildings={positioned} />
+
+        <RevolverSelector buildings={buildings} selectedId={finderBuildingId || buildings[0]?.id} onSelect={handleFinderSelectBuilding} />
+
+        {finderBuilding && (
+          <div style={{ marginTop: 18 }}>
+            <div className="field-row">
+              <div className="field">
+                <label>층</label>
+                <select className="input" value={finderFloor} onChange={(e) => setFinderFloor(Number(e.target.value))}>
+                  {Array.from({ length: finderBuilding.floors || 1 }, (_, i) => i + 1)
+                    .reverse()
+                    .map((f) => (
+                      <option key={f} value={f}>{f}층</option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="field">
+              <label>호</label>
+              <div className="unit-picker-row">
+                {unitOptions(finderBuilding.unitsPerFloor).map((u) => (
+                  <button key={u} className={`unit-picker-btn${finderUnit === u ? " active" : ""}`} onClick={() => setFinderUnit(u)}>
+                    {u}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <UnitQuickInfo
+              building={finderBuilding}
+              floor={finderFloor}
+              unit={finderUnit}
+              inspections={inspections}
+              checklistItems={checklistItems}
+              unitFloorPlan={unitFloorPlan}
+            />
+          </div>
         )}
-        <div style={{ marginTop: 12, fontSize: 11.5, color: "var(--ink-faint)" }}>
-          건물 높이는 층수, 밑면 크기는 층당 세대수, 외곽 형태는 선택한 동 형태(판상형·타워형·ㄱ형·Y형)를 기준으로 한 개략적인 매싱(massing) 모델입니다. 실제 치수·형태와는 차이가 있을 수 있습니다.
-        </div>
       </div>
       </div>
 
@@ -250,6 +293,46 @@ export default function SiteLayout({
         <div style={{ maxWidth: 460 }}>
           <DrawingPin dxfData={hasUnitPlan ? unitFloorPlan : null} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function UnitQuickInfo({ building, floor, unit, inspections, checklistItems, unitFloorPlan }) {
+  const pins = (inspections || [])
+    .filter((i) => i.buildingId === building.id && String(i.floor) === String(floor) && i.unit === unit && i.pin)
+    .map((i) => {
+      const cat = CATEGORIES.find((c) => c.id === i.categoryId);
+      return { x: i.pin.x, y: i.pin.y, color: cat?.color };
+    });
+
+  return (
+    <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
+      <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 12 }}>
+        {building.name} {floor}층 {unit}호
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 16 }}>
+        {CATEGORIES.map((c) => {
+          const prog = categoryProgress(inspections, checklistItems, building.id, floor, unit, c.id);
+          return (
+            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <CategoryTag category={c} />
+              <div style={{ flex: 1, height: 6, borderRadius: 4, background: "var(--surface-alt)", overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${prog.percent}%`,
+                    height: "100%",
+                    background: prog.status === "반려" ? "var(--fail)" : prog.status === "승인" ? "var(--pass)" : "var(--pending)",
+                  }}
+                />
+              </div>
+              <StatusBadge status={prog.status} />
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ maxWidth: 340 }}>
+        <DrawingPin pins={pins} dxfData={unitFloorPlan?.shapes ? unitFloorPlan : null} />
       </div>
     </div>
   );
@@ -307,191 +390,5 @@ function SiteMap2D({ buildings, armed, onPlace, backgroundImage, dxfData }) {
       ))}
       {armed && <span className="drawing-hint">지도를 클릭해 위치를 지정하세요</span>}
     </div>
-  );
-}
-
-// 동 형태별로 매싱 박스 파츠(local 중심좌표 x,z / 회전 rotY / 가로w·깊이d)를 계산한다.
-// 모든 파츠는 baseSize(동 하나의 기준 크기)를 기준으로 산출한다.
-function shapeParts(shape, baseSize) {
-  if (shape === "tower") {
-    const s = baseSize * 0.9;
-    return [{ w: s, d: s, x: 0, z: 0, rotY: 0 }];
-  }
-  if (shape === "l") {
-    const arm = baseSize * 1.3;
-    const thick = baseSize * 0.5;
-    return [
-      { w: arm, d: thick, x: arm / 2, z: 0, rotY: 0 },
-      { w: arm, d: thick, x: 0, z: arm / 2, rotY: -Math.PI / 2 },
-    ];
-  }
-  if (shape === "y") {
-    const arm = baseSize * 0.85;
-    const thick = baseSize * 0.48;
-    const anglesDeg = [90, 210, 330];
-    return anglesDeg.map((deg) => {
-      const rad = (deg * Math.PI) / 180;
-      return {
-        w: arm,
-        d: thick,
-        x: Math.cos(rad) * (arm / 2),
-        z: Math.sin(rad) * (arm / 2),
-        rotY: -rad,
-      };
-    });
-  }
-  // slab (판상형, 기본값)
-  return [{ w: baseSize * 1.8, d: baseSize * 0.78, x: 0, z: 0, rotY: 0 }];
-}
-
-function addBuildingMesh(group, disposables, building) {
-  const baseSize = 3 + Math.min(building.unitsPerFloor || 4, 12) * 0.8;
-  const bHeight = Math.max(1.2, (building.floors || 1) * 0.42);
-  const parts = shapeParts(building.shape || "slab", baseSize);
-
-  const wx = (building.siteX / 100) * 40 - 20;
-  const wz = (building.siteY / 100) * 40 - 20;
-
-  parts.forEach((p) => {
-    const geo = new THREE.BoxGeometry(p.w, bHeight, p.d);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x3e7cb1, roughness: 0.75, metalness: 0.05 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(wx + p.x, bHeight / 2, wz + p.z);
-    mesh.rotation.y = p.rotY;
-    group.add(mesh);
-
-    const edgesGeo = new THREE.EdgesGeometry(geo);
-    const edgesMat = new THREE.LineBasicMaterial({ color: 0x17456f });
-    const edges = new THREE.LineSegments(edgesGeo, edgesMat);
-    edges.position.copy(mesh.position);
-    edges.rotation.y = p.rotY;
-    group.add(edges);
-
-    disposables.push(geo, mat, edgesGeo, edgesMat);
-  });
-}
-
-function Site3DView({ buildings }) {
-  const mountRef = useRef(null);
-
-  useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return;
-
-    const width = mount.clientWidth || 400;
-    const height = mount.clientHeight || 360;
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xeef1ef);
-
-    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 1000);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    mount.appendChild(renderer.domElement);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.75));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.55);
-    dirLight.position.set(18, 26, 12);
-    scene.add(dirLight);
-
-    const grid = new THREE.GridHelper(44, 22, 0x9db3c4, 0xd7ddda);
-    scene.add(grid);
-    const groundGeo = new THREE.PlaneGeometry(44, 44);
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0xf4f7f5, roughness: 1 });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.02;
-    scene.add(ground);
-
-    const group = new THREE.Group();
-    const disposables = [groundGeo, groundMat];
-    buildings.forEach((b) => addBuildingMesh(group, disposables, b));
-    scene.add(group);
-
-    let radius = 34;
-    let azimuth = Math.PI / 4;
-    let elevation = 0.68;
-
-    function updateCamera() {
-      const cx = radius * Math.cos(elevation) * Math.sin(azimuth);
-      const cy = radius * Math.sin(elevation);
-      const cz = radius * Math.cos(elevation) * Math.cos(azimuth);
-      camera.position.set(cx, cy, cz);
-      camera.lookAt(0, 2, 0);
-    }
-    updateCamera();
-
-    let dragging = false;
-    let lastX = 0;
-    let lastY = 0;
-
-    function onPointerDown(e) {
-      dragging = true;
-      lastX = e.clientX;
-      lastY = e.clientY;
-      renderer.domElement.style.cursor = "grabbing";
-    }
-    function onPointerMove(e) {
-      if (!dragging) return;
-      const dx = e.clientX - lastX;
-      const dy = e.clientY - lastY;
-      lastX = e.clientX;
-      lastY = e.clientY;
-      azimuth -= dx * 0.006;
-      elevation = Math.min(1.45, Math.max(0.12, elevation + dy * 0.006));
-      updateCamera();
-    }
-    function onPointerUp() {
-      dragging = false;
-      renderer.domElement.style.cursor = "grab";
-    }
-    function onWheel(e) {
-      e.preventDefault();
-      radius = Math.min(70, Math.max(14, radius + e.deltaY * 0.03));
-      updateCamera();
-    }
-
-    renderer.domElement.style.cursor = "grab";
-    renderer.domElement.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
-
-    let rafId;
-    function animate() {
-      rafId = requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    function handleResize() {
-      const w = mount.clientWidth || 400;
-      const h = mount.clientHeight || 360;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    }
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      window.removeEventListener("resize", handleResize);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      renderer.domElement.removeEventListener("pointerdown", onPointerDown);
-      renderer.domElement.removeEventListener("wheel", onWheel);
-      if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
-      renderer.dispose();
-      disposables.forEach((d) => d.dispose());
-    };
-  }, [buildings]);
-
-  return (
-    <div
-      ref={mountRef}
-      style={{ width: "100%", height: 360, borderRadius: "var(--radius-m)", overflow: "hidden", border: "1px solid var(--line)" }}
-    />
   );
 }

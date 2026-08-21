@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { CATEGORIES, itemsForCategory, formatDateTime } from "../data.js";
+import { CATEGORIES, formatDateTime, unitOptions, categoryProgress } from "../data.js";
 import { Icon, EmptyState, CategoryTag, StatusBadge } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 
@@ -9,22 +9,6 @@ const BAR_COLOR = {
   승인: "var(--pass)",
   반려: "var(--fail)",
 };
-
-function unitOptions(unitsPerFloor) {
-  const n = Math.max(1, Number(unitsPerFloor) || 1);
-  return Array.from({ length: n }, (_, i) => String(i + 1).padStart(2, "0"));
-}
-
-function categoryProgress(inspections, checklistItems, buildingId, floor, unit, categoryId) {
-  const relevant = inspections.filter(
-    (i) => i.buildingId === buildingId && String(i.floor) === String(floor) && i.unit === unit && i.categoryId === categoryId
-  );
-  const total = itemsForCategory(checklistItems, categoryId).length;
-  if (relevant.length === 0) return { status: "미시작", percent: 0 };
-  const latest = [...relevant].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-  const percent = total ? Math.round((latest.checkedItemIds.length / total) * 100) : 0;
-  return { status: latest.status, percent: latest.status === "반려" ? 0 : percent };
-}
 
 export default function UnitInfo({ buildings, inspections, checklistItems, unitNotes, unitFloorPlan, onCreateNote, onDeleteNote, notify }) {
   const [buildingId, setBuildingId] = useState(buildings[0]?.id || "");

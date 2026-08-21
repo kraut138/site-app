@@ -45,6 +45,24 @@ export function findItemText(checklistItems, itemId) {
   return item ? item.text : "(삭제된 항목)";
 }
 
+// 층당 세대수로 "01","02"... 형태의 호수 목록 생성
+export function unitOptions(unitsPerFloor) {
+  const n = Math.max(1, Number(unitsPerFloor) || 1);
+  return Array.from({ length: n }, (_, i) => String(i + 1).padStart(2, "0"));
+}
+
+// 특정 동/층/호/공종의 최신 검측 상태와 진행률(%) 계산
+export function categoryProgress(inspections, checklistItems, buildingId, floor, unit, categoryId) {
+  const relevant = inspections.filter(
+    (i) => i.buildingId === buildingId && String(i.floor) === String(floor) && i.unit === unit && i.categoryId === categoryId
+  );
+  const total = itemsForCategory(checklistItems, categoryId).length;
+  if (relevant.length === 0) return { status: "미시작", percent: 0 };
+  const latest = [...relevant].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+  const percent = total ? Math.round((latest.checkedItemIds.length / total) * 100) : 0;
+  return { status: latest.status, percent: latest.status === "반려" ? 0 : percent };
+}
+
 // 카테고리별 "기본값" 목록 - 체크리스트 탭의 "기본값으로 초기화" 버튼에서 사용
 export const DEFAULT_ITEMS_BY_CATEGORY = {
   frame: [

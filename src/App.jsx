@@ -243,6 +243,8 @@ export default function App() {
             onUpdateSiteSettings={handleUpdateSiteSettings}
             unitFloorPlan={unitFloorPlan}
             onUpdateUnitFloorPlan={handleUpdateUnitFloorPlan}
+            inspections={inspections}
+            checklistItems={checklistItems}
             notify={notify}
           />
         )}
