@@ -22,7 +22,7 @@ export default function App() {
   const [unitNotes, setUnitNotes] = useState([]);
   const [checklistItems, setChecklistItems] = useState([]);
   const [workers, setWorkers] = useState([]);
-  const [unitFloorPlan, setUnitFloorPlan] = useState({});
+  const [unitFloorPlans, setUnitFloorPlans] = useState([]);
   const [progress, setProgress] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -48,7 +48,7 @@ export default function App() {
         setUnitNotes(data.unitNotes || []);
         setChecklistItems(data.checklistItems || []);
         setWorkers(data.workers || []);
-        setUnitFloorPlan(data.unitFloorPlan || {});
+        setUnitFloorPlans(data.unitFloorPlans || []);
         setProgress(data.progress || []);
       })
       .catch((err) => alive && setLoadError(err.message))
@@ -68,10 +68,21 @@ export default function App() {
     setBuildings((prev) => prev.filter((b) => b.id !== id));
   }
 
-  async function handleUpdateUnitFloorPlan(data) {
-    const updated = await api.updateUnitFloorPlan(data);
-    setUnitFloorPlan(updated);
+  async function handleCreateUnitFloorPlan(data) {
+    const created = await api.createUnitFloorPlan(data);
+    setUnitFloorPlans((prev) => [...prev, created]);
+    return created;
+  }
+
+  async function handleUpdateUnitFloorPlan(id, data) {
+    const updated = await api.updateUnitFloorPlan(id, data);
+    setUnitFloorPlans((prev) => prev.map((p) => (p.id === id ? updated : p)));
     return updated;
+  }
+
+  async function handleDeleteUnitFloorPlan(id) {
+    await api.deleteUnitFloorPlan(id);
+    setUnitFloorPlans((prev) => prev.filter((p) => p.id !== id));
   }
 
   async function handleSetProgressBatch(buildingId, units, itemId, categoryId, status) {
@@ -192,7 +203,7 @@ export default function App() {
             inspections={inspections}
             ncrs={ncrs}
             checklistItems={checklistItems}
-            unitFloorPlan={unitFloorPlan}
+            unitFloorPlans={unitFloorPlans}
             onCreateInspection={handleCreateInspection}
             onUpdateInspectionStatus={handleUpdateInspectionStatus}
             onUpdateNcrStatus={handleUpdateNcrStatus}
@@ -228,7 +239,7 @@ export default function App() {
             inspections={inspections}
             ncrs={ncrs}
             workers={workers}
-            unitFloorPlan={unitFloorPlan}
+            unitFloorPlans={unitFloorPlans}
             onUpdateNcrStatus={handleUpdateNcrStatus}
             onUpdateWorkerStatus={handleUpdateWorkerStatus}
             notify={notify}
@@ -240,24 +251,27 @@ export default function App() {
             inspections={inspections}
             checklistItems={checklistItems}
             unitNotes={unitNotes}
-            unitFloorPlan={unitFloorPlan}
+            unitFloorPlans={unitFloorPlans}
             onCreateNote={handleCreateUnitNote}
             onDeleteNote={handleDeleteUnitNote}
             notify={notify}
           />
         )}
         {view === "buildings" && (
-          <Buildings buildings={buildings} onCreate={handleCreateBuilding} onDelete={handleDeleteBuilding} canEdit={role === ROLES.SUPER} />
-        )}
-        {view === "sitelayout" && (
-          <SiteLayout
+          <Buildings
             buildings={buildings}
-            unitFloorPlan={unitFloorPlan}
-            onUpdateUnitFloorPlan={handleUpdateUnitFloorPlan}
-            checklistItems={checklistItems}
-            progress={progress}
+            onCreate={handleCreateBuilding}
+            onDelete={handleDeleteBuilding}
+            canEdit={role === ROLES.SUPER}
+            unitFloorPlans={unitFloorPlans}
+            onCreateFloorPlan={handleCreateUnitFloorPlan}
+            onUpdateFloorPlan={handleUpdateUnitFloorPlan}
+            onDeleteFloorPlan={handleDeleteUnitFloorPlan}
             notify={notify}
           />
+        )}
+        {view === "sitelayout" && (
+          <SiteLayout buildings={buildings} checklistItems={checklistItems} progress={progress} />
         )}
       </Layout>
       <Toast message={toast} onDone={() => setToast("")} />

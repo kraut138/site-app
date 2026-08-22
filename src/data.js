@@ -108,6 +108,12 @@ export const DEFAULT_ITEMS_BY_CATEGORY = {
 };
 
 export const INSPECTION_STATUSES = ["대기", "승인", "반려"];
+
+// 동 id + 호수로 등록된 여러 평면도 중 맞는 것을 찾는다. 없으면 null(호출부에서 기본 예시 평면도로 대체)
+export function findUnitFloorPlan(unitFloorPlans, buildingId, unit) {
+  if (!unitFloorPlans || !buildingId || !unit) return null;
+  return unitFloorPlans.find((p) => p.buildingId === buildingId && Array.isArray(p.units) && p.units.includes(unit)) || null;
+}
 export const NCR_STATUSES = ["발생", "조치중", "재검측요청", "완료"];
 
 export const ROLES = {

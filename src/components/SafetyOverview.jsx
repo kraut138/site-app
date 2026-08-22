@@ -5,7 +5,7 @@ import { NCRDetail } from "./NCR.jsx";
 
 const SAFETY_ID = "safety";
 
-export default function SafetyOverview({ role, buildings, inspections, ncrs, workers, unitFloorPlan, onUpdateNcrStatus, onUpdateWorkerStatus, notify }) {
+export default function SafetyOverview({ role, buildings, inspections, ncrs, workers, unitFloorPlans, onUpdateNcrStatus, onUpdateWorkerStatus, notify }) {
   const [selectedNcrId, setSelectedNcrId] = useState(null);
   const [workerBusyId, setWorkerBusyId] = useState(null);
 
@@ -194,6 +194,7 @@ export default function SafetyOverview({ role, buildings, inspections, ncrs, wor
           ncr={selected}
           building={buildings.find((b) => b.id === selected.buildingId)}
           role={role}
+          unitFloorPlans={unitFloorPlans}
           onClose={() => setSelectedNcrId(null)}
           onAdvance={async (status, extra) => {
             await onUpdateNcrStatus(selected.id, { status, ...extra });

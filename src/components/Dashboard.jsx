@@ -10,7 +10,7 @@ const NCR_COLOR = {
   완료: "var(--pass)",
 };
 
-export default function Dashboard({ buildings, inspections, ncrs, unitFloorPlan }) {
+export default function Dashboard({ buildings, inspections, ncrs }) {
   const total = inspections.length;
   const approved = inspections.filter((i) => i.status === "승인").length;
   const rejected = inspections.filter((i) => i.status === "반려").length;
@@ -118,7 +118,7 @@ export default function Dashboard({ buildings, inspections, ncrs, unitFloorPlan 
           {openPins.length === 0 ? (
             <EmptyState message="도면에 표시할 미해결 지적사항이 없습니다." />
           ) : (
-            <DrawingPin pins={openPins} dxfData={unitFloorPlan?.shapes ? unitFloorPlan : null} />
+            <DrawingPin pins={openPins} />
           )}
         </div>
       </div>

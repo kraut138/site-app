@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from "react";
-import { CATEGORIES, getCategory, itemsForCategory, findItemText, formatDateTime, unitOptions, ROLES } from "../data.js";
+import { CATEGORIES, getCategory, itemsForCategory, findItemText, formatDateTime, unitOptions, findUnitFloorPlan, ROLES } from "../data.js";
 import { compressImage } from "../api.js";
 import { Icon, StatusBadge, CategoryTag, Modal, EmptyState, Stamp } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 
 const TABS = ["전체", "대기", "승인", "반려"];
 
-export default function Inspections({ role, buildings, inspections, checklistItems, unitFloorPlan, onCreate, onUpdateStatus, notify }) {
+export default function Inspections({ role, buildings, inspections, checklistItems, unitFloorPlans, onCreate, onUpdateStatus, notify }) {
   const [tab, setTab] = useState("전체");
   const [showForm, setShowForm] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -82,7 +82,7 @@ export default function Inspections({ role, buildings, inspections, checklistIte
         <InspectionForm
           buildings={buildings}
           checklistItems={checklistItems}
-          unitFloorPlan={unitFloorPlan}
+          unitFloorPlans={unitFloorPlans}
           onClose={() => setShowForm(false)}
           onSubmit={async (data) => {
             const created = await onCreate(data);
@@ -98,7 +98,7 @@ export default function Inspections({ role, buildings, inspections, checklistIte
           building={buildings.find((b) => b.id === selected.buildingId)}
           role={role}
           checklistItems={checklistItems}
-          unitFloorPlan={unitFloorPlan}
+          unitFloorPlans={unitFloorPlans}
           onClose={() => setSelectedId(null)}
           onDecide={async (status, comment) => {
             const res = await onUpdateStatus(selected.id, { status, comment, approver: "감리단 담당자" });
@@ -111,7 +111,7 @@ export default function Inspections({ role, buildings, inspections, checklistIte
   );
 }
 
-function InspectionForm({ buildings, checklistItems, unitFloorPlan, onClose, onSubmit }) {
+function InspectionForm({ buildings, checklistItems, unitFloorPlans, onClose, onSubmit }) {
   const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
   const [buildingId, setBuildingId] = useState(buildings[0]?.id || "");
   const [selectedUnits, setSelectedUnits] = useState(new Set()); // "floor-unit" 키 집합
@@ -128,6 +128,10 @@ function InspectionForm({ buildings, checklistItems, unitFloorPlan, onClose, onS
   const selectedBuilding = buildings.find((b) => b.id === buildingId) || null;
   const floorsList = selectedBuilding ? Array.from({ length: selectedBuilding.floors || 1 }, (_, i) => i + 1).reverse() : [];
   const unitsPerFloorList = selectedBuilding ? unitOptions(selectedBuilding.unitsPerFloor) : [];
+  // 도면 미리보기는 선택된 호실 중 첫 번째 기준(여러 호실을 한 번에 고를 수 있어 완전히 정확하진 않지만,
+  // 같은 핀 위치를 여러 호실에 공통 적용하는 배치 제출 특성상 대표 하나로 보여준다)
+  const firstSelectedUnit = selectedUnits.size > 0 ? Array.from(selectedUnits)[0].split("-")[1] : null;
+  const previewFloorPlan = selectedBuilding && firstSelectedUnit ? findUnitFloorPlan(unitFloorPlans, selectedBuilding.id, firstSelectedUnit) : null;
 
   function unitKey(floor, unit) {
     return `${floor}-${unit}`;
@@ -317,7 +321,7 @@ function InspectionForm({ buildings, checklistItems, unitFloorPlan, onClose, onS
 
         <div className="field">
           <label>도면 위치 지정</label>
-          <DrawingPin pin={pin} onPin={setPin} pinColor="#17456f" dxfData={unitFloorPlan?.shapes ? unitFloorPlan : null} />
+          <DrawingPin pin={pin} onPin={setPin} pinColor="#17456f" dxfData={previewFloorPlan} />
         </div>
 
         <div className="field">
@@ -360,7 +364,7 @@ function InspectionForm({ buildings, checklistItems, unitFloorPlan, onClose, onS
   );
 }
 
-function InspectionDetail({ insp, building, role, checklistItems, unitFloorPlan, onClose, onDecide }) {
+function InspectionDetail({ insp, building, role, checklistItems, unitFloorPlans, onClose, onDecide }) {
   const category = getCategory(insp.categoryId);
   const [comment, setComment] = useState("");
   const [showReject, setShowReject] = useState(false);
@@ -422,7 +426,7 @@ function InspectionDetail({ insp, building, role, checklistItems, unitFloorPlan,
         </div>
         <div>
           <div className="eyebrow" style={{ marginBottom: 8 }}>도면 위치</div>
-          {insp.pin ? <DrawingPin pin={insp.pin} pinColor={category?.color} dxfData={unitFloorPlan?.shapes ? unitFloorPlan : null} /> : <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>지정된 위치 없음</div>}
+          {insp.pin ? <DrawingPin pin={insp.pin} pinColor={category?.color} dxfData={findUnitFloorPlan(unitFloorPlans, insp.buildingId, insp.unit)} /> : <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>지정된 위치 없음</div>}
         </div>
       </div>
 

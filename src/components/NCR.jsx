@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { getCategory, formatDateTime, ROLES, NCR_STATUSES } from "../data.js";
+import { getCategory, formatDateTime, findUnitFloorPlan, ROLES, NCR_STATUSES } from "../data.js";
 import { compressImage } from "../api.js";
 import { Icon, StatusBadge, CategoryTag, Modal } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
@@ -11,7 +11,7 @@ const COLUMN_HINT = {
   완료: "재검측 승인 완료",
 };
 
-export default function NCR({ role, buildings, ncrs, unitFloorPlan, onUpdateStatus, notify }) {
+export default function NCR({ role, buildings, ncrs, unitFloorPlans, onUpdateStatus, notify }) {
   const [selectedId, setSelectedId] = useState(null);
   const selected = ncrs.find((n) => n.id === selectedId) || null;
 
@@ -61,7 +61,7 @@ export default function NCR({ role, buildings, ncrs, unitFloorPlan, onUpdateStat
           ncr={selected}
           building={buildings.find((b) => b.id === selected.buildingId)}
           role={role}
-          unitFloorPlan={unitFloorPlan}
+          unitFloorPlans={unitFloorPlans}
           onClose={() => setSelectedId(null)}
           onAdvance={async (status, extra) => {
             await onUpdateStatus(selected.id, { status, ...extra });
@@ -73,7 +73,7 @@ export default function NCR({ role, buildings, ncrs, unitFloorPlan, onUpdateStat
   );
 }
 
-export function NCRDetail({ ncr, building, role, unitFloorPlan, onClose, onAdvance }) {
+export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdvance }) {
   const category = getCategory(ncr.categoryId);
   const [comment, setComment] = useState("");
   const [actionPhotos, setActionPhotos] = useState([]);
@@ -127,7 +127,7 @@ export function NCRDetail({ ncr, building, role, unitFloorPlan, onClose, onAdvan
         </div>
         <div>
           <div className="eyebrow" style={{ marginBottom: 8 }}>도면 위치</div>
-          {ncr.pin ? <DrawingPin pin={ncr.pin} pinColor="var(--fail)" dxfData={unitFloorPlan?.shapes ? unitFloorPlan : null} /> : <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>지정된 위치 없음</div>}
+          {ncr.pin ? <DrawingPin pin={ncr.pin} pinColor="var(--fail)" dxfData={findUnitFloorPlan(unitFloorPlans, ncr.buildingId, ncr.unit)} /> : <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>지정된 위치 없음</div>}
         </div>
       </div>
 

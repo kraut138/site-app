@@ -93,7 +93,7 @@ async function ensureSeeded() {
 
 export async function fetchBootstrap() {
   await ensureSeeded();
-  const [buildingsSnap, inspectionsSnap, ncrsSnap, unitNotesSnap, checklistItemsSnap, workersSnap, siteSettingsSnap, unitFloorPlanSnap, progressSnap] = await Promise.all([
+  const [buildingsSnap, inspectionsSnap, ncrsSnap, unitNotesSnap, checklistItemsSnap, workersSnap, siteSettingsSnap, unitFloorPlansSnap, progressSnap] = await Promise.all([
     getDocs(collection(db, "buildings")),
     getDocs(collection(db, "inspections")),
     getDocs(collection(db, "ncrs")),
@@ -101,7 +101,7 @@ export async function fetchBootstrap() {
     getDocs(collection(db, "checklistItems")),
     getDocs(collection(db, "workers")),
     getDoc(doc(db, "meta", "siteSettings")),
-    getDoc(doc(db, "meta", "unitFloorPlan")),
+    getDocs(collection(db, "unitFloorPlans")),
     getDocs(collection(db, "progress")),
   ]);
   return {
@@ -112,7 +112,7 @@ export async function fetchBootstrap() {
     checklistItems: snapToArray(checklistItemsSnap),
     workers: snapToArray(workersSnap),
     siteSettings: siteSettingsSnap.exists() ? siteSettingsSnap.data() : {},
-    unitFloorPlan: unitFloorPlanSnap.exists() ? unitFloorPlanSnap.data() : {},
+    unitFloorPlans: snapToArray(unitFloorPlansSnap),
     progress: snapToArray(progressSnap),
   };
 }
@@ -165,16 +165,40 @@ export async function updateSiteSettings(data) {
   return snap.data();
 }
 
-// 호실 내부 평면도(DXF)는 용량이 커질 수 있어 site-settings와 별도 문서에 저장한다.
-export async function fetchUnitFloorPlan() {
-  const snap = await getDoc(doc(db, "meta", "unitFloorPlan"));
-  return snap.exists() ? snap.data() : {};
+// 호실 내부 평면도(DXF) - 동 하나에 여러 개(호수 타입별)를 등록할 수 있다.
+// data: { buildingId, name, units: string[], shapes, bounds, truncated }
+export async function createUnitFloorPlan(data) {
+  if (!data.buildingId || !Array.isArray(data.units) || data.units.length === 0) {
+    throw new Error("buildingId, units(1개 이상)는 필수입니다.");
+  }
+  const payload = {
+    buildingId: data.buildingId,
+    name: data.name || "",
+    units: data.units,
+    shapes: data.shapes,
+    bounds: data.bounds,
+    truncated: !!data.truncated,
+    createdAt: nowIso(),
+  };
+  const docRef = await addDoc(collection(db, "unitFloorPlans"), payload);
+  return { id: docRef.id, ...payload };
 }
 
-export async function updateUnitFloorPlan(data) {
-  await setDoc(doc(db, "meta", "unitFloorPlan"), data, { merge: true });
-  const snap = await getDoc(doc(db, "meta", "unitFloorPlan"));
-  return snap.data();
+export async function updateUnitFloorPlan(id, data) {
+  const updates = {};
+  if (data.name !== undefined) updates.name = data.name;
+  if (data.units !== undefined) updates.units = data.units;
+  if (data.shapes !== undefined) updates.shapes = data.shapes;
+  if (data.bounds !== undefined) updates.bounds = data.bounds;
+  if (data.truncated !== undefined) updates.truncated = !!data.truncated;
+  await updateDoc(doc(db, "unitFloorPlans", id), updates);
+  const snap = await getDoc(doc(db, "unitFloorPlans", id));
+  return { id: snap.id, ...snap.data() };
+}
+
+export async function deleteUnitFloorPlan(id) {
+  await deleteDoc(doc(db, "unitFloorPlans", id));
+  return { ok: true };
 }
 
 // ---------------- unit notes ----------------

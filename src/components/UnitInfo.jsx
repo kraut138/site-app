@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { CATEGORIES, formatDateTime, unitOptions, categoryProgress } from "../data.js";
+import { CATEGORIES, formatDateTime, unitOptions, categoryProgress, findUnitFloorPlan } from "../data.js";
 import { Icon, EmptyState, CategoryTag, StatusBadge } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 
@@ -10,7 +10,7 @@ const BAR_COLOR = {
   반려: "var(--fail)",
 };
 
-export default function UnitInfo({ buildings, inspections, checklistItems, unitNotes, unitFloorPlan, onCreateNote, onDeleteNote, notify }) {
+export default function UnitInfo({ buildings, inspections, checklistItems, unitNotes, unitFloorPlans, onCreateNote, onDeleteNote, notify }) {
   const [buildingId, setBuildingId] = useState(buildings[0]?.id || "");
   const [floor, setFloor] = useState(1);
   const [unit, setUnit] = useState("01");
@@ -190,7 +190,7 @@ export default function UnitInfo({ buildings, inspections, checklistItems, unitN
             <div className="section-title">호실 평면도</div>
             <span className="eyebrow">검측 위치 {pins.length}건 표시</span>
           </div>
-          <DrawingPin pins={pins} dxfData={unitFloorPlan?.shapes ? unitFloorPlan : null} />
+          <DrawingPin pins={pins} dxfData={findUnitFloorPlan(unitFloorPlans, buildingId, unit)} />
           <div style={{ marginTop: 12, fontSize: 11.5, color: "var(--ink-faint)", display: "flex", gap: 14, flexWrap: "wrap" }}>
             <span><span style={{ color: "#276b45" }}>●</span> 승인</span>
             <span><span style={{ color: "#a6392a" }}>●</span> 반려(NCR)</span>
