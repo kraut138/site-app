@@ -76,9 +76,9 @@ export default function SiteLayout({
         <div className="card card-pad">
           <div className="section-head">
             <div className="section-title">골구도</div>
-            <span className="eyebrow">{finderBuilding?.name || ""} · 완료 세대 표시</span>
+            <span className="eyebrow">전체 동 · 완료 세대 표시</span>
           </div>
-          <GolguDiagram building={finderBuilding} progress={progress} checklistItems={checklistItems} />
+          <GolguDiagram buildings={buildings} progress={progress} checklistItems={checklistItems} />
         </div>
 
         <div className="card card-pad">

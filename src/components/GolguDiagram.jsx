@@ -18,15 +18,15 @@ function isUnitComplete(building, floor, unit, itemId, progress) {
 
 /**
  * props:
- * - building: 선택된 동
+ * - buildings: 전체 동 목록 (전부 한 번에 표시)
  * - progress: 공사진행 탭에서 기록된 상태 목록
  * - checklistItems
  */
-export default function GolguDiagram({ building, progress, checklistItems }) {
+export default function GolguDiagram({ buildings, progress, checklistItems }) {
   const [categoryId, setCategoryId] = useState(VISIBLE_CATEGORIES[0].id);
   const [itemId, setItemId] = useState(firstItemIdFor(VISIBLE_CATEGORIES[0].id, checklistItems));
 
-  if (!building) return null;
+  if (!buildings || buildings.length === 0) return null;
 
   const categoryItems = itemsForCategory(checklistItems, categoryId);
   const selectedItem = checklistItems.find((i) => i.id === itemId) || null;
@@ -36,19 +36,23 @@ export default function GolguDiagram({ building, progress, checklistItems }) {
     setItemId(firstItemIdFor(id, checklistItems));
   }
 
-  const floors = Math.max(1, building.floors || 1);
-  const floorNumsDesc = Array.from({ length: floors }, (_, i) => floors - i); // 위층부터 그대로 grid row 순서
-  const units = unitOptions(building.unitsPerFloor);
-
+  let totalUnits = 0;
   let completeCount = 0;
-  const totalUnits = floors * units.length;
-  const cellData = floorNumsDesc.map((f) =>
-    units.map((u) => {
-      const complete = selectedItem ? isUnitComplete(building, f, u, itemId, progress) : false;
-      if (complete) completeCount += 1;
-      return { floor: f, unit: u, complete };
-    })
-  );
+
+  const buildingWalls = buildings.map((building) => {
+    const floors = Math.max(1, building.floors || 1);
+    const floorNumsDesc = Array.from({ length: floors }, (_, i) => floors - i); // 위층부터
+    const units = unitOptions(building.unitsPerFloor);
+    totalUnits += floors * units.length;
+    const cellData = floorNumsDesc.map((f) =>
+      units.map((u) => {
+        const complete = selectedItem ? isUnitComplete(building, f, u, itemId, progress) : false;
+        if (complete) completeCount += 1;
+        return { floor: f, unit: u, complete };
+      })
+    );
+    return { building, cellData };
+  });
 
   return (
     <div>
@@ -86,7 +90,7 @@ export default function GolguDiagram({ building, progress, checklistItems }) {
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12, fontSize: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12, fontSize: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
           <span className="golgu-brick" style={{ width: 14, height: 14 }} />
           미완료
@@ -96,30 +100,38 @@ export default function GolguDiagram({ building, progress, checklistItems }) {
           완료
         </div>
         <span style={{ marginLeft: "auto", color: "var(--ink-soft)" }}>
-          {totalUnits}세대 중 <strong style={{ color: "var(--pass)" }}>{completeCount}세대</strong> 완료
+          전체 {totalUnits}세대 중 <strong style={{ color: "var(--pass)" }}>{completeCount}세대</strong> 완료
         </span>
       </div>
 
       <div className="golgu-wall-scroll">
-        <div className="golgu-wall">
-          {cellData.map((row, ri) => (
-            <div className="golgu-row" key={ri}>
-              <span className="golgu-floor-label mono">{row[0].floor}F</span>
-              <div className="golgu-bricks">
-                {row.map((cell) => (
-                  <span
-                    key={cell.unit}
-                    className={`golgu-brick${cell.complete ? " complete" : ""}`}
-                    title={`${cell.floor}층 ${cell.unit}호 · ${selectedItem ? selectedItem.text : ""} · ${cell.complete ? "완료" : "미완료"}`}
-                  >
-                    {cell.unit}
-                  </span>
+        <div className="golgu-multi-wall">
+          {buildingWalls.map(({ building, cellData }) => (
+            <div className="golgu-building-col" key={building.id}>
+              <div className="golgu-wall">
+                {cellData.map((row, ri) => (
+                  <div className="golgu-row" key={ri}>
+                    <span className="golgu-floor-label mono">{row[0].floor}F</span>
+                    <div className="golgu-bricks">
+                      {row.map((cell) => (
+                        <span
+                          key={cell.unit}
+                          className={`golgu-brick${cell.complete ? " complete" : ""}`}
+                          title={`${building.name} ${cell.floor}층 ${cell.unit}호 · ${selectedItem ? selectedItem.text : ""} · ${cell.complete ? "완료" : "미완료"}`}
+                        >
+                          {cell.unit}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
+              <div className="golgu-building-name">{building.name}</div>
             </div>
           ))}
         </div>
       </div>
+      {buildingWalls.length > 1 && <div className="golgu-scroll-hint">← 옆으로 스크롤하면 다른 동도 볼 수 있어요 →</div>}
     </div>
   );
 }

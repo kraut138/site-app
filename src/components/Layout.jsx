@@ -99,6 +99,14 @@ export default function Layout({ role, setRole, view, setView, badges = {}, chil
             <h1>{meta.title}</h1>
             <div className="desc">{meta.desc}</div>
           </div>
+          <div className="topbar-role-switcher">
+            <button className={`role-pill${role === ROLES.SUB ? " active" : ""}`} onClick={() => setRole(ROLES.SUB)}>
+              하도급사
+            </button>
+            <button className={`role-pill${role === ROLES.SUPER ? " active" : ""}`} onClick={() => setRole(ROLES.SUPER)}>
+              감리단/소장
+            </button>
+          </div>
         </header>
         <main className="content">{children}</main>
       </div>

@@ -9,27 +9,36 @@ function normalizeAngle(a) {
   return x;
 }
 
-// 동 하나의 입면(정면) 실루엣 - 층수에 비례한 높이, 층 구분선으로 골조 느낌
+// 동 하나의 3D 매스(정면+측면+상단 면을 가진 실제 입체 박스) - 층수에 비례한 높이
 function BuildingElevation({ building, selected }) {
   const floors = Math.max(1, building.floors || 1);
   const floorH = Math.max(4, Math.min(11, 190 / floors));
   const height = Math.round(floors * floorH);
   const width = Math.max(70, Math.min(120, 26 + (building.unitsPerFloor || 4) * 11));
+  const depth = Math.round(width * 0.42);
   const rows = Math.min(floors, 40);
+  const unitsShown = Math.min(building.unitsPerFloor || 4, 6);
 
   return (
     <div className="carousel-elevation">
-      <div
-        className={`carousel-building${selected ? " selected" : ""}`}
-        style={{ width, height }}
-      >
-        {Array.from({ length: rows }).map((_, i) => (
-          <div key={i} className="carousel-floor-line" style={{ height: height / rows }}>
-            {Array.from({ length: Math.min(building.unitsPerFloor || 4, 6) }).map((__, j) => (
-              <span key={j} className="carousel-window" />
-            ))}
-          </div>
-        ))}
+      <div className={`carousel-building-3d${selected ? " selected" : ""}`} style={{ width, height }}>
+        <div className="cb3d-face cb3d-front" style={{ width, height, transform: `translateZ(${depth / 2}px)` }}>
+          {Array.from({ length: rows }).map((_, i) => (
+            <div key={i} className="carousel-floor-line" style={{ height: height / rows }}>
+              {Array.from({ length: unitsShown }).map((__, j) => (
+                <span key={j} className="carousel-window" />
+              ))}
+            </div>
+          ))}
+        </div>
+        <div
+          className="cb3d-face cb3d-side"
+          style={{ width: depth, height, transform: `translateX(${width}px) rotateY(90deg)`, transformOrigin: "0 50%" }}
+        />
+        <div
+          className="cb3d-face cb3d-top"
+          style={{ width, height: depth, transform: `translateZ(${depth / 2}px) rotateX(90deg)`, transformOrigin: "50% 0" }}
+        />
       </div>
       <div className={`carousel-label${selected ? " selected" : ""}`}>{building.name}</div>
     </div>
