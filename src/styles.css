@@ -1426,50 +1426,53 @@ textarea.input {
   text-align: center;
 }
 
-/* ============ 3D frame/skeleton progress diagram ============ */
-.frame3d-stage {
-  perspective: 780px;
-  padding: 20px 10px 30px;
+/* ============ 골구도 - 호실별 벽돌 그리드 ============ */
+.golgu-wall-scroll {
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  padding: 12px 14px;
+  background: var(--bg);
+}
+
+.golgu-wall {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.frame3d-box {
-  position: relative;
-  transform-style: preserve-3d;
-}
-
-.frame3d-face {
-  position: absolute;
-  top: 0;
-  left: 0;
-  transform-style: preserve-3d;
-}
-
-.frame3d-front {
+.golgu-row {
   display: flex;
-  flex-direction: column-reverse;
-  border: 1.5px solid var(--blueprint-deep);
-  overflow: hidden;
-  box-shadow: 3px 6px 16px rgba(15, 50, 82, 0.28);
+  align-items: center;
+  gap: 10px;
 }
 
-.frame3d-floor {
-  width: 100%;
-  border-top: 1px solid rgba(255, 255, 255, 0.55);
+.golgu-floor-label {
+  width: 28px;
+  flex-shrink: 0;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+
+.golgu-bricks {
+  display: flex;
+  gap: 3px;
+}
+
+.golgu-brick {
+  width: 28px;
+  height: 20px;
+  border-radius: 2px;
+  background: #d9cdbc;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.55), inset -1px -1px 0 rgba(0, 0, 0, 0.18);
+  display: inline-block;
   flex-shrink: 0;
 }
 
-.frame3d-side {
-  background: linear-gradient(90deg, rgba(15, 50, 82, 0.32), rgba(15, 50, 82, 0.14));
-  border: 1.5px solid var(--blueprint-deep);
-  border-left: none;
-}
-
-.frame3d-top {
-  background: #dbe6ee;
-  border: 1.5px solid var(--blueprint-deep);
-  border-bottom: none;
+.golgu-brick.complete {
+  background: var(--pass);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.4), inset -1px -1px 0 rgba(0, 0, 0, 0.22);
 }
 
 .unit-picker-row {

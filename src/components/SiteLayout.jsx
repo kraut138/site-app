@@ -4,7 +4,6 @@ import { CATEGORIES, unitOptions, categoryProgress } from "../data.js";
 import { parseDxf } from "../dxf.js";
 import DrawingPin from "./DrawingPin.jsx";
 import RevolverSelector from "./RevolverSelector.jsx";
-import BuildingFrameDiagram from "./BuildingFrameDiagram.jsx";
 import GolguDiagram from "./GolguDiagram.jsx";
 
 export default function SiteLayout({
@@ -76,10 +75,10 @@ export default function SiteLayout({
       <div className="grid grid-2" style={{ alignItems: "start", marginBottom: 16 }}>
         <div className="card card-pad">
           <div className="section-head">
-            <div className="section-title">3D 골조도</div>
-            <span className="eyebrow">{finderBuilding?.name || ""} · 공종별 층 진행률</span>
+            <div className="section-title">골구도</div>
+            <span className="eyebrow">{finderBuilding?.name || ""} · 완료 세대 표시</span>
           </div>
-          <BuildingFrameDiagram building={finderBuilding} inspections={inspections} checklistItems={checklistItems} />
+          <GolguDiagram building={finderBuilding} progress={progress} checklistItems={checklistItems} />
         </div>
 
         <div className="card card-pad">
@@ -127,14 +126,6 @@ export default function SiteLayout({
             </div>
           )}
         </div>
-      </div>
-
-      <div className="card card-pad" style={{ marginBottom: 16 }}>
-        <div className="section-head">
-          <div className="section-title">골구도</div>
-          <span className="eyebrow">{finderBuilding?.name || ""} · 공사진행 기록 기준 완료 층</span>
-        </div>
-        <GolguDiagram building={finderBuilding} progress={progress} checklistItems={checklistItems} />
       </div>
 
       <div className="card card-pad">
