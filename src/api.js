@@ -404,28 +404,46 @@ export async function updateWorkerStatus(id, data) {
   return { id: snap.id, ...snap.data() };
 }
 
-// ---------------- 공사진행 (하도급사가 직접 표시하는 착수/진행중/완료) ----------------
+// ---------------- 공사진행 (하도급사가 호실 단위로 직접 표시하는 착수/진행중/완료) ----------------
 
 const PROGRESS_STATUSES = ["착수", "진행중", "완료"];
 
-export async function setProgressStatus(buildingId, itemId, categoryId, status, updatedBy) {
+function progressDocId(buildingId, floor, unit, itemId) {
+  return `${buildingId}_${floor}_${unit}_${itemId}`;
+}
+
+// units: [{floor, unit}] - 선택한 호실 여러 개에 동일한 상태를 한 번에 적용
+export async function setProgressStatusBatch(buildingId, units, itemId, categoryId, status) {
   if (!buildingId || !itemId || !categoryId) {
     throw new Error("buildingId, itemId, categoryId는 필수입니다.");
+  }
+  if (!Array.isArray(units) || units.length === 0) {
+    throw new Error("units(선택한 호실 목록)는 최소 1개 이상이어야 합니다.");
   }
   if (!PROGRESS_STATUSES.includes(status)) {
     throw new Error(`status는 ${PROGRESS_STATUSES.join("/")} 중 하나여야 합니다.`);
   }
-  const id = `${buildingId}_${itemId}`;
-  const payload = { buildingId, itemId, categoryId, status, updatedAt: nowIso(), updatedBy: updatedBy || "" };
-  await setDoc(doc(db, "progress", id), payload);
-  return { id, ...payload };
+  const batch = writeBatch(db);
+  const results = units.map(({ floor, unit }) => {
+    const id = progressDocId(buildingId, floor, unit, itemId);
+    const payload = { buildingId, floor, unit, itemId, categoryId, status, updatedAt: nowIso() };
+    batch.set(doc(db, "progress", id), payload);
+    return { id, ...payload };
+  });
+  await batch.commit();
+  return results;
 }
 
-// 표시를 지우고 "미착수"(기본 상태)로 되돌림
-export async function clearProgressStatus(buildingId, itemId) {
-  const id = `${buildingId}_${itemId}`;
-  await deleteDoc(doc(db, "progress", id));
-  return { ok: true };
+// 선택한 호실들의 표시를 지우고 "미착수"(기본 상태)로 되돌림
+export async function clearProgressStatusBatch(buildingId, units, itemId) {
+  if (!Array.isArray(units) || units.length === 0) {
+    throw new Error("units(선택한 호실 목록)는 최소 1개 이상이어야 합니다.");
+  }
+  const batch = writeBatch(db);
+  const ids = units.map(({ floor, unit }) => progressDocId(buildingId, floor, unit, itemId));
+  ids.forEach((id) => batch.delete(doc(db, "progress", id)));
+  await batch.commit();
+  return { ids };
 }
 
 // ---------------- image helper (변경 없음, 순수 클라이언트 로직) ----------------

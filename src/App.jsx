@@ -74,16 +74,17 @@ export default function App() {
     return updated;
   }
 
-  async function handleSetProgressStatus(buildingId, itemId, categoryId, status) {
-    const created = await api.setProgressStatus(buildingId, itemId, categoryId, status);
-    setProgress((prev) => [...prev.filter((p) => p.id !== created.id), created]);
+  async function handleSetProgressBatch(buildingId, units, itemId, categoryId, status) {
+    const created = await api.setProgressStatusBatch(buildingId, units, itemId, categoryId, status);
+    const ids = new Set(created.map((c) => c.id));
+    setProgress((prev) => [...prev.filter((p) => !ids.has(p.id)), ...created]);
     return created;
   }
 
-  async function handleClearProgressStatus(buildingId, itemId) {
-    const id = `${buildingId}_${itemId}`;
-    await api.clearProgressStatus(buildingId, itemId);
-    setProgress((prev) => prev.filter((p) => p.id !== id));
+  async function handleClearProgressBatch(buildingId, units, itemId) {
+    const { ids } = await api.clearProgressStatusBatch(buildingId, units, itemId);
+    const idSet = new Set(ids);
+    setProgress((prev) => prev.filter((p) => !idSet.has(p.id)));
   }
 
   async function handleCreateUnitNote(data) {
@@ -204,8 +205,8 @@ export default function App() {
             buildings={buildings}
             items={checklistItems}
             progress={progress}
-            onSetStatus={handleSetProgressStatus}
-            onClearStatus={handleClearProgressStatus}
+            onSetStatusBatch={handleSetProgressBatch}
+            onClearStatusBatch={handleClearProgressBatch}
             notify={notify}
           />
         )}
