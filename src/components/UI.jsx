@@ -22,6 +22,13 @@ export const Icon = {
       <path d="M4 18l1.3 1.3L7.5 16" />
     </svg>
   ),
+  Progress: (p) => (
+    <svg className="icon" {...iconProps} {...p}>
+      <path d="M4 20V10" />
+      <path d="M12 20V4" />
+      <path d="M20 20v-6" />
+    </svg>
+  ),
   Inspection: (p) => (
     <svg className="icon" {...iconProps} {...p}>
       <path d="M4 21v-4.6L15.6 4.8a1.8 1.8 0 0 1 2.6 0l1 1a1.8 1.8 0 0 1 0 2.6L7.6 20H4Z" />

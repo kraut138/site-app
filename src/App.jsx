@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import Layout from "./components/Layout.jsx";
 import OperationsHub from "./components/OperationsHub.jsx";
 import Checklist from "./components/Checklist.jsx";
+import ProgressTracker from "./components/ProgressTracker.jsx";
 import Workers from "./components/Workers.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
@@ -22,6 +23,7 @@ export default function App() {
   const [checklistItems, setChecklistItems] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [unitFloorPlan, setUnitFloorPlan] = useState({});
+  const [progress, setProgress] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [toast, setToast] = useState("");
@@ -47,6 +49,7 @@ export default function App() {
         setChecklistItems(data.checklistItems || []);
         setWorkers(data.workers || []);
         setUnitFloorPlan(data.unitFloorPlan || {});
+        setProgress(data.progress || []);
       })
       .catch((err) => alive && setLoadError(err.message))
       .finally(() => alive && setLoading(false));
@@ -69,6 +72,18 @@ export default function App() {
     const updated = await api.updateUnitFloorPlan(data);
     setUnitFloorPlan(updated);
     return updated;
+  }
+
+  async function handleSetProgressStatus(buildingId, itemId, categoryId, status) {
+    const created = await api.setProgressStatus(buildingId, itemId, categoryId, status);
+    setProgress((prev) => [...prev.filter((p) => p.id !== created.id), created]);
+    return created;
+  }
+
+  async function handleClearProgressStatus(buildingId, itemId) {
+    const id = `${buildingId}_${itemId}`;
+    await api.clearProgressStatus(buildingId, itemId);
+    setProgress((prev) => prev.filter((p) => p.id !== id));
   }
 
   async function handleCreateUnitNote(data) {
@@ -180,6 +195,17 @@ export default function App() {
             onCreateInspection={handleCreateInspection}
             onUpdateInspectionStatus={handleUpdateInspectionStatus}
             onUpdateNcrStatus={handleUpdateNcrStatus}
+            notify={notify}
+          />
+        )}
+        {view === "progress" && (
+          <ProgressTracker
+            role={role}
+            buildings={buildings}
+            items={checklistItems}
+            progress={progress}
+            onSetStatus={handleSetProgressStatus}
+            onClearStatus={handleClearProgressStatus}
             notify={notify}
           />
         )}

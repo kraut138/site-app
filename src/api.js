@@ -93,7 +93,7 @@ async function ensureSeeded() {
 
 export async function fetchBootstrap() {
   await ensureSeeded();
-  const [buildingsSnap, inspectionsSnap, ncrsSnap, unitNotesSnap, checklistItemsSnap, workersSnap, siteSettingsSnap, unitFloorPlanSnap] = await Promise.all([
+  const [buildingsSnap, inspectionsSnap, ncrsSnap, unitNotesSnap, checklistItemsSnap, workersSnap, siteSettingsSnap, unitFloorPlanSnap, progressSnap] = await Promise.all([
     getDocs(collection(db, "buildings")),
     getDocs(collection(db, "inspections")),
     getDocs(collection(db, "ncrs")),
@@ -102,6 +102,7 @@ export async function fetchBootstrap() {
     getDocs(collection(db, "workers")),
     getDoc(doc(db, "meta", "siteSettings")),
     getDoc(doc(db, "meta", "unitFloorPlan")),
+    getDocs(collection(db, "progress")),
   ]);
   return {
     buildings: snapToArray(buildingsSnap),
@@ -112,6 +113,7 @@ export async function fetchBootstrap() {
     workers: snapToArray(workersSnap),
     siteSettings: siteSettingsSnap.exists() ? siteSettingsSnap.data() : {},
     unitFloorPlan: unitFloorPlanSnap.exists() ? unitFloorPlanSnap.data() : {},
+    progress: snapToArray(progressSnap),
   };
 }
 
@@ -232,6 +234,31 @@ export async function resetChecklistCategory(categoryId, items) {
   });
   await batch.commit();
   return created;
+}
+
+// ---------------- 공사진행 (하도급사 자가 체크: 착수/진행중/완료) ----------------
+
+export async function fetchProgressStatuses() {
+  const snap = await getDocs(collection(db, "progressStatus"));
+  return snapToArray(snap);
+}
+
+// 동+공종+항목 조합마다 하나의 문서로 upsert (문서 id를 조합 키로 사용해 중복 없이 덮어씀)
+export async function updateProgressStatus({ buildingId, categoryId, itemId, status, updatedBy }) {
+  if (!buildingId || !categoryId || !itemId || !status) {
+    throw new Error("buildingId, categoryId, itemId, status는 필수입니다.");
+  }
+  const docId = `${buildingId}_${categoryId}_${itemId}`;
+  const payload = {
+    buildingId,
+    categoryId,
+    itemId,
+    status,
+    updatedBy: updatedBy || "하도급사",
+    updatedAt: nowIso(),
+  };
+  await setDoc(doc(db, "progressStatus", docId), payload);
+  return { id: docId, ...payload };
 }
 
 // ---------------- inspections ----------------
@@ -375,6 +402,30 @@ export async function updateWorkerStatus(id, data) {
   });
   const snap = await getDoc(doc(db, "workers", id));
   return { id: snap.id, ...snap.data() };
+}
+
+// ---------------- 공사진행 (하도급사가 직접 표시하는 착수/진행중/완료) ----------------
+
+const PROGRESS_STATUSES = ["착수", "진행중", "완료"];
+
+export async function setProgressStatus(buildingId, itemId, categoryId, status, updatedBy) {
+  if (!buildingId || !itemId || !categoryId) {
+    throw new Error("buildingId, itemId, categoryId는 필수입니다.");
+  }
+  if (!PROGRESS_STATUSES.includes(status)) {
+    throw new Error(`status는 ${PROGRESS_STATUSES.join("/")} 중 하나여야 합니다.`);
+  }
+  const id = `${buildingId}_${itemId}`;
+  const payload = { buildingId, itemId, categoryId, status, updatedAt: nowIso(), updatedBy: updatedBy || "" };
+  await setDoc(doc(db, "progress", id), payload);
+  return { id, ...payload };
+}
+
+// 표시를 지우고 "미착수"(기본 상태)로 되돌림
+export async function clearProgressStatus(buildingId, itemId) {
+  const id = `${buildingId}_${itemId}`;
+  await deleteDoc(doc(db, "progress", id));
+  return { ok: true };
 }
 
 // ---------------- image helper (변경 없음, 순수 클라이언트 로직) ----------------
