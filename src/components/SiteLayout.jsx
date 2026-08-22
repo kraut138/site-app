@@ -1,34 +1,21 @@
 import React, { useState } from "react";
-import { EmptyState, StatusBadge, CategoryTag } from "./UI.jsx";
-import { CATEGORIES, unitOptions, categoryProgress } from "../data.js";
+import { EmptyState } from "./UI.jsx";
 import { parseDxf } from "../dxf.js";
 import DrawingPin from "./DrawingPin.jsx";
-import RevolverSelector from "./RevolverSelector.jsx";
 import GolguDiagram from "./GolguDiagram.jsx";
 
 export default function SiteLayout({
   buildings,
   unitFloorPlan,
   onUpdateUnitFloorPlan,
-  inspections,
   checklistItems,
   progress,
   notify,
 }) {
   const [unitPlanBusy, setUnitPlanBusy] = useState(false);
   const [unitPlanError, setUnitPlanError] = useState("");
-  const [finderBuildingId, setFinderBuildingId] = useState(buildings[0]?.id || "");
-  const [finderFloor, setFinderFloor] = useState(1);
-  const [finderUnit, setFinderUnit] = useState("01");
 
   const hasUnitPlan = !!(unitFloorPlan && unitFloorPlan.shapes);
-  const finderBuilding = buildings.find((b) => b.id === finderBuildingId) || buildings[0] || null;
-
-  function handleFinderSelectBuilding(id) {
-    setFinderBuildingId(id);
-    setFinderFloor(1);
-    setFinderUnit("01");
-  }
 
   async function handleUnitPlanUpload(e) {
     const file = e.target.files && e.target.files[0];
@@ -72,60 +59,12 @@ export default function SiteLayout({
 
   return (
     <div>
-      <div className="grid grid-2" style={{ alignItems: "start", marginBottom: 16 }}>
-        <div className="card card-pad">
-          <div className="section-head">
-            <div className="section-title">골구도</div>
-            <span className="eyebrow">전체 동 · 완료 세대 표시</span>
-          </div>
-          <GolguDiagram buildings={buildings} progress={progress} checklistItems={checklistItems} />
+      <div className="card card-pad" style={{ marginBottom: 16 }}>
+        <div className="section-head">
+          <div className="section-title">골구도</div>
+          <span className="eyebrow">전체 동 · 완료 세대 표시</span>
         </div>
-
-        <div className="card card-pad">
-          <div className="section-head">
-            <div className="section-title">호실 빠른 찾기</div>
-            <span className="eyebrow">DRAG TO SELECT</span>
-          </div>
-
-          <RevolverSelector buildings={buildings} selectedId={finderBuildingId || buildings[0]?.id} onSelect={handleFinderSelectBuilding} />
-
-          {finderBuilding && (
-            <div style={{ marginTop: 18 }}>
-              <div className="field-row">
-                <div className="field">
-                  <label>층</label>
-                  <select className="input" value={finderFloor} onChange={(e) => setFinderFloor(Number(e.target.value))}>
-                    {Array.from({ length: finderBuilding.floors || 1 }, (_, i) => i + 1)
-                      .reverse()
-                      .map((f) => (
-                        <option key={f} value={f}>{f}층</option>
-                      ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="field">
-                <label>호</label>
-                <div className="unit-picker-row">
-                  {unitOptions(finderBuilding.unitsPerFloor).map((u) => (
-                    <button key={u} className={`unit-picker-btn${finderUnit === u ? " active" : ""}`} onClick={() => setFinderUnit(u)}>
-                      {u}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <UnitQuickInfo
-                building={finderBuilding}
-                floor={finderFloor}
-                unit={finderUnit}
-                inspections={inspections}
-                checklistItems={checklistItems}
-                unitFloorPlan={unitFloorPlan}
-              />
-            </div>
-          )}
-        </div>
+        <GolguDiagram buildings={buildings} progress={progress} checklistItems={checklistItems} />
       </div>
 
       <div className="card card-pad">
@@ -152,46 +91,6 @@ export default function SiteLayout({
         <div style={{ maxWidth: 460 }}>
           <DrawingPin dxfData={hasUnitPlan ? unitFloorPlan : null} />
         </div>
-      </div>
-    </div>
-  );
-}
-
-function UnitQuickInfo({ building, floor, unit, inspections, checklistItems, unitFloorPlan }) {
-  const pins = (inspections || [])
-    .filter((i) => i.buildingId === building.id && String(i.floor) === String(floor) && i.unit === unit && i.pin)
-    .map((i) => {
-      const cat = CATEGORIES.find((c) => c.id === i.categoryId);
-      return { x: i.pin.x, y: i.pin.y, color: cat?.color };
-    });
-
-  return (
-    <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
-      <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 12 }}>
-        {building.name} {floor}층 {unit}호
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 16 }}>
-        {CATEGORIES.map((c) => {
-          const prog = categoryProgress(inspections, checklistItems, building.id, floor, unit, c.id);
-          return (
-            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <CategoryTag category={c} />
-              <div style={{ flex: 1, height: 6, borderRadius: 4, background: "var(--surface-alt)", overflow: "hidden" }}>
-                <div
-                  style={{
-                    width: `${prog.percent}%`,
-                    height: "100%",
-                    background: prog.status === "반려" ? "var(--fail)" : prog.status === "승인" ? "var(--pass)" : "var(--pending)",
-                  }}
-                />
-              </div>
-              <StatusBadge status={prog.status} />
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ maxWidth: 340 }}>
-        <DrawingPin pins={pins} dxfData={unitFloorPlan?.shapes ? unitFloorPlan : null} />
       </div>
     </div>
   );

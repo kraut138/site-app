@@ -254,7 +254,6 @@ export default function App() {
             buildings={buildings}
             unitFloorPlan={unitFloorPlan}
             onUpdateUnitFloorPlan={handleUpdateUnitFloorPlan}
-            inspections={inspections}
             checklistItems={checklistItems}
             progress={progress}
             notify={notify}
