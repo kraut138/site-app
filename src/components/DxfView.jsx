@@ -2,6 +2,11 @@ import React from "react";
 
 // DXF는 Y축이 위로 증가하지만 SVG는 아래로 증가하므로, 전체를 세로로 뒤집어서
 // 실제 도면을 볼 때와 같은 방향(위가 도면상 +Y)으로 보이게 한다.
+//
+// 주의: 선 굵기(strokeW)는 도면 크기(bounds)에 비례해 계산하므로, SVG의 기본 동작대로
+// viewBox 스케일에 맞춰 함께 축소·확대되어야 한다. vector-effect="non-scaling-stroke"를
+// 쓰면 이 굵기 값이 "화면 픽셀 고정 두께"로 고정돼버려서, DXF 좌표가 mm 단위처럼 큰 수를
+// 쓰는 도면에서는 계산된 값 자체가 커져 선이 과도하게 굵고 뭉개져 보이는 문제가 있었다.
 export default function DxfView({ data, strokeColor = "#4b5761", textColor }) {
   if (!data || !data.shapes || !data.bounds) return null;
   const { shapes, bounds } = data;
@@ -14,9 +19,7 @@ export default function DxfView({ data, strokeColor = "#4b5761", textColor }) {
       <g transform={`translate(0, ${flipY}) scale(1,-1)`}>
         {shapes.map((s, i) => {
           if (s.kind === "line") {
-            return (
-              <line key={i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke={strokeColor} strokeWidth={strokeW} vectorEffect="non-scaling-stroke" />
-            );
+            return <line key={i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke={strokeColor} strokeWidth={strokeW} />;
           }
           if (s.kind === "polyline") {
             return (
@@ -27,12 +30,11 @@ export default function DxfView({ data, strokeColor = "#4b5761", textColor }) {
                 stroke={strokeColor}
                 strokeWidth={strokeW}
                 strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
               />
             );
           }
           if (s.kind === "circle") {
-            return <circle key={i} cx={s.cx} cy={s.cy} r={s.r} fill="none" stroke={strokeColor} strokeWidth={strokeW} vectorEffect="non-scaling-stroke" />;
+            return <circle key={i} cx={s.cx} cy={s.cy} r={s.r} fill="none" stroke={strokeColor} strokeWidth={strokeW} />;
           }
           if (s.kind === "arc") {
             return (
@@ -42,7 +44,6 @@ export default function DxfView({ data, strokeColor = "#4b5761", textColor }) {
                 fill="none"
                 stroke={strokeColor}
                 strokeWidth={strokeW}
-                vectorEffect="non-scaling-stroke"
               />
             );
           }
