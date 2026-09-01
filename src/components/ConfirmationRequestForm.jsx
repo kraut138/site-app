@@ -16,7 +16,7 @@ function isUnitLocked(inspections, buildingId, floor, unit, categoryId) {
 }
 
 // 하도급사가 감리단에게 공사 완료 확인을 요청하는 폼 ("공사 확인 요청").
-// 제출되면 검측관리(감리검측 승인 큐)에 대기 건으로 들어간다.
+// 제출되면 공사 확인 요청 내역(감리검측 승인 큐)에 대기 건으로 들어간다.
 // fixedUnit: {buildingId, floor, unit}이 주어지면(QR로 특정 호실에 들어온 경우) 동/호실 선택 UI를 생략하고
 // 그 호실 하나로 고정한다.
 export default function ConfirmationRequestForm({ buildings, checklistItems, inspections, unitFloorPlans, fixedUnit, onClose, onSubmit }) {

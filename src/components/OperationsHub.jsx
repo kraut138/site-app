@@ -7,7 +7,7 @@ import Checklist from "./Checklist.jsx";
 
 const SUBTABS = [
   { id: "dashboard", label: "대시보드", restrictedToSuper: true },
-  { id: "inspections", label: "검측관리", badgeKey: "pending" },
+  { id: "inspections", label: "공사 확인 요청 내역", badgeKey: "pending" },
   { id: "ncr", label: "NCR 관리", badgeKey: "ncr" },
   { id: "checklist", label: "표준 체크리스트" },
 ];

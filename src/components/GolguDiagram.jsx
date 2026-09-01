@@ -11,7 +11,7 @@ function firstItemIdFor(categoryId, checklistItems) {
   return first ? first.id : "";
 }
 
-// 특정 동/층/호실에서, 선택한 "세부 체크리스트 항목 하나"가 감리단 승인을 받았는지 여부.
+// 특정 동/층/호실에서, 선택한 "세부 공종 항목 하나"가 감리단 승인을 받았는지 여부.
 // 하도급사의 자체 진행 표시(공사진행 탭)와는 별개로, 실제 "공사 확인 요청"이 승인된 이력이 있어야 완료로 본다.
 function isUnitApproved(building, floor, unit, itemId, inspections) {
   return inspections.some(
@@ -221,7 +221,7 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
       </div>
 
       <div className="field" style={{ maxWidth: 340, marginBottom: 14 }}>
-        <label>세부 체크리스트 선택</label>
+        <label>세부 공종 선택</label>
         {categoryItems.length === 0 ? (
           <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>등록된 항목이 없습니다.</div>
         ) : (

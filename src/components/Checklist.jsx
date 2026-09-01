@@ -156,7 +156,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
       <div style={{ marginTop: 18, display: "flex", gap: 8, alignItems: "flex-start", color: "var(--ink-soft)", fontSize: 12.5 }}>
         <Icon.Bell width="15" height="15" style={{ flexShrink: 0, marginTop: 1 }} />
         <span>
-          이 템플릿은 검측관리 탭에서 검측 요청을 작성할 때 자동으로 불러와 항목별로 체크할 수 있습니다. 안전/환경 공종은 "안전 현황" 탭에서 별도로 관리합니다.
+          이 템플릿은 공사 확인 요청 내역 탭에서 검측 요청을 작성할 때 자동으로 불러와 항목별로 체크할 수 있습니다. 안전/환경 공종은 "안전 현황" 탭에서 별도로 관리합니다.
           {canEdit ? " 항목 추가·삭제는 감리단/소장만 가능합니다." : ""}
         </span>
       </div>

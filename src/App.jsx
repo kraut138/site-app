@@ -35,7 +35,7 @@ export default function App() {
   const notify = useCallback((msg) => setToast(msg), []);
 
   function handleNavigateToUnit(buildingId, floor, unit) {
-    // 배치도(3D)와 호실 정보는 둘 다 감리단 전용 화면이라, 여기서 이동하는 건 별도 예외 없이 항상 허용된다.
+    // 골구도와 호실 정보는 둘 다 감리단 전용 화면이라, 여기서 이동하는 건 별도 예외 없이 항상 허용된다.
     setUnitTarget({ buildingId, floor, unit });
     setView("unitinfo");
   }

@@ -63,7 +63,7 @@ export function categoryProgress(inspections, checklistItems, buildingId, floor,
   return { status: latest.status, percent: latest.status === "반려" ? 0 : percent };
 }
 
-// 세부 체크리스트 항목 하나가 이 호실에서 지금 어떤 상태인지 판정.
+// 세부 공종 항목 하나가 이 호실에서 지금 어떤 상태인지 판정.
 // 한 번이라도 승인된 이력이 있으면 이후 다른 요청과 무관하게 항상 "승인"(영구 반영, 골구도와 동일 기준).
 // 승인 이력이 없으면 가장 최근 요청의 상태(대기/반려)를, 요청 이력 자체가 없으면 null(미시작)을 반환.
 export function itemStatusForUnit(inspections, buildingId, floor, unit, itemId) {
