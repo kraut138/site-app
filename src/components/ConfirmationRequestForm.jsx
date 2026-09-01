@@ -4,12 +4,25 @@ import { compressImage } from "../api.js";
 import { Icon } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 
+// 특정 동/층/호실/공종에 대해 이미 "대기" 또는 "승인" 상태인 요청이 있는지 확인.
+// 가장 최근 요청 기준으로, "반려"였다면 재요청 가능하도록 잠그지 않는다.
+function isUnitLocked(inspections, buildingId, floor, unit, categoryId) {
+  const relevant = inspections.filter(
+    (i) => i.buildingId === buildingId && String(i.floor) === String(floor) && i.unit === unit && i.categoryId === categoryId
+  );
+  if (relevant.length === 0) return false;
+  const latest = [...relevant].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+  return latest.status === "대기" || latest.status === "승인";
+}
+
 // 하도급사가 감리단에게 공사 완료 확인을 요청하는 폼 ("공사 확인 요청").
 // 제출되면 검측관리(감리검측 승인 큐)에 대기 건으로 들어간다.
-export default function ConfirmationRequestForm({ buildings, checklistItems, unitFloorPlans, onClose, onSubmit }) {
+// fixedUnit: {buildingId, floor, unit}이 주어지면(QR로 특정 호실에 들어온 경우) 동/호실 선택 UI를 생략하고
+// 그 호실 하나로 고정한다.
+export default function ConfirmationRequestForm({ buildings, checklistItems, inspections, unitFloorPlans, fixedUnit, onClose, onSubmit }) {
   const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
-  const [buildingId, setBuildingId] = useState(buildings[0]?.id || "");
-  const [selectedUnits, setSelectedUnits] = useState(new Set()); // "floor-unit" 키 집합
+  const [buildingId, setBuildingId] = useState(fixedUnit?.buildingId || buildings[0]?.id || "");
+  const [selectedUnits, setSelectedUnits] = useState(() => (fixedUnit ? new Set([`${fixedUnit.floor}-${fixedUnit.unit}`]) : new Set()));
   const [checkedItemIds, setCheckedItemIds] = useState([]);
   const [pin, setPin] = useState(null);
   const [photos, setPhotos] = useState([]);
@@ -25,14 +38,22 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, uni
   const unitsPerFloorList = selectedBuilding ? unitOptions(selectedBuilding.unitsPerFloor) : [];
   // 도면 미리보기는 선택된 호실 중 첫 번째 기준(여러 호실을 한 번에 고를 수 있어 완전히 정확하진 않지만,
   // 같은 핀 위치를 여러 호실에 공통 적용하는 배치 제출 특성상 대표 하나로 보여준다)
-  const firstSelectedUnit = selectedUnits.size > 0 ? Array.from(selectedUnits)[0].split("-")[1] : null;
+  const firstSelectedUnit = fixedUnit ? fixedUnit.unit : selectedUnits.size > 0 ? Array.from(selectedUnits)[0].split("-")[1] : null;
   const previewFloorPlan = selectedBuilding && firstSelectedUnit ? findUnitFloorPlan(unitFloorPlans, selectedBuilding.id, firstSelectedUnit) : null;
+  // 고정 호실 모드에서는 "이 공종에 대해 이미 요청했거나 승인됐는지"를 통째로 확인해서
+  // 잠겨있으면 폼 자체를 숨기고 안내만 보여준다(호실 선택 그리드가 없으므로 버튼별 잠금 대신 전체 잠금).
+  const fixedUnitLocked = fixedUnit ? isUnitLocked(inspections, fixedUnit.buildingId, fixedUnit.floor, fixedUnit.unit, categoryId) : false;
 
   function unitKey(floor, unit) {
     return `${floor}-${unit}`;
   }
 
+  function locked(floor, unit) {
+    return selectedBuilding ? isUnitLocked(inspections, selectedBuilding.id, floor, unit, categoryId) : false;
+  }
+
   function toggleUnit(floor, unit) {
+    if (locked(floor, unit)) return;
     const key = unitKey(floor, unit);
     setSelectedUnits((prev) => {
       const next = new Set(prev);
@@ -43,7 +64,8 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, uni
   }
 
   function toggleFloor(floor) {
-    const keys = unitsPerFloorList.map((u) => unitKey(floor, u));
+    const keys = unitsPerFloorList.filter((u) => !locked(floor, u)).map((u) => unitKey(floor, u));
+    if (keys.length === 0) return;
     const allOn = keys.every((k) => selectedUnits.has(k));
     setSelectedUnits((prev) => {
       const next = new Set(prev);
@@ -54,7 +76,7 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, uni
 
   function selectAllUnits() {
     const all = new Set();
-    floorsList.forEach((f) => unitsPerFloorList.forEach((u) => all.add(unitKey(f, u))));
+    floorsList.forEach((f) => unitsPerFloorList.forEach((u) => { if (!locked(f, u)) all.add(unitKey(f, u)); }));
     setSelectedUnits(all);
   }
 
@@ -84,6 +106,10 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, uni
     e.preventDefault();
     if (!buildingId || selectedUnits.size === 0 || !requestedBy) {
       setError("동, 호실 선택(1개 이상), 요청자 이름은 필수입니다.");
+      return;
+    }
+    if (fixedUnit && fixedUnitLocked) {
+      setError("이미 요청했거나 승인된 공종입니다.");
       return;
     }
     setBusy(true);
@@ -120,6 +146,7 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, uni
               onChange={(e) => {
                 setCategoryId(e.target.value);
                 setCheckedItemIds([]);
+                if (!fixedUnit) setSelectedUnits(new Set());
               }}
             >
               {CATEGORIES.map((c) => (
@@ -127,16 +154,26 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, uni
               ))}
             </select>
           </div>
-          <div className="field">
-            <label>동</label>
-            <select className="input" value={buildingId} onChange={(e) => handleBuildingChange(e.target.value)}>
-              {buildings.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-          </div>
+          {!fixedUnit && (
+            <div className="field">
+              <label>동</label>
+              <select className="input" value={buildingId} onChange={(e) => handleBuildingChange(e.target.value)}>
+                {buildings.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
+        {fixedUnit ? (
+          <div className="field">
+            <label>적용 호실</label>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--blueprint-deep)" }}>
+              {selectedBuilding?.name} {fixedUnit.floor}층 {fixedUnit.unit}호
+            </div>
+          </div>
+        ) : (
         <div className="field">
           <label>호실 선택 {selectedUnits.size > 0 ? `(${selectedUnits.size}개 선택됨)` : ""}</label>
           {!selectedBuilding ? (
@@ -179,12 +216,15 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, uni
                       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                         {unitsPerFloorList.map((u) => {
                           const active = selectedUnits.has(unitKey(f, u));
+                          const isLocked = locked(f, u);
                           return (
                             <button
                               type="button"
                               key={u}
+                              disabled={isLocked}
                               onClick={() => toggleUnit(f, u)}
-                              className={`unit-picker-btn${active ? " active" : ""}`}
+                              title={isLocked ? "이미 요청했거나 승인된 호실입니다 (반려된 경우 다시 선택할 수 있어요)" : undefined}
+                              className={`unit-picker-btn${active ? " active" : ""}${isLocked ? " locked" : ""}`}
                               style={{ minWidth: 34, padding: "5px 8px", fontSize: 11.5 }}
                             >
                               {u}
@@ -199,7 +239,14 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, uni
             </>
           )}
         </div>
+        )}
 
+        {fixedUnit && fixedUnitLocked ? (
+          <div style={{ padding: "14px 16px", background: "var(--surface-alt)", borderRadius: "var(--radius-s)", fontSize: 12.5, color: "var(--ink-soft)" }}>
+            {category.name}에 대해 이미 요청했거나 승인이 완료됐어요. 다른 공종을 선택하시거나, 반려된 경우 다시 요청할 수 있습니다.
+          </div>
+        ) : (
+        <>
         <div className="field">
           <label>{category.name} 체크리스트 — 확인된 항목 선택</label>
           {categoryItems.length === 0 && (
@@ -258,6 +305,8 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, uni
             취소
           </button>
         </div>
+        </>
+        )}
       </form>
   );
 }

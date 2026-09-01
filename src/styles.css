@@ -1538,3 +1538,55 @@ textarea.input {
   border-color: var(--blueprint-deep);
   color: #fff;
 }
+
+.unit-picker-btn.locked {
+  background: var(--surface-alt);
+  border-color: var(--line);
+  color: var(--ink-faint);
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.unit-picker-btn.locked:hover {
+  border-color: var(--line);
+}
+
+/* ============ QR 스캔 전용 모바일 화면 ============ */
+.qr-screen {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.qr-screen-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--sidebar-bg, #0f3252);
+  color: #fff;
+  padding: 16px 18px 18px;
+}
+
+.qr-screen-brand {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.65;
+  text-transform: uppercase;
+}
+
+.qr-screen-title {
+  font-size: 19px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.qr-screen-body {
+  flex: 1;
+  padding: 16px;
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}

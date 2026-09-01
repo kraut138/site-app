@@ -7,22 +7,20 @@ import SiteLayout from "./components/SiteLayout.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
 import RoleSelect from "./components/RoleSelect.jsx";
 import SafetyOverview from "./components/SafetyOverview.jsx";
+import QrUnitScreen from "./components/QrUnitScreen.jsx";
 import { Toast } from "./components/UI.jsx";
 import { ROLES, isViewAllowed } from "./data.js";
 import * as api from "./api.js";
 import { readUnitDeepLink, clearUnitDeepLinkFromUrl } from "./qr.js";
 
 // 페이지가 처음 로드될 때 딱 한 번만 읽는다 - QR 스캔으로 들어온 경우 여기에 값이 담긴다.
+// 이 값이 있으면 역할선택/사이드바 전체를 건너뛰고 QrUnitScreen(모바일 전용 화면)을 바로 보여준다.
 const initialDeepLink = readUnitDeepLink();
 
 export default function App() {
-  // QR로 특정 호실을 스캔해 들어온 경우, 역할 선택 화면 없이 무조건 하도급사 화면으로 바로 시작한다.
-  const [role, setRole] = useState(initialDeepLink ? ROLES.SUB : null);
-  const [view, setView] = useState(initialDeepLink ? "unitinfo" : "operations");
-  const [unitTarget, setUnitTarget] = useState(initialDeepLink);
-  // QR 스캔으로 이 세션에 들어왔는지 여부 - unitTarget은 UnitInfo가 초기값을 반영한 뒤 소비되어 null이 되지만,
-  // 이 값은 세션 내내 고정되어 "호실 정보" 화면(원래 감리단 전용)에 하도급사도 계속 머물 수 있게 해준다.
-  const [cameFromDeepLink] = useState(!!initialDeepLink);
+  const [role, setRole] = useState(null);
+  const [view, setView] = useState("operations");
+  const [unitTarget, setUnitTarget] = useState(null);
   const [buildings, setBuildings] = useState([]);
   const [inspections, setInspections] = useState([]);
   const [ncrs, setNcrs] = useState([]);
@@ -43,18 +41,16 @@ export default function App() {
   }
 
   useEffect(() => {
-    // 딥링크 값은 이미 위에서 JS 메모리(state)로 옮겨왔으니, 주소창은 바로 정리해도 된다.
+    // 딥링크 값은 이미 모듈 최상단 상수(initialDeepLink)에 담겨 있으니, 주소창은 바로 정리해도 된다.
     // 정리해두지 않으면 나중에 다른 화면을 보다가 새로고침했을 때 계속 이 호실로 튕기게 된다.
     if (initialDeepLink) clearUnitDeepLinkFromUrl();
   }, []);
 
   useEffect(() => {
-    // "호실 정보"는 원래 감리단 전용이지만, QR 스캔으로 특정 호실을 보러 온 경우엔
-    // 하도급사도 그 화면만은 예외적으로 볼 수 있게 한다(그 외 화면 접근 권한은 그대로).
-    if (role && !isViewAllowed(view, role) && !(view === "unitinfo" && cameFromDeepLink)) {
+    if (role && !isViewAllowed(view, role)) {
       setView("operations");
     }
-  }, [role, view, cameFromDeepLink]);
+  }, [role, view]);
 
   useEffect(() => {
     let alive = true;
@@ -184,16 +180,11 @@ export default function App() {
   badges.operations = badges.pending + badges.ncr;
   badges.safetyTotal = badges.safetyNcr + badges.workersPending;
 
-  if (!role) {
-    return (
-      <RoleSelect
-        onSelect={(chosenRole, startView) => {
-          setRole(chosenRole);
-          // QR로 특정 호실을 스캔해 들어온 경우, 역할과 무관하게 그 호실 정보 화면으로 바로 이동시킨다.
-          setView(unitTarget ? "unitinfo" : startView);
-        }}
-      />
-    );
+  if (!role && !initialDeepLink) {
+    return <RoleSelect onSelect={(chosenRole, startView) => {
+      setRole(chosenRole);
+      setView(startView);
+    }} />;
   }
 
   if (loading) {
@@ -207,6 +198,23 @@ export default function App() {
         <br />
         {loadError}
       </CenterMessage>
+    );
+  }
+
+  // QR로 특정 호실을 스캔해 들어온 경우: 역할선택·사이드바 없이 이 화면만 보여준다.
+  if (initialDeepLink) {
+    return (
+      <QrUnitScreen
+        buildings={buildings}
+        inspections={inspections}
+        checklistItems={checklistItems}
+        unitNotes={unitNotes}
+        unitFloorPlans={unitFloorPlans}
+        target={initialDeepLink}
+        onCreateNote={handleCreateUnitNote}
+        onDeleteNote={handleDeleteUnitNote}
+        onCreateConfirmationRequest={handleCreateInspection}
+      />
     );
   }
 
