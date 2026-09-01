@@ -216,6 +216,10 @@ export async function createUnitNote(data) {
     author: data.author || "감리단",
     createdAt: nowIso(),
   };
+  if (data.pin) {
+    payload.pin = { x: data.pin.x, y: data.pin.y };
+    payload.pinColor = data.pinColor || "#17456f";
+  }
   const docRef = await addDoc(collection(db, "unitNotes"), payload);
   return { id: docRef.id, ...payload };
 }

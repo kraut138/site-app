@@ -63,6 +63,19 @@ export function categoryProgress(inspections, checklistItems, buildingId, floor,
   return { status: latest.status, percent: latest.status === "반려" ? 0 : percent };
 }
 
+// 세부 체크리스트 항목 하나가 이 호실에서 지금 어떤 상태인지 판정.
+// 한 번이라도 승인된 이력이 있으면 이후 다른 요청과 무관하게 항상 "승인"(영구 반영, 골구도와 동일 기준).
+// 승인 이력이 없으면 가장 최근 요청의 상태(대기/반려)를, 요청 이력 자체가 없으면 null(미시작)을 반환.
+export function itemStatusForUnit(inspections, buildingId, floor, unit, itemId) {
+  const relevant = inspections.filter(
+    (i) => i.buildingId === buildingId && String(i.floor) === String(floor) && i.unit === unit && Array.isArray(i.checkedItemIds) && i.checkedItemIds.includes(itemId)
+  );
+  if (relevant.some((i) => i.status === "승인")) return "승인";
+  if (relevant.length === 0) return null;
+  const latest = [...relevant].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+  return latest.status;
+}
+
 // 카테고리별 "기본값" 목록 - 체크리스트 탭의 "기본값으로 초기화" 버튼에서 사용
 export const DEFAULT_ITEMS_BY_CATEGORY = {
   frame: [
