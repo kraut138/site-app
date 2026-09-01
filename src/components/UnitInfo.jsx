@@ -10,12 +10,32 @@ const BAR_COLOR = {
   반려: "var(--fail)",
 };
 
-export default function UnitInfo({ buildings, inspections, checklistItems, unitNotes, unitFloorPlans, onCreateNote, onDeleteNote, notify }) {
-  const [buildingId, setBuildingId] = useState(buildings[0]?.id || "");
-  const [floor, setFloor] = useState(1);
-  const [unit, setUnit] = useState("01");
+export default function UnitInfo({
+  buildings,
+  inspections,
+  checklistItems,
+  unitNotes,
+  unitFloorPlans,
+  initialTarget,
+  onConsumeInitialTarget,
+  onCreateNote,
+  onDeleteNote,
+  notify,
+}) {
+  // QR 코드를 스캔해 들어온 경우 initialTarget에 {buildingId, floor, unit}이 담겨 있다.
+  // 존재하지 않는 동을 가리키면(삭제된 경우 등) 안전하게 첫 번째 동으로 대체한다.
+  const [buildingId, setBuildingId] = useState(() =>
+    initialTarget && buildings.some((b) => b.id === initialTarget.buildingId) ? initialTarget.buildingId : buildings[0]?.id || ""
+  );
+  const [floor, setFloor] = useState(() => initialTarget?.floor || 1);
+  const [unit, setUnit] = useState(() => initialTarget?.unit || "01");
   const [noteText, setNoteText] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (initialTarget && onConsumeInitialTarget) onConsumeInitialTarget();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (buildings.length > 0 && !buildings.some((b) => b.id === buildingId)) {

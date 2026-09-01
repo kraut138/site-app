@@ -3,6 +3,7 @@ import { Icon, EmptyState } from "./UI.jsx";
 import { formatDate, unitOptions } from "../data.js";
 import { parseDxf } from "../dxf.js";
 import DrawingPin from "./DrawingPin.jsx";
+import UnitQrCode from "./UnitQrCode.jsx";
 
 export default function Buildings({
   buildings,
@@ -137,6 +138,7 @@ function BuildingFloorPlans({ building, canEdit, plans, onCreateFloorPlan, onDel
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [qrFloor, setQrFloor] = useState(1);
   const unitsList = unitOptions(building.unitsPerFloor);
 
   function toggleUnit(u) {
@@ -260,6 +262,26 @@ function BuildingFloorPlans({ building, canEdit, plans, onCreateFloorPlan, onDel
           </label>
         </div>
       )}
+
+      <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>호실 QR 코드</div>
+        <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 14 }}>
+          인쇄해서 각 호실 문 앞에 붙여두면, 카메라로 스캔했을 때 그 호실의 "호실 정보" 화면으로 바로 이동합니다. 동·층·호가 등록되어 있으면 자동으로 만들어지며 따로 저장할 필요가 없습니다.
+        </div>
+        <div className="field" style={{ maxWidth: 140, marginBottom: 14 }}>
+          <label>층 선택</label>
+          <select className="input" value={qrFloor} onChange={(e) => setQrFloor(Number(e.target.value))}>
+            {Array.from({ length: building.floors || 1 }, (_, i) => i + 1).map((f) => (
+              <option key={f} value={f}>{f}층</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 18 }}>
+          {unitsList.map((u) => (
+            <UnitQrCode key={u} buildingId={building.id} buildingName={building.name} floor={qrFloor} unit={u} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
