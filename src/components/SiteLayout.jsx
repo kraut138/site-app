@@ -2,7 +2,7 @@ import React from "react";
 import { EmptyState } from "./UI.jsx";
 import GolguDiagram from "./GolguDiagram.jsx";
 
-export default function SiteLayout({ buildings, checklistItems, progress }) {
+export default function SiteLayout({ buildings, checklistItems, progress, onNavigateToUnit }) {
   if (buildings.length === 0) {
     return (
       <div className="card">
@@ -17,7 +17,7 @@ export default function SiteLayout({ buildings, checklistItems, progress }) {
         <div className="section-title">골구도</div>
         <span className="eyebrow">전체 동 · 완료 세대 표시</span>
       </div>
-      <GolguDiagram buildings={buildings} progress={progress} checklistItems={checklistItems} />
+      <GolguDiagram buildings={buildings} progress={progress} checklistItems={checklistItems} onNavigateToUnit={onNavigateToUnit} />
     </div>
   );
 }

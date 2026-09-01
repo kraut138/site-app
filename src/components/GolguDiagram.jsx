@@ -27,16 +27,16 @@ function normalizeAngle(a) {
 }
 
 // 동 하나의 골구도(입면) - 층별로 쌓인 벽돌 그리드가 그대로 건물 정면이 된다.
-function GolguCard({ building, itemId, progress }) {
+function GolguCard({ building, itemId, progress, onBrickClick }) {
   const floors = Math.max(1, building.floors || 1);
   const floorNumsAsc = Array.from({ length: floors }, (_, i) => i + 1); // 1층부터 오름차순 - column-reverse와 맞물려 1층이 맨 아래로 감
   const units = unitOptions(building.unitsPerFloor);
-  const brickW = Math.max(24, Math.min(34, 140 / units.length));
-  const brickH = Math.max(11, Math.min(22, 280 / floors));
+  const brickW = Math.max(32, Math.min(46, 190 / units.length));
+  const brickH = Math.max(13, Math.min(24, 300 / floors));
   const width = Math.round(brickW * units.length);
   const height = Math.round(brickH * floors);
-  const depth = Math.max(20, Math.min(46, width * 0.3));
-  const fontSize = Math.max(6.5, Math.min(10, brickH * 0.5));
+  const depth = Math.max(34, Math.min(60, width * 0.32));
+  const fontSize = Math.max(7, Math.min(10.5, brickH * 0.46));
 
   const cellData = floorNumsAsc.map((f) => units.map((u) => ({ floor: f, unit: u, complete: itemId ? isUnitComplete(building, f, u, itemId, progress) : false })));
 
@@ -46,19 +46,28 @@ function GolguCard({ building, itemId, progress }) {
         {cellData.map((row, ri) => (
           <div className="golgu-card-row" key={ri} style={{ height: brickH }}>
             {row.map((cell) => (
-              <span
+              <button
+                type="button"
                 key={cell.unit}
                 className={`golgu-card-brick${cell.complete ? " complete" : ""}`}
                 style={{ fontSize }}
-                title={`${building.name} ${cell.floor}층 ${cell.unit}호 · ${cell.complete ? "완료" : "미완료"}`}
+                title={`${building.name} ${cell.floor}층 ${cell.unit}호 · ${cell.complete ? "완료" : "미완료"} · 클릭하면 호실 정보로 이동`}
+                onClick={() => onBrickClick(building.id, cell.floor, cell.unit)}
               >
-                {cell.unit}
-              </span>
+                {cell.floor}{cell.unit}
+              </button>
             ))}
           </div>
         ))}
       </div>
-      <div className="golgu-card-side" style={{ width: depth, height, transform: `translateX(${width}px) rotateY(90deg)`, transformOrigin: "0 50%" }} />
+      <div
+        className="golgu-card-top"
+        style={{ width, height: depth, transform: `translateZ(${depth / 2}px) rotateX(90deg)`, transformOrigin: "50% 0" }}
+      />
+      <div
+        className="golgu-card-side"
+        style={{ width: depth, height, transform: `translateX(${width}px) rotateY(90deg)`, transformOrigin: "0 50%" }}
+      />
     </div>
   );
 }
@@ -69,12 +78,13 @@ function GolguCard({ building, itemId, progress }) {
  * - progress: 공사진행 탭에서 기록된 상태 목록
  * - checklistItems
  */
-export default function GolguDiagram({ buildings, progress, checklistItems }) {
+export default function GolguDiagram({ buildings, progress, checklistItems, onNavigateToUnit }) {
   const [categoryId, setCategoryId] = useState(VISIBLE_CATEGORIES[0].id);
   const [itemId, setItemId] = useState(firstItemIdFor(VISIBLE_CATEGORIES[0].id, checklistItems));
   const [selectedIndex, setSelectedIndex] = useState(0);
   const stageRef = useRef(null);
   const dragInfo = useRef(null);
+  const dragMoved = useRef(false); // 드래그로 조금이라도 움직였으면, 뗄 때 브릭 클릭(호실 이동)으로 오인하지 않도록
   const [dragging, setDragging] = useState(false);
   const [dragRotation, setDragRotation] = useState(null);
 
@@ -135,14 +145,25 @@ export default function GolguDiagram({ buildings, progress, checklistItems }) {
 
   function onPointerDown(e) {
     if (n < 2) return;
-    dragInfo.current = { startX: e.clientX, startRotation: currentRotation };
+    dragInfo.current = { startX: e.clientX, startRotation: currentRotation, pointerId: e.pointerId };
+    dragMoved.current = false;
     setDragRotation(currentRotation);
     setDragging(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // 여기서 바로 setPointerCapture를 걸면, 단순 클릭(탭)일 때도 이후의 클릭 이벤트가 이 요소로
+    // 넘어와서 브릭 자체의 onClick이 발생하지 않게 된다. 그래서 캡처는 실제로 드래그가 감지된
+    // 순간(onPointerMove)에만 시작한다.
   }
   function onPointerMove(e) {
     if (!dragInfo.current) return;
     const dx = e.clientX - dragInfo.current.startX;
+    if (!dragMoved.current && Math.abs(dx) > 4) {
+      dragMoved.current = true;
+      try {
+        stageRef.current && stageRef.current.setPointerCapture(dragInfo.current.pointerId);
+      } catch {
+        /* 캡처 실패해도 회전 자체는 계속 동작하므로 무시 */
+      }
+    }
     setDragRotation(dragInfo.current.startRotation + dx * 0.5);
   }
   function onPointerUp() {
@@ -162,6 +183,11 @@ export default function GolguDiagram({ buildings, progress, checklistItems }) {
     }
     setDragRotation(-bestIdx * step);
     setSelectedIndex(bestIdx);
+  }
+
+  function handleBrickClick(buildingId, floor, unit) {
+    if (dragMoved.current) return; // 방금 드래그했다면(회전 목적) 클릭으로 오인해 이동하지 않음
+    if (onNavigateToUnit) onNavigateToUnit(buildingId, floor, unit);
   }
 
   // 완료 세대 집계는 현재 정면을 보고 있는 동 기준
@@ -246,10 +272,15 @@ export default function GolguDiagram({ buildings, progress, checklistItems }) {
           >
             {buildings.map((b, i) => {
               const angle = i * step;
+              const isFocused = i === clampedIndex;
               return (
-                <div key={b.id} className="golgu-carousel-item" style={{ transform: `rotateY(${angle}deg) translateZ(${RADIUS}px)` }}>
+                <div
+                  key={b.id}
+                  className="golgu-carousel-item"
+                  style={{ transform: `rotateY(${angle}deg) translateZ(${RADIUS}px)`, pointerEvents: isFocused ? "auto" : "none" }}
+                >
                   <div className="golgu-card-wrap">
-                    <GolguCard building={b} itemId={itemId} progress={progress} />
+                    <GolguCard building={b} itemId={itemId} progress={progress} onBrickClick={handleBrickClick} />
                     <div className="golgu-card-name" style={{ transform: `rotateY(${-(angle + currentRotation)}deg)` }}>
                       {b.name}
                     </div>

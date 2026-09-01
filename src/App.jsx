@@ -38,6 +38,12 @@ export default function App() {
 
   const notify = useCallback((msg) => setToast(msg), []);
 
+  function handleNavigateToUnit(buildingId, floor, unit) {
+    // 배치도(3D)와 호실 정보는 둘 다 감리단 전용 화면이라, 여기서 이동하는 건 별도 예외 없이 항상 허용된다.
+    setUnitTarget({ buildingId, floor, unit });
+    setView("unitinfo");
+  }
+
   useEffect(() => {
     // 딥링크 값은 이미 위에서 JS 메모리(state)로 옮겨왔으니, 주소창은 바로 정리해도 된다.
     // 정리해두지 않으면 나중에 다른 화면을 보다가 새로고침했을 때 계속 이 호실로 튕기게 된다.
@@ -290,7 +296,7 @@ export default function App() {
           />
         )}
         {view === "sitelayout" && (
-          <SiteLayout buildings={buildings} checklistItems={checklistItems} progress={progress} />
+          <SiteLayout buildings={buildings} checklistItems={checklistItems} progress={progress} onNavigateToUnit={handleNavigateToUnit} />
         )}
       </Layout>
       <Toast message={toast} onDone={() => setToast("")} />
