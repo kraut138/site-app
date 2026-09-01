@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { CATEGORIES, itemsForCategory, unitOptions } from "../data.js";
+import { Icon } from "./UI.jsx";
 
 const VISIBLE_CATEGORIES = CATEGORIES.filter((c) => c.id !== "safety"); // 공사진행 탭과 동일하게 안전/환경 제외
+const RADIUS = 190;
 
 function firstItemIdFor(categoryId, checklistItems) {
   const first = itemsForCategory(checklistItems, categoryId)[0];
@@ -16,43 +18,131 @@ function isUnitComplete(building, floor, unit, itemId, progress) {
   return rec && rec.status === "완료";
 }
 
+function normalizeAngle(a) {
+  let x = a % 360;
+  if (x > 180) x -= 360;
+  if (x < -180) x += 360;
+  return x;
+}
+
+// 동 하나의 골구도(입면) - 층별로 쌓인 벽돌 그리드가 그대로 건물 정면이 된다.
+function GolguCard({ building, itemId, progress }) {
+  const floors = Math.max(1, building.floors || 1);
+  const floorNumsDesc = Array.from({ length: floors }, (_, i) => floors - i); // 위층부터
+  const units = unitOptions(building.unitsPerFloor);
+  const brickW = Math.max(14, Math.min(26, 110 / units.length));
+  const brickH = Math.max(3, Math.min(15, 210 / floors));
+  const width = Math.round(brickW * units.length);
+  const height = Math.round(brickH * floors);
+  const depth = Math.max(20, Math.min(46, width * 0.3));
+
+  const cellData = floorNumsDesc.map((f) => units.map((u) => ({ floor: f, unit: u, complete: itemId ? isUnitComplete(building, f, u, itemId, progress) : false })));
+
+  return (
+    <div className="golgu-card-3d" style={{ width, height }}>
+      <div className="golgu-card-front" style={{ width, height, transform: `translateZ(${depth / 2}px)` }}>
+        {cellData.map((row, ri) => (
+          <div className="golgu-card-row" key={ri} style={{ height: brickH }}>
+            {row.map((cell) => (
+              <span
+                key={cell.unit}
+                className={`golgu-card-brick${cell.complete ? " complete" : ""}`}
+                title={`${building.name} ${cell.floor}층 ${cell.unit}호 · ${cell.complete ? "완료" : "미완료"}`}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="golgu-card-side" style={{ width: depth, height, transform: `translateX(${width}px) rotateY(90deg)`, transformOrigin: "0 50%" }} />
+    </div>
+  );
+}
+
 /**
  * props:
- * - buildings: 전체 동 목록 (전부 한 번에 표시)
+ * - buildings: 전체 동 목록
  * - progress: 공사진행 탭에서 기록된 상태 목록
  * - checklistItems
  */
 export default function GolguDiagram({ buildings, progress, checklistItems }) {
   const [categoryId, setCategoryId] = useState(VISIBLE_CATEGORIES[0].id);
   const [itemId, setItemId] = useState(firstItemIdFor(VISIBLE_CATEGORIES[0].id, checklistItems));
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const stageRef = useRef(null);
+  const dragInfo = useRef(null);
+  const [dragging, setDragging] = useState(false);
+  const [dragRotation, setDragRotation] = useState(null);
+
+  const n = buildings ? buildings.length : 0;
+  const step = n > 0 ? 360 / n : 0;
+  const clampedIndex = n > 0 ? ((selectedIndex % n) + n) % n : 0;
+  const restRotation = -clampedIndex * step;
+  const currentRotation = dragRotation !== null ? dragRotation : restRotation;
+
+  useEffect(() => {
+    setDragRotation(null);
+  }, [clampedIndex]);
 
   if (!buildings || buildings.length === 0) return null;
 
   const categoryItems = itemsForCategory(checklistItems, categoryId);
   const selectedItem = checklistItems.find((i) => i.id === itemId) || null;
+  const focusedBuilding = buildings[clampedIndex];
 
   function handleCategoryChange(id) {
     setCategoryId(id);
     setItemId(firstItemIdFor(id, checklistItems));
   }
 
-  let totalUnits = 0;
-  let completeCount = 0;
+  function goPrev() {
+    setSelectedIndex((i) => (((i - 1) % n) + n) % n);
+  }
+  function goNext() {
+    setSelectedIndex((i) => (i + 1) % n);
+  }
 
-  const buildingWalls = buildings.map((building) => {
-    const floors = Math.max(1, building.floors || 1);
-    const floorNumsDesc = Array.from({ length: floors }, (_, i) => floors - i); // 위층부터
-    const units = unitOptions(building.unitsPerFloor);
-    totalUnits += floors * units.length;
-    const cellData = floorNumsDesc.map((f) =>
-      units.map((u) => {
-        const complete = selectedItem ? isUnitComplete(building, f, u, itemId, progress) : false;
-        if (complete) completeCount += 1;
-        return { floor: f, unit: u, complete };
-      })
-    );
-    return { building, cellData };
-  });
+  function onPointerDown(e) {
+    if (n < 2) return;
+    dragInfo.current = { startX: e.clientX, startRotation: currentRotation };
+    setDragRotation(currentRotation);
+    setDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function onPointerMove(e) {
+    if (!dragInfo.current) return;
+    const dx = e.clientX - dragInfo.current.startX;
+    setDragRotation(dragInfo.current.startRotation + dx * 0.5);
+  }
+  function onPointerUp() {
+    if (!dragInfo.current) return;
+    dragInfo.current = null;
+    setDragging(false);
+    const finalRotation = dragRotation ?? restRotation;
+    let bestIdx = clampedIndex;
+    let bestDiff = Infinity;
+    for (let i = 0; i < n; i++) {
+      const angle = normalizeAngle(i * step + finalRotation);
+      const diff = Math.abs(normalizeAngle(angle));
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestIdx = i;
+      }
+    }
+    setDragRotation(-bestIdx * step);
+    setSelectedIndex(bestIdx);
+  }
+
+  // 완료 세대 집계는 현재 정면을 보고 있는 동 기준
+  let completeCount = 0;
+  const focusedUnits = focusedBuilding ? unitOptions(focusedBuilding.unitsPerFloor).length * Math.max(1, focusedBuilding.floors || 1) : 0;
+  if (focusedBuilding && itemId) {
+    const units = unitOptions(focusedBuilding.unitsPerFloor);
+    for (let f = 1; f <= (focusedBuilding.floors || 1); f++) {
+      units.forEach((u) => {
+        if (isUnitComplete(focusedBuilding, f, u, itemId, progress)) completeCount += 1;
+      });
+    }
+  }
 
   return (
     <div>
@@ -90,7 +180,7 @@ export default function GolguDiagram({ buildings, progress, checklistItems }) {
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12, fontSize: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8, fontSize: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
           <span className="golgu-brick" style={{ width: 14, height: 14 }} />
           미완료
@@ -100,38 +190,53 @@ export default function GolguDiagram({ buildings, progress, checklistItems }) {
           완료
         </div>
         <span style={{ marginLeft: "auto", color: "var(--ink-soft)" }}>
-          전체 {totalUnits}세대 중 <strong style={{ color: "var(--pass)" }}>{completeCount}세대</strong> 완료
+          {focusedBuilding?.name} · {focusedUnits}세대 중 <strong style={{ color: "var(--pass)" }}>{completeCount}세대</strong> 완료
         </span>
       </div>
 
-      <div className="golgu-wall-scroll">
-        <div className="golgu-multi-wall">
-          {buildingWalls.map(({ building, cellData }) => (
-            <div className="golgu-building-col" key={building.id}>
-              <div className="golgu-wall">
-                {cellData.map((row, ri) => (
-                  <div className="golgu-row" key={ri}>
-                    <span className="golgu-floor-label mono">{row[0].floor}F</span>
-                    <div className="golgu-bricks">
-                      {row.map((cell) => (
-                        <span
-                          key={cell.unit}
-                          className={`golgu-brick${cell.complete ? " complete" : ""}`}
-                          title={`${building.name} ${cell.floor}층 ${cell.unit}호 · ${selectedItem ? selectedItem.text : ""} · ${cell.complete ? "완료" : "미완료"}`}
-                        >
-                          {cell.unit}
-                        </span>
-                      ))}
+      <div className="golgu-carousel-outer">
+        <div
+          ref={stageRef}
+          className="golgu-carousel-stage"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        >
+          <div className="golgu-carousel-turntable" />
+          <div
+            className="golgu-carousel-ring"
+            style={{ transform: `rotateY(${currentRotation}deg)`, transition: dragging ? "none" : "transform 0.4s cubic-bezier(0.2,0.8,0.3,1)" }}
+          >
+            {buildings.map((b, i) => {
+              const angle = i * step;
+              return (
+                <div key={b.id} className="golgu-carousel-item" style={{ transform: `rotateY(${angle}deg) translateZ(${RADIUS}px)` }}>
+                  <div className="golgu-card-wrap">
+                    <GolguCard building={b} itemId={itemId} progress={progress} />
+                    <div className="golgu-card-name" style={{ transform: `rotateY(${-(angle + currentRotation)}deg)` }}>
+                      {b.name}
                     </div>
                   </div>
-                ))}
-              </div>
-              <div className="golgu-building-name">{building.name}</div>
-            </div>
-          ))}
+                </div>
+              );
+            })}
+          </div>
         </div>
+
+        <div className="golgu-nav-row">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={goPrev} disabled={n < 2}>
+            <Icon.ChevronRight width="15" height="15" style={{ transform: "rotate(180deg)" }} />
+            이전
+          </button>
+          <span className="mono golgu-nav-count">{clampedIndex + 1} / {n}</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={goNext} disabled={n < 2}>
+            다음
+            <Icon.ChevronRight width="15" height="15" />
+          </button>
+        </div>
+        {n > 1 && <div className="golgu-scroll-hint">좌우로 드래그하거나 버튼을 눌러 다른 동을 볼 수 있어요</div>}
       </div>
-      {buildingWalls.length > 1 && <div className="golgu-scroll-hint">← 옆으로 스크롤하면 다른 동도 볼 수 있어요 →</div>}
     </div>
   );
 }
