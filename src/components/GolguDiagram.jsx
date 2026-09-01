@@ -11,12 +11,18 @@ function firstItemIdFor(categoryId, checklistItems) {
   return first ? first.id : "";
 }
 
-// 특정 동/층/호실에서, 선택한 "세부 체크리스트 항목 하나"가 완료인지 여부
-function isUnitComplete(building, floor, unit, itemId, progress) {
-  const rec = progress.find(
-    (p) => p.buildingId === building.id && p.itemId === itemId && String(p.floor) === String(floor) && p.unit === unit
+// 특정 동/층/호실에서, 선택한 "세부 체크리스트 항목 하나"가 감리단 승인을 받았는지 여부.
+// 하도급사의 자체 진행 표시(공사진행 탭)와는 별개로, 실제 "공사 확인 요청"이 승인된 이력이 있어야 완료로 본다.
+function isUnitApproved(building, floor, unit, itemId, inspections) {
+  return inspections.some(
+    (i) =>
+      i.buildingId === building.id &&
+      String(i.floor) === String(floor) &&
+      i.unit === unit &&
+      i.status === "승인" &&
+      Array.isArray(i.checkedItemIds) &&
+      i.checkedItemIds.includes(itemId)
   );
-  return rec && rec.status === "완료";
 }
 
 function normalizeAngle(a) {
@@ -27,7 +33,7 @@ function normalizeAngle(a) {
 }
 
 // 동 하나의 골구도(입면) - 층별로 쌓인 벽돌 그리드가 그대로 건물 정면이 된다.
-function GolguCard({ building, itemId, progress, onBrickClick }) {
+function GolguCard({ building, itemId, inspections, onBrickClick }) {
   const floors = Math.max(1, building.floors || 1);
   const floorNumsAsc = Array.from({ length: floors }, (_, i) => i + 1); // 1층부터 오름차순 - column-reverse와 맞물려 1층이 맨 아래로 감
   const units = unitOptions(building.unitsPerFloor);
@@ -38,7 +44,7 @@ function GolguCard({ building, itemId, progress, onBrickClick }) {
   const depth = Math.max(34, Math.min(60, width * 0.32));
   const fontSize = Math.max(7, Math.min(10.5, brickH * 0.46));
 
-  const cellData = floorNumsAsc.map((f) => units.map((u) => ({ floor: f, unit: u, complete: itemId ? isUnitComplete(building, f, u, itemId, progress) : false })));
+  const cellData = floorNumsAsc.map((f) => units.map((u) => ({ floor: f, unit: u, complete: itemId ? isUnitApproved(building, f, u, itemId, inspections) : false })));
 
   return (
     <div className="golgu-card-3d" style={{ width, height }}>
@@ -75,10 +81,10 @@ function GolguCard({ building, itemId, progress, onBrickClick }) {
 /**
  * props:
  * - buildings: 전체 동 목록
- * - progress: 공사진행 탭에서 기록된 상태 목록
+ * - inspections: 검측(공사 확인 요청) 목록 - 감리단이 승인한 항목만 완료로 집계
  * - checklistItems
  */
-export default function GolguDiagram({ buildings, progress, checklistItems, onNavigateToUnit }) {
+export default function GolguDiagram({ buildings, inspections, checklistItems, onNavigateToUnit }) {
   const [categoryId, setCategoryId] = useState(VISIBLE_CATEGORIES[0].id);
   const [itemId, setItemId] = useState(firstItemIdFor(VISIBLE_CATEGORIES[0].id, checklistItems));
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -128,7 +134,7 @@ export default function GolguDiagram({ buildings, progress, checklistItems, onNa
         units.forEach((u) => {
           const row = [b.name, f, u];
           allItems.forEach((it) => {
-            row.push(isUnitComplete(b, f, u, it.id, progress) ? "완료" : "");
+            row.push(isUnitApproved(b, f, u, it.id, inspections) ? "완료" : "");
           });
           rows.push(row);
         });
@@ -197,7 +203,7 @@ export default function GolguDiagram({ buildings, progress, checklistItems, onNa
     const units = unitOptions(focusedBuilding.unitsPerFloor);
     for (let f = 1; f <= (focusedBuilding.floors || 1); f++) {
       units.forEach((u) => {
-        if (isUnitComplete(focusedBuilding, f, u, itemId, progress)) completeCount += 1;
+        if (isUnitApproved(focusedBuilding, f, u, itemId, inspections)) completeCount += 1;
       });
     }
   }
@@ -255,6 +261,9 @@ export default function GolguDiagram({ buildings, progress, checklistItems, onNa
           엑셀 다운로드
         </button>
       </div>
+      <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 8 }}>
+        감리단이 "공사 확인 요청"을 승인한 호실만 완료로 표시됩니다. 공사진행 탭의 자체 진행 표시와는 별개입니다.
+      </div>
 
       <div className="golgu-carousel-outer">
         <div
@@ -280,7 +289,7 @@ export default function GolguDiagram({ buildings, progress, checklistItems, onNa
                   style={{ transform: `rotateY(${angle}deg) translateZ(${RADIUS}px)`, pointerEvents: isFocused ? "auto" : "none" }}
                 >
                   <div className="golgu-card-wrap">
-                    <GolguCard building={b} itemId={itemId} progress={progress} onBrickClick={handleBrickClick} />
+                    <GolguCard building={b} itemId={itemId} inspections={inspections} onBrickClick={handleBrickClick} />
                     <div className="golgu-card-name" style={{ transform: `rotateY(${-(angle + currentRotation)}deg)` }}>
                       {b.name}
                     </div>

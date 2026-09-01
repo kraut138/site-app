@@ -18,7 +18,6 @@ export default function OperationsHub({
   ncrs,
   checklistItems,
   unitFloorPlans,
-  onCreateInspection,
   onUpdateInspectionStatus,
   onUpdateNcrStatus,
   notify,
@@ -54,7 +53,6 @@ export default function OperationsHub({
           inspections={inspections}
           checklistItems={checklistItems}
           unitFloorPlans={unitFloorPlans}
-          onCreate={onCreateInspection}
           onUpdateStatus={onUpdateInspectionStatus}
           notify={notify}
         />

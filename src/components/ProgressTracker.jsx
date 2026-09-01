@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { CATEGORIES, itemsForCategory, unitOptions, ROLES } from "../data.js";
 import { Icon } from "./UI.jsx";
+import ConfirmationRequestForm from "./ConfirmationRequestForm.jsx";
 
 const VISIBLE_CATEGORIES = CATEGORIES.filter((c) => c.id !== "safety");
 const STATUSES = ["착수", "진행중", "완료"];
@@ -16,11 +17,22 @@ function firstItemId(items) {
   return "";
 }
 
-export default function ProgressTracker({ role, buildings, items, progress, onSetStatusBatch, onClearStatusBatch, notify }) {
+export default function ProgressTracker({
+  role,
+  buildings,
+  items,
+  progress,
+  unitFloorPlans,
+  onSetStatusBatch,
+  onClearStatusBatch,
+  onCreateConfirmationRequest,
+  notify,
+}) {
   const [buildingId, setBuildingId] = useState(buildings[0]?.id || "");
   const [itemId, setItemId] = useState(firstItemId(items));
   const [selectedUnits, setSelectedUnits] = useState(new Set()); // "floor-unit"
   const [busy, setBusy] = useState(false);
+  const [showRequestForm, setShowRequestForm] = useState(false);
   const canEdit = role === ROLES.SUB;
 
   const building = buildings.find((b) => b.id === buildingId) || null;
@@ -116,31 +128,39 @@ export default function ProgressTracker({ role, buildings, items, progress, onSe
 
   return (
     <div>
-      <div className="field-row" style={{ marginBottom: 18 }}>
-        <div className="field">
-          <label>동 선택</label>
-          <select className="input" value={buildingId} onChange={(e) => handleBuildingChange(e.target.value)}>
-            {buildings.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 18, flexWrap: "wrap" }}>
+        <div className="field-row" style={{ margin: 0 }}>
+          <div className="field">
+            <label>동 선택</label>
+            <select className="input" value={buildingId} onChange={(e) => handleBuildingChange(e.target.value)}>
+              {buildings.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>세부공종 선택</label>
+            <select className="input" value={itemId} onChange={(e) => handleItemChange(e.target.value)}>
+              {VISIBLE_CATEGORIES.map((c) => {
+                const catItems = itemsForCategory(items, c.id);
+                if (catItems.length === 0) return null;
+                return (
+                  <optgroup key={c.id} label={c.name}>
+                    {catItems.map((it) => (
+                      <option key={it.id} value={it.id}>{it.text}</option>
+                    ))}
+                  </optgroup>
+                );
+              })}
+            </select>
+          </div>
         </div>
-        <div className="field">
-          <label>세부공종 선택</label>
-          <select className="input" value={itemId} onChange={(e) => handleItemChange(e.target.value)}>
-            {VISIBLE_CATEGORIES.map((c) => {
-              const catItems = itemsForCategory(items, c.id);
-              if (catItems.length === 0) return null;
-              return (
-                <optgroup key={c.id} label={c.name}>
-                  {catItems.map((it) => (
-                    <option key={it.id} value={it.id}>{it.text}</option>
-                  ))}
-                </optgroup>
-              );
-            })}
-          </select>
-        </div>
+        {canEdit && (
+          <button className="btn btn-primary" onClick={() => setShowRequestForm(true)}>
+            <Icon.Plus width="15" height="15" />
+            공사 확인 요청
+          </button>
+        )}
       </div>
 
       {!selectedItem ? (
@@ -265,6 +285,20 @@ export default function ProgressTracker({ role, buildings, items, progress, onSe
           {!canEdit ? " 감리단/소장은 조회만 가능합니다." : ""}
         </span>
       </div>
+
+      {showRequestForm && (
+        <ConfirmationRequestForm
+          buildings={buildings}
+          checklistItems={items}
+          unitFloorPlans={unitFloorPlans}
+          onClose={() => setShowRequestForm(false)}
+          onSubmit={async (data) => {
+            const created = await onCreateConfirmationRequest(data);
+            setShowRequestForm(false);
+            notify(created.length > 1 ? `${created.length}개 호실에 대해 공사 확인을 요청했습니다.` : "공사 확인을 요청했습니다.");
+          }}
+        />
+      )}
     </div>
   );
 }

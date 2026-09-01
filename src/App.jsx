@@ -227,7 +227,6 @@ export default function App() {
             ncrs={ncrs}
             checklistItems={checklistItems}
             unitFloorPlans={unitFloorPlans}
-            onCreateInspection={handleCreateInspection}
             onUpdateInspectionStatus={handleUpdateInspectionStatus}
             onUpdateNcrStatus={handleUpdateNcrStatus}
             notify={notify}
@@ -239,8 +238,10 @@ export default function App() {
             buildings={buildings}
             items={checklistItems}
             progress={progress}
+            unitFloorPlans={unitFloorPlans}
             onSetStatusBatch={handleSetProgressBatch}
             onClearStatusBatch={handleClearProgressBatch}
+            onCreateConfirmationRequest={handleCreateInspection}
             notify={notify}
           />
         )}
@@ -296,7 +297,7 @@ export default function App() {
           />
         )}
         {view === "sitelayout" && (
-          <SiteLayout buildings={buildings} checklistItems={checklistItems} progress={progress} onNavigateToUnit={handleNavigateToUnit} />
+          <SiteLayout buildings={buildings} checklistItems={checklistItems} inspections={inspections} onNavigateToUnit={handleNavigateToUnit} />
         )}
       </Layout>
       <Toast message={toast} onDone={() => setToast("")} />
