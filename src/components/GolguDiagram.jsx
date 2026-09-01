@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import * as XLSX from "xlsx";
 import { CATEGORIES, itemsForCategory, unitOptions } from "../data.js";
 import { Icon } from "./UI.jsx";
 
@@ -30,11 +31,12 @@ function GolguCard({ building, itemId, progress }) {
   const floors = Math.max(1, building.floors || 1);
   const floorNumsDesc = Array.from({ length: floors }, (_, i) => floors - i); // 위층부터
   const units = unitOptions(building.unitsPerFloor);
-  const brickW = Math.max(14, Math.min(26, 110 / units.length));
-  const brickH = Math.max(3, Math.min(15, 210 / floors));
+  const brickW = Math.max(24, Math.min(34, 140 / units.length));
+  const brickH = Math.max(11, Math.min(22, 280 / floors));
   const width = Math.round(brickW * units.length);
   const height = Math.round(brickH * floors);
   const depth = Math.max(20, Math.min(46, width * 0.3));
+  const fontSize = Math.max(6.5, Math.min(10, brickH * 0.5));
 
   const cellData = floorNumsDesc.map((f) => units.map((u) => ({ floor: f, unit: u, complete: itemId ? isUnitComplete(building, f, u, itemId, progress) : false })));
 
@@ -47,8 +49,11 @@ function GolguCard({ building, itemId, progress }) {
               <span
                 key={cell.unit}
                 className={`golgu-card-brick${cell.complete ? " complete" : ""}`}
+                style={{ fontSize }}
                 title={`${building.name} ${cell.floor}층 ${cell.unit}호 · ${cell.complete ? "완료" : "미완료"}`}
-              />
+              >
+                {cell.unit}
+              </span>
             ))}
           </div>
         ))}
@@ -99,6 +104,33 @@ export default function GolguDiagram({ buildings, progress, checklistItems }) {
   }
   function goNext() {
     setSelectedIndex((i) => (i + 1) % n);
+  }
+
+  function handleDownloadExcel() {
+    const allItems = VISIBLE_CATEGORIES.flatMap((c) => itemsForCategory(checklistItems, c.id).map((it) => ({ ...it, categoryName: c.name })));
+    const header = ["동", "층", "호", ...allItems.map((it) => `[${it.categoryName}] ${it.text}`)];
+    const rows = [header];
+
+    buildings.forEach((b) => {
+      const floors = Math.max(1, b.floors || 1);
+      const units = unitOptions(b.unitsPerFloor);
+      for (let f = floors; f >= 1; f--) {
+        units.forEach((u) => {
+          const row = [b.name, f, u];
+          allItems.forEach((it) => {
+            row.push(isUnitComplete(b, f, u, it.id, progress) ? "완료" : "");
+          });
+          rows.push(row);
+        });
+      }
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [{ wch: 8 }, { wch: 6 }, { wch: 6 }, ...allItems.map(() => ({ wch: 16 }))];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "골구도");
+    const today = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `골구도_진행현황_${today}.xlsx`);
   }
 
   function onPointerDown(e) {
@@ -189,9 +221,13 @@ export default function GolguDiagram({ buildings, progress, checklistItems }) {
           <span className="golgu-brick complete" style={{ width: 14, height: 14 }} />
           완료
         </div>
-        <span style={{ marginLeft: "auto", color: "var(--ink-soft)" }}>
+        <span style={{ color: "var(--ink-soft)" }}>
           {focusedBuilding?.name} · {focusedUnits}세대 중 <strong style={{ color: "var(--pass)" }}>{completeCount}세대</strong> 완료
         </span>
+        <button type="button" className="btn btn-ghost btn-sm" style={{ marginLeft: "auto" }} onClick={handleDownloadExcel}>
+          <Icon.Download width="14" height="14" />
+          엑셀 다운로드
+        </button>
       </div>
 
       <div className="golgu-carousel-outer">
