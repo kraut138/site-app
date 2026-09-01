@@ -2,16 +2,29 @@ import React, { useState, useMemo } from "react";
 import { getCategory, findItemText, formatDateTime, findUnitFloorPlan, ROLES } from "../data.js";
 import { Icon, StatusBadge, CategoryTag, Modal, EmptyState, Stamp } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
+import ConfirmationRequestForm from "./ConfirmationRequestForm.jsx";
 
 const TABS = ["전체", "대기", "승인", "반려"];
 
-export default function Inspections({ role, buildings, inspections, checklistItems, unitFloorPlans, onUpdateStatus, onBatchUpdateStatus, notify }) {
+export default function Inspections({
+  role,
+  buildings,
+  inspections,
+  checklistItems,
+  unitFloorPlans,
+  onCreateConfirmationRequest,
+  onUpdateStatus,
+  onBatchUpdateStatus,
+  notify,
+}) {
   const [tab, setTab] = useState("전체");
   const [selectedId, setSelectedId] = useState(null);
   const [checkedIds, setCheckedIds] = useState(new Set());
   const [batchRejectComment, setBatchRejectComment] = useState("");
   const [showBatchReject, setShowBatchReject] = useState(false);
   const [batchBusy, setBatchBusy] = useState(false);
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const canRequest = role === ROLES.SUB;
 
   const filtered = useMemo(() => {
     const sorted = [...inspections].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -118,7 +131,42 @@ export default function Inspections({ role, buildings, inspections, checklistIte
             )}
           </div>
         )}
+        {canRequest && (
+          <button className="btn btn-primary" onClick={() => setShowRequestForm((v) => !v)}>
+            {showRequestForm ? (
+              <>
+                <Icon.Close width="14" height="14" />
+                작성 취소
+              </>
+            ) : (
+              <>
+                <Icon.Plus width="15" height="15" />
+                공사 확인 요청
+              </>
+            )}
+          </button>
+        )}
       </div>
+
+      {showRequestForm && (
+        <div className="card card-pad" style={{ marginBottom: 18, border: "1.5px solid var(--blueprint)" }}>
+          <div className="section-head">
+            <div className="section-title">공사 확인 요청 작성</div>
+          </div>
+          <ConfirmationRequestForm
+            buildings={buildings}
+            checklistItems={checklistItems}
+            inspections={inspections}
+            unitFloorPlans={unitFloorPlans}
+            onClose={() => setShowRequestForm(false)}
+            onSubmit={async (data) => {
+              const created = await onCreateConfirmationRequest(data);
+              setShowRequestForm(false);
+              notify(created.length > 1 ? `${created.length}개 호실에 대해 공사 확인을 요청했습니다.` : "공사 확인을 요청했습니다.");
+            }}
+          />
+        </div>
+      )}
 
       {showBatchReject && (
         <div className="card card-pad" style={{ marginBottom: 14, border: "1.5px solid var(--fail)" }}>

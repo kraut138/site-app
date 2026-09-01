@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Layout from "./components/Layout.jsx";
 import OperationsHub from "./components/OperationsHub.jsx";
-import Checklist from "./components/Checklist.jsx";
-import ProgressTracker from "./components/ProgressTracker.jsx";
 import Workers from "./components/Workers.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
@@ -19,7 +17,7 @@ const initialDeepLink = readUnitDeepLink();
 
 export default function App() {
   const [role, setRole] = useState(null);
-  const [view, setView] = useState(initialDeepLink ? "unitinfo" : "checklist");
+  const [view, setView] = useState(initialDeepLink ? "unitinfo" : "operations");
   const [unitTarget, setUnitTarget] = useState(initialDeepLink);
   // QR 스캔으로 이 세션에 들어왔는지 여부 - unitTarget은 UnitInfo가 초기값을 반영한 뒤 소비되어 null이 되지만,
   // 이 값은 세션 내내 고정되어 "호실 정보" 화면(원래 감리단 전용)에 하도급사도 계속 머물 수 있게 해준다.
@@ -31,7 +29,6 @@ export default function App() {
   const [checklistItems, setChecklistItems] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [unitFloorPlans, setUnitFloorPlans] = useState([]);
-  const [progress, setProgress] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [toast, setToast] = useState("");
@@ -54,7 +51,7 @@ export default function App() {
     // "호실 정보"는 원래 감리단 전용이지만, QR 스캔으로 특정 호실을 보러 온 경우엔
     // 하도급사도 그 화면만은 예외적으로 볼 수 있게 한다(그 외 화면 접근 권한은 그대로).
     if (role && !isViewAllowed(view, role) && !(view === "unitinfo" && cameFromDeepLink)) {
-      setView(role === ROLES.SUPER ? "operations" : "checklist");
+      setView("operations");
     }
   }, [role, view, cameFromDeepLink]);
 
@@ -71,7 +68,6 @@ export default function App() {
         setChecklistItems(data.checklistItems || []);
         setWorkers(data.workers || []);
         setUnitFloorPlans(data.unitFloorPlans || []);
-        setProgress(data.progress || []);
       })
       .catch((err) => alive && setLoadError(err.message))
       .finally(() => alive && setLoading(false));
@@ -105,19 +101,6 @@ export default function App() {
   async function handleDeleteUnitFloorPlan(id) {
     await api.deleteUnitFloorPlan(id);
     setUnitFloorPlans((prev) => prev.filter((p) => p.id !== id));
-  }
-
-  async function handleSetProgressBatch(buildingId, units, itemId, categoryId, status) {
-    const created = await api.setProgressStatusBatch(buildingId, units, itemId, categoryId, status);
-    const ids = new Set(created.map((c) => c.id));
-    setProgress((prev) => [...prev.filter((p) => !ids.has(p.id)), ...created]);
-    return created;
-  }
-
-  async function handleClearProgressBatch(buildingId, units, itemId) {
-    const { ids } = await api.clearProgressStatusBatch(buildingId, units, itemId);
-    const idSet = new Set(ids);
-    setProgress((prev) => prev.filter((p) => !idSet.has(p.id)));
   }
 
   async function handleCreateUnitNote(data) {
@@ -238,32 +221,13 @@ export default function App() {
             ncrs={ncrs}
             checklistItems={checklistItems}
             unitFloorPlans={unitFloorPlans}
+            onCreateConfirmationRequest={handleCreateInspection}
             onUpdateInspectionStatus={handleUpdateInspectionStatus}
             onBatchUpdateInspectionStatus={handleBatchUpdateInspectionStatus}
             onUpdateNcrStatus={handleUpdateNcrStatus}
-            notify={notify}
-          />
-        )}
-        {view === "progress" && (
-          <ProgressTracker
-            role={role}
-            buildings={buildings}
-            items={checklistItems}
-            progress={progress}
-            unitFloorPlans={unitFloorPlans}
-            onSetStatusBatch={handleSetProgressBatch}
-            onClearStatusBatch={handleClearProgressBatch}
-            onCreateConfirmationRequest={handleCreateInspection}
-            notify={notify}
-          />
-        )}
-        {view === "checklist" && (
-          <Checklist
-            role={role}
-            items={checklistItems}
-            onCreateItem={handleCreateChecklistItem}
-            onDeleteItem={handleDeleteChecklistItem}
-            onResetCategory={handleResetChecklistCategory}
+            onCreateChecklistItem={handleCreateChecklistItem}
+            onDeleteChecklistItem={handleDeleteChecklistItem}
+            onResetChecklistCategory={handleResetChecklistCategory}
             notify={notify}
           />
         )}

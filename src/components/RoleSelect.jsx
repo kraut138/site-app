@@ -5,9 +5,9 @@ import { Icon } from "./UI.jsx";
 const OPTIONS = [
   {
     role: ROLES.SUB,
-    startView: "checklist",
+    startView: "operations",
     title: "하도급사",
-    desc: "체크리스트 확인, 검측 요청 제출, NCR 조치 진행",
+    desc: "공사 확인 요청 제출, NCR 조치 진행",
     accent: "#3f9169",
     accentBg: "#12362a",
     Icon: Icon.Inspection,
