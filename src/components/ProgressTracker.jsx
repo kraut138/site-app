@@ -156,12 +156,40 @@ export default function ProgressTracker({
           </div>
         </div>
         {canEdit && (
-          <button className="btn btn-primary" onClick={() => setShowRequestForm(true)}>
-            <Icon.Plus width="15" height="15" />
-            공사 확인 요청
+          <button className="btn btn-primary" onClick={() => setShowRequestForm((v) => !v)}>
+            {showRequestForm ? (
+              <>
+                <Icon.Close width="14" height="14" />
+                작성 취소
+              </>
+            ) : (
+              <>
+                <Icon.Plus width="15" height="15" />
+                공사 확인 요청
+              </>
+            )}
           </button>
         )}
       </div>
+
+      {showRequestForm && (
+        <div className="card card-pad" style={{ marginBottom: 18, border: "1.5px solid var(--blueprint)" }}>
+          <div className="section-head">
+            <div className="section-title">공사 확인 요청 작성</div>
+          </div>
+          <ConfirmationRequestForm
+            buildings={buildings}
+            checklistItems={items}
+            unitFloorPlans={unitFloorPlans}
+            onClose={() => setShowRequestForm(false)}
+            onSubmit={async (data) => {
+              const created = await onCreateConfirmationRequest(data);
+              setShowRequestForm(false);
+              notify(created.length > 1 ? `${created.length}개 호실에 대해 공사 확인을 요청했습니다.` : "공사 확인을 요청했습니다.");
+            }}
+          />
+        </div>
+      )}
 
       {!selectedItem ? (
         <div className="card">
@@ -285,20 +313,6 @@ export default function ProgressTracker({
           {!canEdit ? " 감리단/소장은 조회만 가능합니다." : ""}
         </span>
       </div>
-
-      {showRequestForm && (
-        <ConfirmationRequestForm
-          buildings={buildings}
-          checklistItems={items}
-          unitFloorPlans={unitFloorPlans}
-          onClose={() => setShowRequestForm(false)}
-          onSubmit={async (data) => {
-            const created = await onCreateConfirmationRequest(data);
-            setShowRequestForm(false);
-            notify(created.length > 1 ? `${created.length}개 호실에 대해 공사 확인을 요청했습니다.` : "공사 확인을 요청했습니다.");
-          }}
-        />
-      )}
     </div>
   );
 }

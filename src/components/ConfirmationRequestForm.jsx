@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { CATEGORIES, getCategory, itemsForCategory, unitOptions, findUnitFloorPlan } from "../data.js";
 import { compressImage } from "../api.js";
-import { Icon, Modal } from "./UI.jsx";
+import { Icon } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 
 // 하도급사가 감리단에게 공사 완료 확인을 요청하는 폼 ("공사 확인 요청").
@@ -110,8 +110,7 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, uni
   }
 
   return (
-    <Modal title="공사 확인 요청" onClose={onClose} width="700px">
-      <form onSubmit={submit}>
+    <form onSubmit={submit}>
         <div className="field-row">
           <div className="field">
             <label>체크리스트(공종) 선택</label>
@@ -251,10 +250,14 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, uni
 
         {error && <div style={{ color: "var(--fail)", fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
 
-        <button className="btn btn-primary btn-block" disabled={busy}>
-          {busy ? "제출 중…" : "공사 확인 요청 제출"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy}>
+            {busy ? "제출 중…" : "공사 확인 요청 제출"}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>
+            취소
+          </button>
+        </div>
       </form>
-    </Modal>
   );
 }

@@ -174,6 +174,17 @@ export default function App() {
     return res;
   }
 
+  async function handleBatchUpdateInspectionStatus(ids, data) {
+    const results = await Promise.all(ids.map((id) => api.updateInspectionStatus(id, data)));
+    const byId = new Map(results.map((r) => [r.inspection.id, r.inspection]));
+    setInspections((prev) => prev.map((i) => (byId.has(i.id) ? byId.get(i.id) : i)));
+    const newNcrs = results.filter((r) => r.ncr).map((r) => r.ncr);
+    if (newNcrs.length > 0) {
+      setNcrs((prev) => [...prev, ...newNcrs]);
+    }
+    return results;
+  }
+
   async function handleUpdateNcrStatus(id, data) {
     const res = await api.updateNcrStatus(id, data);
     setNcrs((prev) => prev.map((n) => (n.id === id ? res : n)));
@@ -228,6 +239,7 @@ export default function App() {
             checklistItems={checklistItems}
             unitFloorPlans={unitFloorPlans}
             onUpdateInspectionStatus={handleUpdateInspectionStatus}
+            onBatchUpdateInspectionStatus={handleBatchUpdateInspectionStatus}
             onUpdateNcrStatus={handleUpdateNcrStatus}
             notify={notify}
           />

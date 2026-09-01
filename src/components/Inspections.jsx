@@ -5,9 +5,13 @@ import DrawingPin from "./DrawingPin.jsx";
 
 const TABS = ["전체", "대기", "승인", "반려"];
 
-export default function Inspections({ role, buildings, inspections, checklistItems, unitFloorPlans, onUpdateStatus, notify }) {
+export default function Inspections({ role, buildings, inspections, checklistItems, unitFloorPlans, onUpdateStatus, onBatchUpdateStatus, notify }) {
   const [tab, setTab] = useState("전체");
   const [selectedId, setSelectedId] = useState(null);
+  const [checkedIds, setCheckedIds] = useState(new Set());
+  const [batchRejectComment, setBatchRejectComment] = useState("");
+  const [showBatchReject, setShowBatchReject] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
 
   const filtered = useMemo(() => {
     const sorted = [...inspections].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -15,18 +19,70 @@ export default function Inspections({ role, buildings, inspections, checklistIte
     return sorted.filter((i) => i.status === tab);
   }, [inspections, tab]);
 
+  const pendingInFiltered = filtered.filter((i) => i.status === "대기");
   const selected = inspections.find((i) => i.id === selectedId) || null;
+  const canBatch = role === ROLES.SUPER;
+
+  function toggleCheck(id, e) {
+    e.stopPropagation();
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllPending() {
+    setCheckedIds(new Set(pendingInFiltered.map((i) => i.id)));
+  }
+
+  function clearChecked() {
+    setCheckedIds(new Set());
+    setShowBatchReject(false);
+    setBatchRejectComment("");
+  }
+
+  async function handleBatchApprove() {
+    if (checkedIds.size === 0) return;
+    setBatchBusy(true);
+    try {
+      const ids = Array.from(checkedIds);
+      await onBatchUpdateStatus(ids, { status: "승인", approver: "감리단 담당자" });
+      notify(`${ids.length}건을 일괄 승인했습니다.`);
+      clearChecked();
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
+  async function handleBatchReject() {
+    if (checkedIds.size === 0) return;
+    if (!batchRejectComment.trim()) return;
+    setBatchBusy(true);
+    try {
+      const ids = Array.from(checkedIds);
+      await onBatchUpdateStatus(ids, { status: "반려", comment: batchRejectComment, approver: "감리단 담당자" });
+      notify(`${ids.length}건을 일괄 반려하고 NCR을 발행했습니다.`);
+      clearChecked();
+    } finally {
+      setBatchBusy(false);
+    }
+  }
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 6 }}>
           {TABS.map((t) => {
             const count = t === "전체" ? inspections.length : inspections.filter((i) => i.status === t).length;
             return (
               <button
                 key={t}
-                onClick={() => setTab(t)}
+                onClick={() => {
+                  setTab(t);
+                  clearChecked();
+                }}
                 className="chip"
                 style={{
                   cursor: "pointer",
@@ -41,7 +97,51 @@ export default function Inspections({ role, buildings, inspections, checklistIte
             );
           })}
         </div>
+        {canBatch && pendingInFiltered.length > 0 && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <button className="btn btn-ghost btn-sm" onClick={selectAllPending}>
+              대기 전체 선택 ({pendingInFiltered.length})
+            </button>
+            {checkedIds.size > 0 && (
+              <>
+                <span style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{checkedIds.size}건 선택됨</span>
+                <button className="btn btn-pass btn-sm" disabled={batchBusy} onClick={handleBatchApprove}>
+                  <Icon.Check width="14" height="14" /> 일괄 승인
+                </button>
+                <button className="btn btn-fail btn-sm" disabled={batchBusy} onClick={() => setShowBatchReject((v) => !v)}>
+                  <Icon.Close width="13" height="13" /> 일괄 반려
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={clearChecked}>
+                  선택 해제
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
+
+      {showBatchReject && (
+        <div className="card card-pad" style={{ marginBottom: 14, border: "1.5px solid var(--fail)" }}>
+          <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>
+            반려 사유 (선택한 {checkedIds.size}건 모두에 동일하게 기록되며, 각 건마다 NCR이 발행됩니다)
+          </label>
+          <textarea
+            className="input"
+            placeholder="예: 철근 이격거리 기준 미달, 재시공 필요"
+            value={batchRejectComment}
+            onChange={(e) => setBatchRejectComment(e.target.value)}
+            style={{ marginBottom: 10 }}
+          />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-fail btn-sm" disabled={batchBusy || !batchRejectComment.trim()} onClick={handleBatchReject}>
+              반려 확정
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowBatchReject(false)}>
+              취소
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         {filtered.length === 0 ? (
@@ -50,8 +150,18 @@ export default function Inspections({ role, buildings, inspections, checklistIte
           filtered.map((insp) => {
             const cat = getCategory(insp.categoryId);
             const building = buildings.find((b) => b.id === insp.buildingId);
+            const isPending = insp.status === "대기";
             return (
               <div className="list-row" key={insp.id} onClick={() => setSelectedId(insp.id)}>
+                {canBatch && isPending && (
+                  <input
+                    type="checkbox"
+                    checked={checkedIds.has(insp.id)}
+                    onChange={() => {}}
+                    onClick={(e) => toggleCheck(insp.id, e)}
+                    style={{ width: 16, height: 16, flexShrink: 0, cursor: "pointer" }}
+                  />
+                )}
                 <span className="loc">
                   {building ? building.name : "-"} {insp.floor}층{insp.unit ? ` ${insp.unit}호` : ""}
                 </span>
