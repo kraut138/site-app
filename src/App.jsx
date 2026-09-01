@@ -16,7 +16,8 @@ import { readUnitDeepLink, clearUnitDeepLinkFromUrl } from "./qr.js";
 const initialDeepLink = readUnitDeepLink();
 
 export default function App() {
-  const [role, setRole] = useState(null);
+  // QR로 특정 호실을 스캔해 들어온 경우, 역할 선택 화면 없이 무조건 하도급사 화면으로 바로 시작한다.
+  const [role, setRole] = useState(initialDeepLink ? ROLES.SUB : null);
   const [view, setView] = useState(initialDeepLink ? "unitinfo" : "operations");
   const [unitTarget, setUnitTarget] = useState(initialDeepLink);
   // QR 스캔으로 이 세션에 들어왔는지 여부 - unitTarget은 UnitInfo가 초기값을 반영한 뒤 소비되어 null이 되지만,
