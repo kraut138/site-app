@@ -29,7 +29,7 @@ function normalizeAngle(a) {
 // 동 하나의 골구도(입면) - 층별로 쌓인 벽돌 그리드가 그대로 건물 정면이 된다.
 function GolguCard({ building, itemId, progress }) {
   const floors = Math.max(1, building.floors || 1);
-  const floorNumsDesc = Array.from({ length: floors }, (_, i) => floors - i); // 위층부터
+  const floorNumsAsc = Array.from({ length: floors }, (_, i) => i + 1); // 1층부터 오름차순 - column-reverse와 맞물려 1층이 맨 아래로 감
   const units = unitOptions(building.unitsPerFloor);
   const brickW = Math.max(24, Math.min(34, 140 / units.length));
   const brickH = Math.max(11, Math.min(22, 280 / floors));
@@ -38,7 +38,7 @@ function GolguCard({ building, itemId, progress }) {
   const depth = Math.max(20, Math.min(46, width * 0.3));
   const fontSize = Math.max(6.5, Math.min(10, brickH * 0.5));
 
-  const cellData = floorNumsDesc.map((f) => units.map((u) => ({ floor: f, unit: u, complete: itemId ? isUnitComplete(building, f, u, itemId, progress) : false })));
+  const cellData = floorNumsAsc.map((f) => units.map((u) => ({ floor: f, unit: u, complete: itemId ? isUnitComplete(building, f, u, itemId, progress) : false })));
 
   return (
     <div className="golgu-card-3d" style={{ width, height }}>
