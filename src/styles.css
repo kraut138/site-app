@@ -1406,20 +1406,14 @@ textarea.input {
   transform-style: preserve-3d;
 }
 
-.golgu-card-3d {
+.golgu-card-flat {
   position: relative;
-  transform-style: preserve-3d;
-}
-
-.golgu-card-front {
-  position: absolute;
-  top: 0;
-  left: 0;
   display: flex;
   flex-direction: column-reverse;
   border: 1.5px solid var(--blueprint-deep);
   overflow: hidden;
   box-shadow: 3px 6px 14px rgba(15, 50, 82, 0.28);
+  transform: translateZ(0);
 }
 
 .golgu-card-row {
@@ -1429,6 +1423,7 @@ textarea.input {
 
 .golgu-card-brick {
   flex: 1;
+  height: 100%;
   border: none;
   border-top: 0.5px solid rgba(255, 255, 255, 0.45);
   border-right: 0.5px solid rgba(0, 0, 0, 0.08);
@@ -1452,24 +1447,6 @@ textarea.input {
 .golgu-card-brick.complete {
   background: var(--pass);
   color: rgba(255, 255, 255, 0.92);
-}
-
-.golgu-card-top {
-  position: absolute;
-  top: 0;
-  left: 0;
-  background: #e4dccf;
-  border: 1.5px solid var(--blueprint-deep);
-  border-bottom: none;
-}
-
-.golgu-card-side {
-  position: absolute;
-  top: 0;
-  left: 0;
-  background: linear-gradient(90deg, rgba(15, 50, 82, 0.45), rgba(15, 50, 82, 0.2));
-  border: 1.5px solid var(--blueprint-deep);
-  border-left: none;
 }
 
 .golgu-card-name {

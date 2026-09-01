@@ -41,39 +41,28 @@ function GolguCard({ building, itemId, inspections, onBrickClick }) {
   const brickH = Math.max(13, Math.min(24, 300 / floors));
   const width = Math.round(brickW * units.length);
   const height = Math.round(brickH * floors);
-  const depth = Math.max(34, Math.min(60, width * 0.32));
   const fontSize = Math.max(7, Math.min(10.5, brickH * 0.46));
 
   const cellData = floorNumsAsc.map((f) => units.map((u) => ({ floor: f, unit: u, complete: itemId ? isUnitApproved(building, f, u, itemId, inspections) : false })));
 
   return (
-    <div className="golgu-card-3d" style={{ width, height }}>
-      <div className="golgu-card-front" style={{ width, height, transform: `translateZ(${depth / 2}px)` }}>
-        {cellData.map((row, ri) => (
-          <div className="golgu-card-row" key={ri} style={{ height: brickH }}>
-            {row.map((cell) => (
-              <button
-                type="button"
-                key={cell.unit}
-                className={`golgu-card-brick${cell.complete ? " complete" : ""}`}
-                style={{ fontSize }}
-                title={`${building.name} ${cell.floor}층 ${cell.unit}호 · ${cell.complete ? "완료" : "미완료"} · 클릭하면 호실 정보로 이동`}
-                onClick={() => onBrickClick(building.id, cell.floor, cell.unit)}
-              >
-                {cell.floor}{cell.unit}
-              </button>
-            ))}
-          </div>
-        ))}
-      </div>
-      <div
-        className="golgu-card-top"
-        style={{ width, height: depth, transform: `translateZ(${depth / 2}px) rotateX(90deg)`, transformOrigin: "50% 0" }}
-      />
-      <div
-        className="golgu-card-side"
-        style={{ width: depth, height, transform: `translateX(${width}px) rotateY(90deg)`, transformOrigin: "0 50%" }}
-      />
+    <div className="golgu-card-flat" style={{ width, height }}>
+      {cellData.map((row, ri) => (
+        <div className="golgu-card-row" key={ri} style={{ height: brickH }}>
+          {row.map((cell) => (
+            <button
+              type="button"
+              key={cell.unit}
+              className={`golgu-card-brick${cell.complete ? " complete" : ""}`}
+              style={{ fontSize }}
+              title={`${building.name} ${cell.floor}층 ${cell.unit}호 · ${cell.complete ? "완료" : "미완료"} · 클릭하면 호실 정보로 이동`}
+              onClick={() => onBrickClick(building.id, cell.floor, cell.unit)}
+            >
+              {cell.floor}{cell.unit}
+            </button>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
