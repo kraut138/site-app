@@ -1632,3 +1632,87 @@ textarea.input {
   background: var(--surface-alt);
   box-shadow: inset 0 2px 0 var(--blueprint);
 }
+
+/* ============ 공사 확인 요청 내역 - 공종>세부공종 드롭다운 계층 ============ */
+.ig-category {
+  border-bottom: 1px solid var(--line);
+}
+
+.ig-category:last-child {
+  border-bottom: none;
+}
+
+.ig-category-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.ig-category-head:hover {
+  background: var(--surface-alt);
+}
+
+.ig-category-name {
+  font-size: 14px;
+  font-weight: 700;
+  flex: 1;
+}
+
+.ig-category-body {
+  padding: 0 16px 8px 30px;
+}
+
+.ig-item {
+  border-top: 1px solid var(--line);
+}
+
+.ig-item:first-child {
+  border-top: none;
+}
+
+.ig-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.ig-item-head:hover {
+  background: var(--surface-alt);
+}
+
+.ig-item-name {
+  font-size: 12.8px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  flex: 1;
+}
+
+.ig-chevron {
+  flex-shrink: 0;
+  color: var(--ink-faint);
+  transition: transform 0.15s ease;
+}
+
+.ig-chevron.open {
+  transform: rotate(90deg);
+}
+
+.ig-request-row {
+  padding-left: 18px;
+  margin-left: 4px;
+  border-left: 2px solid var(--line);
+}

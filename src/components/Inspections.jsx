@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { getCategory, findItemText, formatDateTime, findUnitFloorPlan, ROLES } from "../data.js";
+import { CATEGORIES, getCategory, itemsForCategory, findItemText, formatDateTime, findUnitFloorPlan, ROLES } from "../data.js";
 import { Icon, StatusBadge, CategoryTag, Modal, EmptyState, Stamp } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 import ConfirmationRequestForm from "./ConfirmationRequestForm.jsx";
@@ -24,6 +24,8 @@ export default function Inspections({
   const [showBatchReject, setShowBatchReject] = useState(false);
   const [batchBusy, setBatchBusy] = useState(false);
   const [showRequestForm, setShowRequestForm] = useState(false);
+  const [openCategories, setOpenCategories] = useState(new Set());
+  const [openItems, setOpenItems] = useState(new Set());
   const canRequest = role === ROLES.SUB;
 
   const filtered = useMemo(() => {
@@ -35,6 +37,38 @@ export default function Inspections({
   const pendingInFiltered = filtered.filter((i) => i.status === "대기");
   const selected = inspections.find((i) => i.id === selectedId) || null;
   const canBatch = role === ROLES.SUPER;
+
+  // 공종 -> 세부 공종 순으로 그룹화. 한 요청이 세부 항목을 여러 개 체크했다면 그 항목마다 각각 나타난다
+  // (체크박스 선택 상태는 요청 id 기준으로 공유되므로 어느 그룹에서 선택하든 동일하게 반영된다).
+  const groupedByCategory = useMemo(() => {
+    return CATEGORIES.map((cat) => {
+      const catRequests = filtered.filter((i) => i.categoryId === cat.id);
+      const items = itemsForCategory(checklistItems, cat.id);
+      const itemGroups = items
+        .map((item) => ({ item, requests: catRequests.filter((i) => Array.isArray(i.checkedItemIds) && i.checkedItemIds.includes(item.id)) }))
+        .filter((g) => g.requests.length > 0);
+      const uncategorized = catRequests.filter((i) => !Array.isArray(i.checkedItemIds) || i.checkedItemIds.length === 0);
+      return { category: cat, total: catRequests.length, itemGroups, uncategorized };
+    }).filter((g) => g.total > 0);
+  }, [filtered, checklistItems]);
+
+  function toggleCategoryOpen(id) {
+    setOpenCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleItemOpen(id) {
+    setOpenItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function toggleCheck(id, e) {
     e.stopPropagation();
@@ -81,6 +115,36 @@ export default function Inspections({
     } finally {
       setBatchBusy(false);
     }
+  }
+
+  function renderRequestRow(insp) {
+    const cat = getCategory(insp.categoryId);
+    const building = buildings.find((b) => b.id === insp.buildingId);
+    const isPending = insp.status === "대기";
+    return (
+      <div className="list-row ig-request-row" key={insp.id} onClick={() => setSelectedId(insp.id)}>
+        {canBatch && isPending && (
+          <input
+            type="checkbox"
+            checked={checkedIds.has(insp.id)}
+            onChange={() => {}}
+            onClick={(e) => toggleCheck(insp.id, e)}
+            style={{ width: 16, height: 16, flexShrink: 0, cursor: "pointer" }}
+          />
+        )}
+        <span className="loc">
+          {building ? building.name : "-"} {insp.floor}층{insp.unit ? ` ${insp.unit}호` : ""}
+        </span>
+        <div className="grow">
+          <div className="title">
+            {cat ? cat.name : "-"} · {insp.checkedItemIds.length}개 항목 확인
+          </div>
+          <div className="meta">{insp.requestedBy} · {formatDateTime(insp.createdAt)}</div>
+        </div>
+        <StatusBadge status={insp.status} />
+        <Icon.ChevronRight width="16" height="16" style={{ color: "var(--ink-faint)" }} />
+      </div>
+    );
   }
 
   return (
@@ -195,33 +259,47 @@ export default function Inspections({
         {filtered.length === 0 ? (
           <EmptyState message="해당하는 검측 요청이 없습니다." />
         ) : (
-          filtered.map((insp) => {
-            const cat = getCategory(insp.categoryId);
-            const building = buildings.find((b) => b.id === insp.buildingId);
-            const isPending = insp.status === "대기";
+          groupedByCategory.map(({ category, total, itemGroups, uncategorized }) => {
+            const catOpen = openCategories.has(category.id);
             return (
-              <div className="list-row" key={insp.id} onClick={() => setSelectedId(insp.id)}>
-                {canBatch && isPending && (
-                  <input
-                    type="checkbox"
-                    checked={checkedIds.has(insp.id)}
-                    onChange={() => {}}
-                    onClick={(e) => toggleCheck(insp.id, e)}
-                    style={{ width: 16, height: 16, flexShrink: 0, cursor: "pointer" }}
-                  />
-                )}
-                <span className="loc">
-                  {building ? building.name : "-"} {insp.floor}층{insp.unit ? ` ${insp.unit}호` : ""}
-                </span>
-                <div className="grow">
-                  <div className="title">
-                    {cat ? cat.name : "-"} · {insp.checkedItemIds.length}개 항목 확인
+              <div key={category.id} className="ig-category">
+                <button type="button" className="ig-category-head" onClick={() => toggleCategoryOpen(category.id)}>
+                  <Icon.ChevronRight width="15" height="15" className={`ig-chevron${catOpen ? " open" : ""}`} />
+                  <span style={{ width: 9, height: 9, borderRadius: 3, background: category.color, flexShrink: 0 }} />
+                  <span className="ig-category-name">{category.name}</span>
+                  <span className="eyebrow">{total}건</span>
+                </button>
+                {catOpen && (
+                  <div className="ig-category-body">
+                    {itemGroups.map(({ item, requests }) => {
+                      const itemOpen = openItems.has(item.id);
+                      return (
+                        <div key={item.id} className="ig-item">
+                          <button type="button" className="ig-item-head" onClick={() => toggleItemOpen(item.id)}>
+                            <Icon.ChevronRight width="13" height="13" className={`ig-chevron${itemOpen ? " open" : ""}`} />
+                            <span className="ig-item-name">{item.text}</span>
+                            <span className="eyebrow">{requests.length}건</span>
+                          </button>
+                          {itemOpen && (
+                            <div>
+                              {requests.map((insp) => renderRequestRow(insp))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {uncategorized.length > 0 && (
+                      <div className="ig-item">
+                        <button type="button" className="ig-item-head" onClick={() => toggleItemOpen(`${category.id}-none`)}>
+                          <Icon.ChevronRight width="13" height="13" className={`ig-chevron${openItems.has(`${category.id}-none`) ? " open" : ""}`} />
+                          <span className="ig-item-name">확인 항목 없음</span>
+                          <span className="eyebrow">{uncategorized.length}건</span>
+                        </button>
+                        {openItems.has(`${category.id}-none`) && <div>{uncategorized.map((insp) => renderRequestRow(insp))}</div>}
+                      </div>
+                    )}
                   </div>
-                  <div className="meta">{insp.requestedBy} · {formatDateTime(insp.createdAt)}</div>
-                </div>
-                <CategoryTag category={cat} />
-                <StatusBadge status={insp.status} />
-                <Icon.ChevronRight width="16" height="16" style={{ color: "var(--ink-faint)" }} />
+                )}
               </div>
             );
           })
