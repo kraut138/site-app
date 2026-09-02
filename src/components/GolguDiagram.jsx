@@ -38,7 +38,7 @@ function GolguCard({ building, itemId, inspections, onBrickClick }) {
   const floorNumsAsc = Array.from({ length: floors }, (_, i) => i + 1); // 1층부터 오름차순 - column-reverse와 맞물려 1층이 맨 아래로 감
   const units = unitOptions(building.unitsPerFloor);
   const brickW = Math.max(32, Math.min(46, 190 / units.length));
-  const brickH = Math.max(13, Math.min(24, 300 / floors));
+  const brickH = Math.max(9, Math.min(24, 300 / floors));
   const width = Math.round(brickW * units.length);
   const height = Math.round(brickH * floors);
   const fontSize = Math.max(7, Math.min(10.5, brickH * 0.46));
