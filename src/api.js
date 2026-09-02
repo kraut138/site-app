@@ -290,7 +290,7 @@ export async function createInspection(data) {
   return { id: docRef.id, ...payload };
 }
 
-// 여러 호실을 한 번에 선택해 동일한 공종·체크리스트·사진으로 일괄 제출
+// 여러 호실을 한 번에 선택해 동일한 공종·확인 항목·사진으로 일괄 제출
 // data: { categoryId, buildingId, units: [{floor, unit}], checkedItemIds, photos, pin, memo, requestedBy }
 export async function createInspections(data) {
   if (!Array.isArray(data.units) || data.units.length === 0) {

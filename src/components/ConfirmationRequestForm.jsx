@@ -139,7 +139,7 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
     <form onSubmit={submit}>
         <div className="field-row">
           <div className="field">
-            <label>체크리스트(공종) 선택</label>
+            <label>공종 선택</label>
             <select
               className="input"
               value={categoryId}
@@ -248,9 +248,9 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
         ) : (
         <>
         <div className="field">
-          <label>{category.name} 체크리스트 — 확인된 항목 선택</label>
+          <label>{category.name} 공종 — 확인된 항목 선택</label>
           {categoryItems.length === 0 && (
-            <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>등록된 체크리스트 항목이 없습니다.</div>
+            <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>등록된 공종 항목이 없습니다.</div>
           )}
           {categoryItems.map((item) => (
             <label key={item.id} className={`checklist-item${checkedItemIds.includes(item.id) ? " checked" : ""}`}>

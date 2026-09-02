@@ -1,4 +1,4 @@
-// 공종 카테고리 메타 정보 (체크리스트 항목 자체는 백엔드에서 동적으로 관리됨)
+// 공종 카테고리 메타 정보 (세부 항목 자체는 백엔드에서 동적으로 관리됨)
 export const CATEGORIES = [
   {
     id: "frame",
@@ -76,7 +76,7 @@ export function itemStatusForUnit(inspections, buildingId, floor, unit, itemId) 
   return latest.status;
 }
 
-// 카테고리별 "기본값" 목록 - 체크리스트 탭의 "기본값으로 초기화" 버튼에서 사용
+// 카테고리별 "기본값" 목록 - 표준 공종 탭의 "기본값으로 초기화" 버튼에서 사용
 export const DEFAULT_ITEMS_BY_CATEGORY = {
   frame: [
     "철근 배근 간격 및 규격 적정성",

@@ -19,7 +19,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
     try {
       await onCreateItem({ categoryId: openId, text: newText.trim() });
       setNewText("");
-      notify("체크리스트 항목을 추가했습니다.");
+      notify("공종 항목을 추가했습니다.");
     } finally {
       setBusy(false);
     }
@@ -29,7 +29,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
     setBusy(true);
     try {
       await onDeleteItem(id);
-      notify("체크리스트 항목을 삭제했습니다.");
+      notify("공종 항목을 삭제했습니다.");
     } finally {
       setBusy(false);
     }
@@ -39,7 +39,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
     setBusy(true);
     try {
       await onResetCategory(categoryId, DEFAULT_ITEMS_BY_CATEGORY[categoryId] || []);
-      notify("체크리스트를 기본값으로 초기화했습니다.");
+      notify("공종을 기본값으로 초기화했습니다.");
     } finally {
       setBusy(false);
       setResetConfirmId(null);
@@ -86,7 +86,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
             <div className="section-head">
               <div className="section-title">
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: c.color, display: "inline-block" }} />
-                {c.name} 표준 체크리스트
+                {c.name} 표준 공종
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span className="eyebrow mono">TEMPLATE · {c.id.toUpperCase()}</span>

@@ -20,7 +20,7 @@ const NAV_GROUPS = [
 ];
 
 const PAGE_META = {
-  operations: { title: "공사현황", desc: "대시보드·공사 확인 요청 내역·NCR 관리·표준 체크리스트를 한 곳에서 확인합니다" },
+  operations: { title: "공사현황", desc: "대시보드·공사 확인 요청 내역·NCR 관리·표준 공종을 한 곳에서 확인합니다" },
   workers: { title: "인력 등록", desc: "건설사·공종을 선택해 현장 인력을 등록하고 승인 현황을 확인합니다" },
   unitinfo: { title: "호실 정보", desc: "동·호수를 선택해 공종별 진행도, 특이사항, 평면도를 확인합니다" },
   buildings: { title: "동 관리", desc: "현장 동·층·세대 정보를 관리합니다" },
