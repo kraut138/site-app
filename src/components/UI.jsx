@@ -76,6 +76,15 @@ export const Icon = {
       <path d="M9.5 5.5a2.5 2.5 0 0 1 5 0" />
     </svg>
   ),
+  Excavator: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M3 19h13" />
+      <circle cx="6" cy="19" r="1.6" />
+      <circle cx="14" cy="19" r="1.6" />
+      <path d="M4 16h11v-4H8Z" />
+      <path d="M11 12 17 6h2l-1.5 4.5L20 9" />
+    </svg>
+  ),
   Close: (p) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...p}>
       <path d="M6 6l12 12M18 6L6 18" />

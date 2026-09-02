@@ -93,7 +93,7 @@ async function ensureSeeded() {
 
 export async function fetchBootstrap() {
   await ensureSeeded();
-  const [buildingsSnap, inspectionsSnap, ncrsSnap, unitNotesSnap, checklistItemsSnap, workersSnap, siteSettingsSnap, unitFloorPlansSnap] = await Promise.all([
+  const [buildingsSnap, inspectionsSnap, ncrsSnap, unitNotesSnap, checklistItemsSnap, workersSnap, siteSettingsSnap, unitFloorPlansSnap, equipmentSnap] = await Promise.all([
     getDocs(collection(db, "buildings")),
     getDocs(collection(db, "inspections")),
     getDocs(collection(db, "ncrs")),
@@ -102,6 +102,7 @@ export async function fetchBootstrap() {
     getDocs(collection(db, "workers")),
     getDoc(doc(db, "meta", "siteSettings")),
     getDocs(collection(db, "unitFloorPlans")),
+    getDocs(collection(db, "equipment")),
   ]);
   return {
     buildings: snapToArray(buildingsSnap),
@@ -112,6 +113,7 @@ export async function fetchBootstrap() {
     workers: snapToArray(workersSnap),
     siteSettings: siteSettingsSnap.exists() ? siteSettingsSnap.data() : {},
     unitFloorPlans: snapToArray(unitFloorPlansSnap),
+    equipment: snapToArray(equipmentSnap),
   };
 }
 
@@ -417,6 +419,38 @@ export async function updateWorkerStatus(id, data) {
     history: arrayUnion({ action: data.status, at: nowIso(), by: data.approver || "감리단", comment: data.comment || "" }),
   });
   const snap = await getDoc(doc(db, "workers", id));
+  return { id: snap.id, ...snap.data() };
+}
+
+// ---------------- 건설기계 등록 ----------------
+
+export async function createEquipment(data) {
+  if (!data.companyName || !data.registrantName || !data.equipmentName) {
+    throw new Error("companyName, registrantName, equipmentName은 필수입니다.");
+  }
+  const payload = {
+    companyName: String(data.companyName).trim(),
+    registrantName: String(data.registrantName).trim(),
+    equipmentName: String(data.equipmentName).trim(),
+    imageDataUrl: data.imageDataUrl || null,
+    status: "대기",
+    createdAt: nowIso(),
+    history: [{ action: "등록", at: nowIso(), by: data.registrantName }],
+  };
+  const docRef = await addDoc(collection(db, "equipment"), payload);
+  return { id: docRef.id, ...payload };
+}
+
+export async function updateEquipmentStatus(id, data) {
+  if (!["승인", "반려"].includes(data.status)) {
+    throw new Error("status는 승인 또는 반려여야 합니다.");
+  }
+  await updateDoc(doc(db, "equipment", id), {
+    status: data.status,
+    approver: data.approver || "감리단",
+    history: arrayUnion({ action: data.status, at: nowIso(), by: data.approver || "감리단", comment: data.comment || "" }),
+  });
+  const snap = await getDoc(doc(db, "equipment", id));
   return { id: snap.id, ...snap.data() };
 }
 

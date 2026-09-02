@@ -148,6 +148,7 @@ export const ROLES = {
 // (대시보드는 "현장관리" 탭 내부의 서브탭이며, OperationsHub.jsx에서 role로 별도 제한됨)
 export const VIEW_ROLES = {
   workers: [ROLES.SUB],
+  equipment: [ROLES.SUB],
   buildings: [ROLES.SUPER],
   sitelayout: [ROLES.SUPER],
   unitinfo: [ROLES.SUPER],

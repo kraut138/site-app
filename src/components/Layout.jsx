@@ -8,6 +8,7 @@ const NAV_GROUPS = [
     items: [
       { id: "operations", label: "공사현황", Icon: Icon.Dashboard, badgeKey: "operations" },
       { id: "workers", label: "인력 등록", Icon: Icon.Worker, badgeKey: "workersPending" },
+      { id: "equipment", label: "건설기계 등록", Icon: Icon.Excavator, badgeKey: "equipmentPending" },
       { id: "unitinfo", label: "호실 정보", Icon: Icon.Door },
       { id: "buildings", label: "동 관리", Icon: Icon.Building },
       { id: "sitelayout", label: "골구도", Icon: Icon.Cube },
@@ -22,6 +23,7 @@ const NAV_GROUPS = [
 const PAGE_META = {
   operations: { title: "공사현황", desc: "대시보드·공사 확인 요청 내역·NCR 관리·표준 공종을 한 곳에서 확인합니다" },
   workers: { title: "인력 등록", desc: "건설사·공종을 선택해 현장 인력을 등록하고 승인 현황을 확인합니다" },
+  equipment: { title: "건설기계 등록", desc: "현장에 반입하는 건설기계를 등록하고 감리단 승인 현황을 확인합니다" },
   unitinfo: { title: "호실 정보", desc: "동·호수를 선택해 공종별 진행도, 특이사항, 평면도를 확인합니다" },
   buildings: { title: "동 관리", desc: "현장 동·층·세대 정보를 관리합니다" },
   sitelayout: { title: "골구도", desc: "동의 대략적인 위치와 형태를 3D로 확인합니다" },

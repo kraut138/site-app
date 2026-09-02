@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import Layout from "./components/Layout.jsx";
 import OperationsHub from "./components/OperationsHub.jsx";
 import Workers from "./components/Workers.jsx";
+import Equipment from "./components/Equipment.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
@@ -27,6 +28,7 @@ export default function App() {
   const [unitNotes, setUnitNotes] = useState([]);
   const [checklistItems, setChecklistItems] = useState([]);
   const [workers, setWorkers] = useState([]);
+  const [equipment, setEquipment] = useState([]);
   const [unitFloorPlans, setUnitFloorPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -64,6 +66,7 @@ export default function App() {
         setUnitNotes(data.unitNotes || []);
         setChecklistItems(data.checklistItems || []);
         setWorkers(data.workers || []);
+        setEquipment(data.equipment || []);
         setUnitFloorPlans(data.unitFloorPlans || []);
       })
       .catch((err) => alive && setLoadError(err.message))
@@ -152,6 +155,18 @@ export default function App() {
     return updated;
   }
 
+  async function handleCreateEquipment(data) {
+    const created = await api.createEquipment(data);
+    setEquipment((prev) => [...prev, created]);
+    return created;
+  }
+
+  async function handleUpdateEquipmentStatus(id, data) {
+    const updated = await api.updateEquipmentStatus(id, data);
+    setEquipment((prev) => prev.map((eq) => (eq.id === id ? updated : eq)));
+    return updated;
+  }
+
   async function handleCreateInspection(data) {
     const created = await api.createInspections(data);
     setInspections((prev) => [...prev, ...created]);
@@ -189,9 +204,10 @@ export default function App() {
     ncr: ncrs.filter((n) => n.status !== "완료").length,
     safetyNcr: ncrs.filter((n) => n.categoryId === "safety" && n.status !== "완료").length,
     workersPending: workers.filter((w) => w.status === "대기").length,
+    equipmentPending: equipment.filter((eq) => eq.status === "대기").length,
   };
   badges.operations = badges.pending + badges.ncr;
-  badges.safetyTotal = badges.safetyNcr + badges.workersPending;
+  badges.safetyTotal = badges.safetyNcr + badges.workersPending + badges.equipmentPending;
 
   if (!role && !initialDeepLink) {
     return <RoleSelect onSelect={(chosenRole, startView) => {
@@ -255,6 +271,7 @@ export default function App() {
           />
         )}
         {view === "workers" && <Workers workers={workers} onCreateWorkers={handleCreateWorkers} notify={notify} />}
+        {view === "equipment" && <Equipment equipment={equipment} onCreateEquipment={handleCreateEquipment} notify={notify} />}
         {view === "safety" && (
           <SafetyOverview
             role={role}
@@ -262,9 +279,11 @@ export default function App() {
             inspections={inspections}
             ncrs={ncrs}
             workers={workers}
+            equipment={equipment}
             unitFloorPlans={unitFloorPlans}
             onUpdateNcrStatus={handleUpdateNcrStatus}
             onUpdateWorkerStatus={handleUpdateWorkerStatus}
+            onUpdateEquipmentStatus={handleUpdateEquipmentStatus}
             notify={notify}
           />
         )}
