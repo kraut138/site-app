@@ -1414,6 +1414,7 @@ textarea.input {
   overflow: hidden;
   box-shadow: 3px 6px 14px rgba(15, 50, 82, 0.28);
   transform: translateZ(0);
+  background: var(--bg);
 }
 
 .golgu-card-row {
@@ -1442,6 +1443,18 @@ textarea.input {
 
 .golgu-card-brick:hover {
   filter: brightness(0.94);
+}
+
+.golgu-card-brick.unfilled {
+  background: transparent;
+  color: rgba(74, 58, 41, 0.35);
+  border-top: 0.5px solid rgba(0, 0, 0, 0.1);
+  border-right: 0.5px solid rgba(0, 0, 0, 0.1);
+}
+
+.golgu-card-brick.unfilled:hover {
+  background: rgba(0, 0, 0, 0.04);
+  filter: none;
 }
 
 .golgu-card-brick.complete {

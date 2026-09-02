@@ -1,19 +1,33 @@
 import React, { useState } from "react";
-import { CATEGORIES, getCategory, itemsForCategory, unitOptions, findUnitFloorPlan } from "../data.js";
+import { CATEGORIES, getCategory, itemsForCategory, unitOptions, findUnitFloorPlan, isCategoryCompleteForUnit } from "../data.js";
 import { compressImage } from "../api.js";
 import { Icon } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 
-// 특정 동/층/호실/공종에 대해 이미 "대기" 또는 "승인" 상태인 요청이 있는지 확인.
-// 가장 최근 요청 기준으로, "반려"였다면 재요청 가능하도록 잠그지 않는다.
-function isUnitLocked(inspections, buildingId, floor, unit, categoryId) {
+// 마감·설비 공종은 골조공사가 이 호실에서 전부 승인되기 전에는 요청할 수 없다(실제 시공 순서를 반영).
+const FRAME_GATED_CATEGORIES = ["finish", "mep"];
+
+// 특정 동/층/호실/공종에 대한 잠금 사유를 판정. 잠기지 않았으면 null.
+// - "requested": 이미 "대기" 또는 "승인" 상태인 요청이 있음 (반려였다면 재요청 가능하도록 잠그지 않는다)
+// - "frame-pending": 마감·설비 공종인데 이 호실의 골조공사가 아직 다 승인되지 않음
+function unitLockReason(inspections, checklistItems, buildingId, floor, unit, categoryId) {
   const relevant = inspections.filter(
     (i) => i.buildingId === buildingId && String(i.floor) === String(floor) && i.unit === unit && i.categoryId === categoryId
   );
-  if (relevant.length === 0) return false;
-  const latest = [...relevant].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-  return latest.status === "대기" || latest.status === "승인";
+  if (relevant.length > 0) {
+    const latest = [...relevant].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+    if (latest.status === "대기" || latest.status === "승인") return "requested";
+  }
+  if (FRAME_GATED_CATEGORIES.includes(categoryId) && !isCategoryCompleteForUnit(inspections, checklistItems, buildingId, floor, unit, "frame")) {
+    return "frame-pending";
+  }
+  return null;
 }
+
+const LOCK_MESSAGES = {
+  requested: "이미 요청했거나 승인된 호실입니다 (반려된 경우 다시 선택할 수 있어요)",
+  "frame-pending": "골조공사가 모두 승인되기 전에는 이 공종을 요청할 수 없어요",
+};
 
 // 하도급사가 감리단에게 공사 완료 확인을 요청하는 폼 ("공사 확인 요청").
 // 제출되면 공사 확인 요청 내역(감리검측 승인 큐)에 대기 건으로 들어간다.
@@ -40,16 +54,20 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
   // 같은 핀 위치를 여러 호실에 공통 적용하는 배치 제출 특성상 대표 하나로 보여준다)
   const firstSelectedUnit = fixedUnit ? fixedUnit.unit : selectedUnits.size > 0 ? Array.from(selectedUnits)[0].split("-")[1] : null;
   const previewFloorPlan = selectedBuilding && firstSelectedUnit ? findUnitFloorPlan(unitFloorPlans, selectedBuilding.id, firstSelectedUnit) : null;
-  // 고정 호실 모드에서는 "이 공종에 대해 이미 요청했거나 승인됐는지"를 통째로 확인해서
+  // 고정 호실 모드에서는 "이 공종에 대해 이미 요청했거나 승인됐는지 / 골조가 안 끝났는지"를 통째로 확인해서
   // 잠겨있으면 폼 자체를 숨기고 안내만 보여준다(호실 선택 그리드가 없으므로 버튼별 잠금 대신 전체 잠금).
-  const fixedUnitLocked = fixedUnit ? isUnitLocked(inspections, fixedUnit.buildingId, fixedUnit.floor, fixedUnit.unit, categoryId) : false;
+  const fixedUnitLockReason = fixedUnit ? unitLockReason(inspections, checklistItems, fixedUnit.buildingId, fixedUnit.floor, fixedUnit.unit, categoryId) : null;
 
   function unitKey(floor, unit) {
     return `${floor}-${unit}`;
   }
 
+  function lockReasonFor(floor, unit) {
+    return selectedBuilding ? unitLockReason(inspections, checklistItems, selectedBuilding.id, floor, unit, categoryId) : null;
+  }
+
   function locked(floor, unit) {
-    return selectedBuilding ? isUnitLocked(inspections, selectedBuilding.id, floor, unit, categoryId) : false;
+    return lockReasonFor(floor, unit) !== null;
   }
 
   function toggleUnit(floor, unit) {
@@ -108,7 +126,7 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
       setError("동, 호실 선택(1개 이상), 요청자 이름은 필수입니다.");
       return;
     }
-    if (fixedUnit && fixedUnitLocked) {
+    if (fixedUnit && fixedUnitLockReason) {
       setError("이미 요청했거나 승인된 공종입니다.");
       return;
     }
@@ -216,15 +234,15 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
                       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                         {unitsPerFloorList.map((u) => {
                           const active = selectedUnits.has(unitKey(f, u));
-                          const isLocked = locked(f, u);
+                          const reason = lockReasonFor(f, u);
                           return (
                             <button
                               type="button"
                               key={u}
-                              disabled={isLocked}
+                              disabled={!!reason}
                               onClick={() => toggleUnit(f, u)}
-                              title={isLocked ? "이미 요청했거나 승인된 호실입니다 (반려된 경우 다시 선택할 수 있어요)" : undefined}
-                              className={`unit-picker-btn${active ? " active" : ""}${isLocked ? " locked" : ""}`}
+                              title={reason ? LOCK_MESSAGES[reason] : undefined}
+                              className={`unit-picker-btn${active ? " active" : ""}${reason ? " locked" : ""}`}
                               style={{ minWidth: 34, padding: "5px 8px", fontSize: 11.5 }}
                             >
                               {u}
@@ -241,9 +259,11 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
         </div>
         )}
 
-        {fixedUnit && fixedUnitLocked ? (
+        {fixedUnit && fixedUnitLockReason ? (
           <div style={{ padding: "14px 16px", background: "var(--surface-alt)", borderRadius: "var(--radius-s)", fontSize: 12.5, color: "var(--ink-soft)" }}>
-            {category.name}에 대해 이미 요청했거나 승인이 완료됐어요. 다른 공종을 선택하시거나, 반려된 경우 다시 요청할 수 있습니다.
+            {fixedUnitLockReason === "frame-pending"
+              ? `골조공사가 모두 승인되기 전에는 ${category.name}을 요청할 수 없어요.`
+              : `${category.name}에 대해 이미 요청했거나 승인이 완료됐어요. 다른 공종을 선택하시거나, 반려된 경우 다시 요청할 수 있습니다.`}
           </div>
         ) : (
         <>

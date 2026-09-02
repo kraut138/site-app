@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { CATEGORIES, itemsForCategory, unitOptions } from "../data.js";
+import { CATEGORIES, itemsForCategory, unitOptions, isCategoryCompleteForUnit } from "../data.js";
 import { Icon } from "./UI.jsx";
 
 const VISIBLE_CATEGORIES = CATEGORIES.filter((c) => c.id !== "safety"); // 공사진행 탭과 동일하게 안전/환경 제외
@@ -33,7 +33,9 @@ function normalizeAngle(a) {
 }
 
 // 동 하나의 골구도(입면) - 층별로 쌓인 벽돌 그리드가 그대로 건물 정면이 된다.
-function GolguCard({ building, itemId, inspections, onBrickClick }) {
+// 골조공사가 이 호실에서 아직 다 끝나지 않았으면(선택한 항목이 골조가 아닌 경우), 색을 채우지 않고
+// 호수만 표시한다 - 골조가 없는데 마감·설비 진행도를 색으로 보여주는 건 의미가 없기 때문.
+function GolguCard({ building, itemId, categoryId, checklistItems, inspections, onBrickClick }) {
   const floors = Math.max(1, building.floors || 1);
   const floorNumsAsc = Array.from({ length: floors }, (_, i) => i + 1); // 1층부터 오름차순 - column-reverse와 맞물려 1층이 맨 아래로 감
   const units = unitOptions(building.unitsPerFloor);
@@ -43,7 +45,16 @@ function GolguCard({ building, itemId, inspections, onBrickClick }) {
   const height = Math.round(brickH * floors);
   const fontSize = Math.max(7, Math.min(10.5, brickH * 0.46));
 
-  const cellData = floorNumsAsc.map((f) => units.map((u) => ({ floor: f, unit: u, complete: itemId ? isUnitApproved(building, f, u, itemId, inspections) : false })));
+  const cellData = floorNumsAsc.map((f) =>
+    units.map((u) => {
+      const frameDone = isCategoryCompleteForUnit(inspections, checklistItems, building.id, f, u, "frame");
+      // 골조 항목을 보는 중이면 그 항목 자체의 승인 여부를 그대로 보여주고,
+      // 다른 공종을 보는 중인데 골조가 아직 안 끝났으면 "색 없음"(골조 대기) 상태로 표시한다.
+      const unfilled = categoryId !== "frame" && !frameDone;
+      const complete = !unfilled && itemId ? isUnitApproved(building, f, u, itemId, inspections) : false;
+      return { floor: f, unit: u, complete, unfilled };
+    })
+  );
 
   return (
     <div className="golgu-card-flat" style={{ width, height }}>
@@ -53,9 +64,11 @@ function GolguCard({ building, itemId, inspections, onBrickClick }) {
             <button
               type="button"
               key={cell.unit}
-              className={`golgu-card-brick${cell.complete ? " complete" : ""}`}
+              className={`golgu-card-brick${cell.complete ? " complete" : ""}${cell.unfilled ? " unfilled" : ""}`}
               style={{ fontSize }}
-              title={`${building.name} ${cell.floor}층 ${cell.unit}호 · ${cell.complete ? "완료" : "미완료"} · 클릭하면 호실 정보로 이동`}
+              title={`${building.name} ${cell.floor}층 ${cell.unit}호 · ${
+                cell.unfilled ? "골조공사 진행 중(마감·설비 확인 전)" : cell.complete ? "완료" : "미완료"
+              } · 클릭하면 호실 정보로 이동`}
               onClick={() => onBrickClick(building.id, cell.floor, cell.unit)}
             >
               {cell.floor}{cell.unit}
@@ -252,6 +265,7 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
       </div>
       <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 8 }}>
         감리단이 "공사 확인 요청"을 승인한 호실만 완료로 표시됩니다. 공사진행 탭의 자체 진행 표시와는 별개입니다.
+        {categoryId !== "frame" && " 골조공사가 끝나지 않은 호실은 마감·설비 공종에서 색 없이(호수만) 표시됩니다."}
       </div>
 
       <div className="golgu-carousel-outer">
@@ -278,7 +292,7 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
                   style={{ transform: `rotateY(${angle}deg) translateZ(${RADIUS}px)`, pointerEvents: isFocused ? "auto" : "none" }}
                 >
                   <div className="golgu-card-wrap">
-                    <GolguCard building={b} itemId={itemId} inspections={inspections} onBrickClick={handleBrickClick} />
+                    <GolguCard building={b} itemId={itemId} categoryId={categoryId} checklistItems={checklistItems} inspections={inspections} onBrickClick={handleBrickClick} />
                     <div className="golgu-card-name" style={{ transform: `rotateY(${-(angle + currentRotation)}deg)` }}>
                       {b.name}
                     </div>

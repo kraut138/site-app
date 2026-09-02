@@ -78,6 +78,14 @@ export function itemStatusForUnit(inspections, buildingId, floor, unit, itemId) 
   return latest.status;
 }
 
+// 이 호실에서 특정 공종(카테고리) 전체 - 등록된 세부 항목 모두 - 가 승인 완료됐는지 여부.
+// 골조공사가 다 끝나야 마감/설비 공종을 진행할 수 있다는 규칙 등에 사용된다.
+export function isCategoryCompleteForUnit(inspections, checklistItems, buildingId, floor, unit, categoryId) {
+  const catItems = itemsForCategory(checklistItems, categoryId);
+  if (catItems.length === 0) return true; // 등록된 항목이 없으면 막을 대상 자체가 없으므로 완료로 간주
+  return catItems.every((item) => itemStatusForUnit(inspections, buildingId, floor, unit, item.id) === "승인");
+}
+
 // 카테고리별 "기본값" 목록 - 표준 공종 탭의 "기본값으로 초기화" 버튼에서 사용
 export const DEFAULT_ITEMS_BY_CATEGORY = {
   frame: [
