@@ -36,7 +36,9 @@ export function getCategory(categoryId) {
 
 // checklistItems(bootstrap에서 받아온 동적 목록)에서 특정 공종의 항목만 추출
 export function itemsForCategory(checklistItems, categoryId) {
-  return (checklistItems || []).filter((i) => i.categoryId === categoryId);
+  return (checklistItems || [])
+    .filter((i) => i.categoryId === categoryId)
+    .sort((a, b) => (a.order ?? 999999) - (b.order ?? 999999));
 }
 
 // 항목 id로 텍스트 조회. 감리단이 삭제한 항목이면 안내 문구로 대체(과거 기록이 깨지지 않도록)

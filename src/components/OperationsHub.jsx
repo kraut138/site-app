@@ -27,6 +27,7 @@ export default function OperationsHub({
   onCreateChecklistItem,
   onDeleteChecklistItem,
   onResetChecklistCategory,
+  onReorderChecklistItems,
   notify,
 }) {
   const visibleSubTabs = SUBTABS.filter((t) => !t.restrictedToSuper || role === ROLES.SUPER);
@@ -78,6 +79,7 @@ export default function OperationsHub({
           onCreateItem={onCreateChecklistItem}
           onDeleteItem={onDeleteChecklistItem}
           onResetCategory={onResetChecklistCategory}
+          onReorderItems={onReorderChecklistItems}
           notify={notify}
         />
       )}

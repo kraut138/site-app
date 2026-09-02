@@ -127,6 +127,19 @@ export default function App() {
     setChecklistItems((prev) => [...prev.filter((i) => i.categoryId !== categoryId), ...created]);
   }
 
+  async function handleReorderChecklistItems(categoryId, orderedIds) {
+    // 화면 반응성을 위해 로컬 순서부터 먼저 반영하고, 실패하면 되돌린다.
+    const prevItems = checklistItems;
+    const orderMap = new Map(orderedIds.map((id, order) => [id, order]));
+    setChecklistItems((prev) => prev.map((i) => (orderMap.has(i.id) ? { ...i, order: orderMap.get(i.id) } : i)));
+    try {
+      await api.reorderChecklistItems(categoryId, orderedIds);
+    } catch (err) {
+      setChecklistItems(prevItems);
+      throw err;
+    }
+  }
+
   async function handleCreateWorkers(data) {
     const created = await api.createWorkers(data);
     setWorkers((prev) => [...prev, ...created]);
@@ -237,6 +250,7 @@ export default function App() {
             onCreateChecklistItem={handleCreateChecklistItem}
             onDeleteChecklistItem={handleDeleteChecklistItem}
             onResetChecklistCategory={handleResetChecklistCategory}
+            onReorderChecklistItems={handleReorderChecklistItems}
             notify={notify}
           />
         )}

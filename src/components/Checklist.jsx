@@ -5,12 +5,60 @@ import { Icon } from "./UI.jsx";
 // 안전/환경은 별도 "안전 현황" 탭에서 다루므로 이 탭에서는 제외
 const VISIBLE_CATEGORIES = CATEGORIES.filter((c) => c.id !== "safety");
 
-export default function Checklist({ role, items, onCreateItem, onDeleteItem, onResetCategory, notify }) {
+export default function Checklist({ role, items, onCreateItem, onDeleteItem, onResetCategory, onReorderItems, notify }) {
   const [openId, setOpenId] = useState(VISIBLE_CATEGORIES[0].id);
   const [newText, setNewText] = useState("");
   const [busy, setBusy] = useState(false);
   const [resetConfirmId, setResetConfirmId] = useState(null);
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
   const canEdit = role === ROLES.SUPER;
+
+  async function commitReorder(categoryId, newOrderItems) {
+    try {
+      await onReorderItems(categoryId, newOrderItems.map((i) => i.id));
+    } catch (err) {
+      notify("순서 변경에 실패했습니다.");
+    }
+  }
+
+  function handleDragStart(e, index) {
+    setDragIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleDragOver(e, index) {
+    e.preventDefault();
+    if (index !== dragOverIndex) setDragOverIndex(index);
+  }
+
+  function handleDrop(e, index, catItems, categoryId) {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === index) {
+      setDragIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+    const reordered = [...catItems];
+    const [moved] = reordered.splice(dragIndex, 1);
+    reordered.splice(index, 0, moved);
+    setDragIndex(null);
+    setDragOverIndex(null);
+    commitReorder(categoryId, reordered);
+  }
+
+  function handleDragEnd() {
+    setDragIndex(null);
+    setDragOverIndex(null);
+  }
+
+  function moveItem(catItems, categoryId, index, direction) {
+    const target = index + direction;
+    if (target < 0 || target >= catItems.length) return;
+    const reordered = [...catItems];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    commitReorder(categoryId, reordered);
+  }
 
   async function handleAdd(e) {
     e.preventDefault();
@@ -108,26 +156,56 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
             {catItems.length === 0 ? (
               <div style={{ fontSize: 12.5, color: "var(--ink-faint)", padding: "10px 4px" }}>등록된 항목이 없습니다.</div>
             ) : (
-              <div className="grid grid-2">
+              <div>
                 {catItems.map((item, i) => (
                   <div
                     key={item.id}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 4px", borderBottom: "1px solid var(--line)" }}
+                    draggable={canEdit}
+                    onDragStart={canEdit ? (e) => handleDragStart(e, i) : undefined}
+                    onDragOver={canEdit ? (e) => handleDragOver(e, i) : undefined}
+                    onDrop={canEdit ? (e) => handleDrop(e, i, catItems, c.id) : undefined}
+                    onDragEnd={canEdit ? handleDragEnd : undefined}
+                    className={`checklist-drag-row${dragIndex === i ? " dragging" : ""}${dragOverIndex === i && dragIndex !== null && dragIndex !== i ? " drag-over" : ""}`}
                   >
-                    <span className="mono" style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>
+                    {canEdit && (
+                      <span className="checklist-drag-handle" title="드래그해서 순서 변경">
+                        <Icon.Drag width="14" height="14" />
+                      </span>
+                    )}
+                    <span className="mono" style={{ fontSize: 11.5, color: "var(--ink-faint)", width: 22, flexShrink: 0 }}>
                       {String(i + 1).padStart(2, "0")}
                     </span>
                     <span style={{ fontSize: 13.5, flex: 1 }}>{item.text}</span>
                     {canEdit && (
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        style={{ padding: 5, flexShrink: 0 }}
-                        disabled={busy}
-                        onClick={() => handleDelete(item.id)}
-                        aria-label="삭제"
-                      >
-                        <Icon.Trash width="13" height="13" />
-                      </button>
+                      <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: 5 }}
+                          disabled={busy || i === 0}
+                          onClick={() => moveItem(catItems, c.id, i, -1)}
+                          aria-label="위로 이동"
+                        >
+                          <Icon.ChevronRight width="13" height="13" style={{ transform: "rotate(-90deg)" }} />
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: 5 }}
+                          disabled={busy || i === catItems.length - 1}
+                          onClick={() => moveItem(catItems, c.id, i, 1)}
+                          aria-label="아래로 이동"
+                        >
+                          <Icon.ChevronRight width="13" height="13" style={{ transform: "rotate(90deg)" }} />
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: 5 }}
+                          disabled={busy}
+                          onClick={() => handleDelete(item.id)}
+                          aria-label="삭제"
+                        >
+                          <Icon.Trash width="13" height="13" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -157,7 +235,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
         <Icon.Bell width="15" height="15" style={{ flexShrink: 0, marginTop: 1 }} />
         <span>
           이 템플릿은 공사 확인 요청 내역 탭에서 검측 요청을 작성할 때 자동으로 불러와 항목별로 체크할 수 있습니다. 안전/환경 공종은 "안전 현황" 탭에서 별도로 관리합니다.
-          {canEdit ? " 항목 추가·삭제는 감리단/소장만 가능합니다." : ""}
+          {canEdit ? " 항목 추가·삭제·순서 변경(드래그 또는 화살표 버튼)은 감리단/소장만 가능합니다." : ""}
         </span>
       </div>
     </div>

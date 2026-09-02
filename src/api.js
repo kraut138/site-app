@@ -36,38 +36,38 @@ const DEFAULT_BUILDINGS = [
 ];
 
 const DEFAULT_CHECKLIST_ITEMS = [
-  { id: "frame-1", categoryId: "frame", text: "철근 배근 간격 및 규격 적정성" },
-  { id: "frame-2", categoryId: "frame", text: "철근 이음 위치 및 정착 길이" },
-  { id: "frame-3", categoryId: "frame", text: "거푸집 치수 및 수직·수평도" },
-  { id: "frame-4", categoryId: "frame", text: "거푸집 조립 상태 및 지지대(동바리) 고정" },
-  { id: "frame-5", categoryId: "frame", text: "콘크리트 타설 전 이물질 제거 상태" },
-  { id: "frame-6", categoryId: "frame", text: "콘크리트 타설 및 다짐 상태" },
-  { id: "frame-7", categoryId: "frame", text: "콘크리트 양생 관리(양생포·살수)" },
-  { id: "finish-1", categoryId: "finish", text: "PL창호" },
-  { id: "finish-2", categoryId: "finish", text: "단열재" },
-  { id: "finish-3", categoryId: "finish", text: "견출" },
-  { id: "finish-4", categoryId: "finish", text: "조적" },
-  { id: "finish-5", categoryId: "finish", text: "경량틀" },
-  { id: "finish-6", categoryId: "finish", text: "목창호" },
-  { id: "finish-7", categoryId: "finish", text: "석고판" },
-  { id: "finish-8", categoryId: "finish", text: "차음재" },
-  { id: "finish-9", categoryId: "finish", text: "기포 콘크리트 타설" },
-  { id: "finish-10", categoryId: "finish", text: "바닥 난방 코일" },
-  { id: "finish-11", categoryId: "finish", text: "방통 타설" },
-  { id: "finish-12", categoryId: "finish", text: "천정" },
-  { id: "finish-13", categoryId: "finish", text: "가구" },
-  { id: "finish-14", categoryId: "finish", text: "도배" },
-  { id: "finish-15", categoryId: "finish", text: "바닥마감" },
-  { id: "mep-1", categoryId: "mep", text: "급수·배수 배관 누수 압력 테스트" },
-  { id: "mep-2", categoryId: "mep", text: "배관 구배 및 고정 상태" },
-  { id: "mep-3", categoryId: "mep", text: "전기 간선 포설 경로 및 결속 상태" },
-  { id: "mep-4", categoryId: "mep", text: "절연 저항 측정값 기준 충족 여부" },
-  { id: "mep-5", categoryId: "mep", text: "분전반 결선 및 접지 상태" },
-  { id: "safety-1", categoryId: "safety", text: "추락 방지시설(안전난간·개구부 덮개) 설치" },
-  { id: "safety-2", categoryId: "safety", text: "가설 구조물(비계·동바리) 안전성" },
-  { id: "safety-3", categoryId: "safety", text: "개인 보호구(안전모·안전대) 착용 여부" },
-  { id: "safety-4", categoryId: "safety", text: "현장 정리정돈 및 자재 적치 상태" },
-  { id: "safety-5", categoryId: "safety", text: "화기 작업 관리 및 소화기 비치 여부" },
+  { id: "frame-1", categoryId: "frame", text: "철근 배근 간격 및 규격 적정성", order: 0 },
+  { id: "frame-2", categoryId: "frame", text: "철근 이음 위치 및 정착 길이", order: 1 },
+  { id: "frame-3", categoryId: "frame", text: "거푸집 치수 및 수직·수평도", order: 2 },
+  { id: "frame-4", categoryId: "frame", text: "거푸집 조립 상태 및 지지대(동바리) 고정", order: 3 },
+  { id: "frame-5", categoryId: "frame", text: "콘크리트 타설 전 이물질 제거 상태", order: 4 },
+  { id: "frame-6", categoryId: "frame", text: "콘크리트 타설 및 다짐 상태", order: 5 },
+  { id: "frame-7", categoryId: "frame", text: "콘크리트 양생 관리(양생포·살수)", order: 6 },
+  { id: "finish-1", categoryId: "finish", text: "PL창호", order: 0 },
+  { id: "finish-2", categoryId: "finish", text: "단열재", order: 1 },
+  { id: "finish-3", categoryId: "finish", text: "견출", order: 2 },
+  { id: "finish-4", categoryId: "finish", text: "조적", order: 3 },
+  { id: "finish-5", categoryId: "finish", text: "경량틀", order: 4 },
+  { id: "finish-6", categoryId: "finish", text: "목창호", order: 5 },
+  { id: "finish-7", categoryId: "finish", text: "석고판", order: 6 },
+  { id: "finish-8", categoryId: "finish", text: "차음재", order: 7 },
+  { id: "finish-9", categoryId: "finish", text: "기포 콘크리트 타설", order: 8 },
+  { id: "finish-10", categoryId: "finish", text: "바닥 난방 코일", order: 9 },
+  { id: "finish-11", categoryId: "finish", text: "방통 타설", order: 10 },
+  { id: "finish-12", categoryId: "finish", text: "천정", order: 11 },
+  { id: "finish-13", categoryId: "finish", text: "가구", order: 12 },
+  { id: "finish-14", categoryId: "finish", text: "도배", order: 13 },
+  { id: "finish-15", categoryId: "finish", text: "바닥마감", order: 14 },
+  { id: "mep-1", categoryId: "mep", text: "급수·배수 배관 누수 압력 테스트", order: 0 },
+  { id: "mep-2", categoryId: "mep", text: "배관 구배 및 고정 상태", order: 1 },
+  { id: "mep-3", categoryId: "mep", text: "전기 간선 포설 경로 및 결속 상태", order: 2 },
+  { id: "mep-4", categoryId: "mep", text: "절연 저항 측정값 기준 충족 여부", order: 3 },
+  { id: "mep-5", categoryId: "mep", text: "분전반 결선 및 접지 상태", order: 4 },
+  { id: "safety-1", categoryId: "safety", text: "추락 방지시설(안전난간·개구부 덮개) 설치", order: 0 },
+  { id: "safety-2", categoryId: "safety", text: "가설 구조물(비계·동바리) 안전성", order: 1 },
+  { id: "safety-3", categoryId: "safety", text: "개인 보호구(안전모·안전대) 착용 여부", order: 2 },
+  { id: "safety-4", categoryId: "safety", text: "현장 정리정돈 및 자재 적치 상태", order: 3 },
+  { id: "safety-5", categoryId: "safety", text: "화기 작업 관리 및 소화기 비치 여부", order: 4 },
 ];
 
 // 문서 id를 명시적으로 지정해 setDoc으로 씨딩하므로, 여러 사용자가 동시에 처음 접속해도
@@ -235,7 +235,9 @@ export async function createChecklistItem(data) {
   if (!data.categoryId || !data.text) {
     throw new Error("categoryId, text는 필수입니다.");
   }
-  const payload = { categoryId: data.categoryId, text: String(data.text), createdAt: nowIso() };
+  const existingSnap = await getDocs(query(collection(db, "checklistItems"), where("categoryId", "==", data.categoryId)));
+  const maxOrder = existingSnap.docs.reduce((max, d) => Math.max(max, d.data().order ?? -1), -1);
+  const payload = { categoryId: data.categoryId, text: String(data.text), order: maxOrder + 1, createdAt: nowIso() };
   const docRef = await addDoc(collection(db, "checklistItems"), payload);
   return { id: docRef.id, ...payload };
 }
@@ -253,13 +255,26 @@ export async function resetChecklistCategory(categoryId, items) {
   const batch = writeBatch(db);
   existingSnap.docs.forEach((d) => batch.delete(d.ref));
   const cleanTexts = items.map((t) => String(t).trim()).filter((t) => t.length > 0);
-  const created = cleanTexts.map((text) => {
+  const created = cleanTexts.map((text, order) => {
     const newRef = doc(collection(db, "checklistItems"));
-    batch.set(newRef, { categoryId, text, createdAt: nowIso() });
-    return { id: newRef.id, categoryId, text, createdAt: nowIso() };
+    batch.set(newRef, { categoryId, text, order, createdAt: nowIso() });
+    return { id: newRef.id, categoryId, text, order, createdAt: nowIso() };
   });
   await batch.commit();
   return created;
+}
+
+// 드래그로 바꾼 새 순서를 그대로 저장 - orderedIds는 그 공종의 전체 항목 id를 원하는 순서대로 나열한 배열
+export async function reorderChecklistItems(categoryId, orderedIds) {
+  if (!categoryId || !Array.isArray(orderedIds) || orderedIds.length === 0) {
+    throw new Error("categoryId, orderedIds(배열)는 필수입니다.");
+  }
+  const batch = writeBatch(db);
+  orderedIds.forEach((id, order) => {
+    batch.update(doc(db, "checklistItems", id), { order });
+  });
+  await batch.commit();
+  return orderedIds.map((id, order) => ({ id, order }));
 }
 
 // ---------------- inspections ----------------
