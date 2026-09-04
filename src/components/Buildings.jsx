@@ -5,14 +5,20 @@ import { parseDxf } from "../dxf.js";
 import DrawingPin from "./DrawingPin.jsx";
 import UnitQrCode from "./UnitQrCode.jsx";
 
+// 동을 구분하기 위해 순서대로 돌려 쓰는 색상 팔레트 (특이사항 핀과 동일한 방식)
+const SITE_PIN_PALETTE = ["#c0392b", "#8e44ad", "#2166ac", "#158a72", "#b8860b", "#5b6b74", "#c2185b", "#1f6f3f"];
+
 export default function Buildings({
   buildings,
   onCreate,
   onDelete,
+  onUpdateBuilding,
   canEdit,
   unitFloorPlans,
   onCreateFloorPlan,
   onDeleteFloorPlan,
+  siteSettings,
+  onUpdateSiteSettings,
   notify,
 }) {
   const [form, setForm] = useState({ name: "", floors: "", unitsPerFloor: "" });
@@ -39,7 +45,10 @@ export default function Buildings({
   }
 
   return (
-    <div className="grid" style={{ gridTemplateColumns: canEdit ? "1fr 340px" : "1fr", alignItems: "start" }}>
+    <div>
+      <SitePlacementCard buildings={buildings} canEdit={canEdit} siteSettings={siteSettings} onUpdateSiteSettings={onUpdateSiteSettings} onUpdateBuilding={onUpdateBuilding} notify={notify} />
+
+      <div className="grid" style={{ gridTemplateColumns: canEdit ? "1fr 340px" : "1fr", alignItems: "start" }}>
       <div className="card">
         <div style={{ padding: "16px 20px 4px" }}>
           <div className="section-title">등록된 동 ({buildings.length})</div>
@@ -129,6 +138,7 @@ export default function Buildings({
           </button>
         </form>
       )}
+      </div>
     </div>
   );
 }
@@ -282,6 +292,177 @@ function BuildingFloorPlans({ building, canEdit, plans, onCreateFloorPlan, onDel
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// 현장 전체 배치도에 동을 핀으로 찍어 위치를 지정하는 카드.
+// 각 동의 (siteX, siteY)는 DrawingPin과 동일하게 배치도 이미지 대비 퍼센트(%) 좌표로 저장한다.
+function SitePlacementCard({ buildings, canEdit, siteSettings, onUpdateSiteSettings, onUpdateBuilding, notify }) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [placingId, setPlacingId] = useState(""); // 지금 위치를 지정하려는 동 id
+  const [draftPin, setDraftPin] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const masterPlan = siteSettings?.siteMasterPlan || null;
+  const placedBuildings = buildings.filter((b) => typeof b.siteX === "number" && typeof b.siteY === "number");
+  const unplacedBuildings = buildings.filter((b) => !(typeof b.siteX === "number" && typeof b.siteY === "number"));
+
+  function colorFor(buildingId) {
+    const idx = buildings.findIndex((b) => b.id === buildingId);
+    return SITE_PIN_PALETTE[Math.max(0, idx) % SITE_PIN_PALETTE.length];
+  }
+
+  const pins = placedBuildings.map((b) => ({ x: b.siteX, y: b.siteY, color: colorFor(b.id) }));
+
+  async function handleUploadMasterPlan(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!/\.dxf$/i.test(file.name)) {
+      setUploadError("DXF 파일만 업로드할 수 있습니다.");
+      return;
+    }
+    setUploading(true);
+    setUploadError("");
+    try {
+      const text = await file.text();
+      const parsed = parseDxf(text);
+      await onUpdateSiteSettings({ siteMasterPlan: parsed });
+      notify(parsed.truncated ? "현장 배치도를 등록했습니다 (도형이 많아 일부만 표시됩니다)." : "현장 배치도를 등록했습니다.");
+    } catch (err) {
+      setUploadError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function startPlacing(buildingId) {
+    setPlacingId(buildingId);
+    setDraftPin(null);
+  }
+
+  function cancelPlacing() {
+    setPlacingId("");
+    setDraftPin(null);
+  }
+
+  async function confirmPlacing() {
+    if (!placingId || !draftPin) return;
+    setSaving(true);
+    try {
+      await onUpdateBuilding(placingId, { siteX: draftPin.x, siteY: draftPin.y });
+      const b = buildings.find((x) => x.id === placingId);
+      notify(`${b ? b.name : "동"}의 배치 위치를 저장했습니다.`);
+      setPlacingId("");
+      setDraftPin(null);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearPlacement(buildingId) {
+    await onUpdateBuilding(buildingId, { siteX: null, siteY: null });
+    notify("배치 위치를 지웠습니다.");
+  }
+
+  return (
+    <div className="card card-pad" style={{ marginBottom: 16 }}>
+      <div className="section-head">
+        <div className="section-title">현장 배치도</div>
+        <span className="eyebrow">동별 위치 지정 · 3D 형상의 기준</span>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 14 }}>
+        현장 전체 배치도(DXF)를 올린 뒤, 각 동을 그 위에 핀으로 찍어 실제 위치를 지정하세요. 여기서 지정한 위치가 동별 3D 형상을 배치하는 기준이 됩니다.
+      </div>
+
+      {!masterPlan ? (
+        canEdit ? (
+          <label className="btn btn-primary btn-sm" style={{ cursor: "pointer", display: "inline-flex" }}>
+            {uploading ? "처리 중…" : "현장 배치도(DXF) 업로드"}
+            <input type="file" accept=".dxf" hidden onChange={handleUploadMasterPlan} disabled={uploading} />
+          </label>
+        ) : (
+          <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>아직 등록된 현장 배치도가 없습니다.</div>
+        )
+      ) : (
+        <>
+          <div style={{ maxWidth: 520 }}>
+            <DrawingPin
+              pins={pins}
+              pin={placingId ? draftPin : null}
+              pinColor={placingId ? colorFor(placingId) : undefined}
+              onPin={placingId ? setDraftPin : undefined}
+              dxfData={masterPlan}
+            />
+          </div>
+
+          {canEdit && (
+            <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {!placingId ? (
+                <>
+                  <select
+                    className="input"
+                    style={{ maxWidth: 200 }}
+                    value=""
+                    onChange={(e) => e.target.value && startPlacing(e.target.value)}
+                  >
+                    <option value="">위치를 지정할 동 선택…</option>
+                    {unplacedBuildings.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                    {placedBuildings.length > 0 && unplacedBuildings.length > 0 && <option disabled>──────</option>}
+                    {placedBuildings.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name} (위치 변경)</option>
+                    ))}
+                  </select>
+                  <label className="btn btn-ghost btn-sm" style={{ cursor: "pointer" }}>
+                    배치도 다시 올리기
+                    <input type="file" accept=".dxf" hidden onChange={handleUploadMasterPlan} disabled={uploading} />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <span style={{ fontSize: 12.5, color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: colorFor(placingId) }} />
+                    {buildings.find((b) => b.id === placingId)?.name}
+                    {draftPin ? " — 위치가 지정됐어요" : " — 배치도를 클릭해 위치를 지정하세요"}
+                  </span>
+                  <button className="btn btn-primary btn-sm" disabled={!draftPin || saving} onClick={confirmPlacing}>
+                    저장
+                  </button>
+                  <button className="btn btn-ghost btn-sm" onClick={cancelPlacing} disabled={saving}>
+                    취소
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {uploadError && <div style={{ color: "var(--fail)", fontSize: 12, marginTop: 8 }}>{uploadError}</div>}
+
+          {placedBuildings.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+              {placedBuildings.map((b) => (
+                <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: "50%", background: colorFor(b.id), flexShrink: 0 }} />
+                  {b.name}
+                  {canEdit && (
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: "2px 6px", fontSize: 10.5 }}
+                      onClick={() => clearPlacement(b.id)}
+                    >
+                      위치 지우기
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

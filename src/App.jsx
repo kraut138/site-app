@@ -30,6 +30,7 @@ export default function App() {
   const [workers, setWorkers] = useState([]);
   const [equipment, setEquipment] = useState([]);
   const [unitFloorPlans, setUnitFloorPlans] = useState([]);
+  const [siteSettings, setSiteSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [toast, setToast] = useState("");
@@ -68,6 +69,7 @@ export default function App() {
         setWorkers(data.workers || []);
         setEquipment(data.equipment || []);
         setUnitFloorPlans(data.unitFloorPlans || []);
+        setSiteSettings(data.siteSettings || {});
       })
       .catch((err) => alive && setLoadError(err.message))
       .finally(() => alive && setLoading(false));
@@ -84,6 +86,18 @@ export default function App() {
   async function handleDeleteBuilding(id) {
     await api.deleteBuilding(id);
     setBuildings((prev) => prev.filter((b) => b.id !== id));
+  }
+
+  async function handleUpdateBuilding(id, data) {
+    const updated = await api.updateBuilding(id, data);
+    setBuildings((prev) => prev.map((b) => (b.id === id ? updated : b)));
+    return updated;
+  }
+
+  async function handleUpdateSiteSettings(data) {
+    const updated = await api.updateSiteSettings(data);
+    setSiteSettings(updated);
+    return updated;
   }
 
   async function handleCreateUnitFloorPlan(data) {
@@ -306,11 +320,14 @@ export default function App() {
             buildings={buildings}
             onCreate={handleCreateBuilding}
             onDelete={handleDeleteBuilding}
+            onUpdateBuilding={handleUpdateBuilding}
             canEdit={role === ROLES.SUPER}
             unitFloorPlans={unitFloorPlans}
             onCreateFloorPlan={handleCreateUnitFloorPlan}
             onUpdateFloorPlan={handleUpdateUnitFloorPlan}
             onDeleteFloorPlan={handleDeleteUnitFloorPlan}
+            siteSettings={siteSettings}
+            onUpdateSiteSettings={handleUpdateSiteSettings}
             notify={notify}
           />
         )}
