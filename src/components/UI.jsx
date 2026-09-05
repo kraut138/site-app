@@ -56,6 +56,15 @@ export const Icon = {
       <path d="M12 12.5V21" />
     </svg>
   ),
+  CitySkyline: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M3 21h18" />
+      <path d="M5 21V9l4-3v15" />
+      <path d="M13 21V5l4-2v18" />
+      <path d="M9 21v-4h2v4" />
+      <path d="M17 21v-5h2v5" />
+    </svg>
+  ),
   Door: (p) => (
     <svg className="icon" {...iconProps} {...p}>
       <rect x="6" y="3" width="12" height="18" rx="1" />

@@ -12,6 +12,7 @@ const NAV_GROUPS = [
       { id: "unitinfo", label: "호실 정보", Icon: Icon.Door },
       { id: "buildings", label: "동 관리", Icon: Icon.Building },
       { id: "sitelayout", label: "골구도", Icon: Icon.Cube },
+      { id: "site3d", label: "현장 3D", Icon: Icon.CitySkyline },
     ],
   },
   {
@@ -27,6 +28,7 @@ const PAGE_META = {
   unitinfo: { title: "호실 정보", desc: "동·호수를 선택해 공종별 진행도, 특이사항, 평면도를 확인합니다" },
   buildings: { title: "동 관리", desc: "현장 동·층·세대 정보를 관리합니다" },
   sitelayout: { title: "골구도", desc: "동의 대략적인 위치와 형태를 3D로 확인합니다" },
+  site3d: { title: "현장 3D", desc: "등록된 평면도와 배치 위치를 바탕으로 현장 전체를 3D 매스로 확인합니다" },
   safety: { title: "안전 현황", desc: "안전/환경 공종의 검측·NCR과 현장 인력 현황을 모아서 확인합니다" },
 };
 
