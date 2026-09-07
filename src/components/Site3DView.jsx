@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { unitOptions, findUnitFloorPlan } from "../data.js";
-import { computeBuildingLayout } from "../three-extrude.js";
+import { computeBuildingLayout, normalizeScale } from "../three-extrude.js";
 
 const FLOOR_HEIGHT = 3.3; // m
 const WALL_THICKNESS = 0.12;
@@ -18,6 +18,10 @@ export default function Site3DView({ buildings, unitFloorPlans, siteSettings }) 
   const [noPlacement, setNoPlacement] = useState(false);
   const [renderError, setRenderError] = useState("");
   const [skippedNames, setSkippedNames] = useState([]);
+  // 배치도 자동 스케일 추정이 실제 도면과 어긋날 수 있어, 동 사이 배치 간격만 눈으로 보며
+  // 직접 보정할 수 있게 한다(건물 자체의 크기는 항상 등록된 평면도 실측 그대로 유지된다).
+  const [spacingAdjust, setSpacingAdjust] = useState(1);
+  const [autoScaleInfo, setAutoScaleInfo] = useState(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -45,7 +49,13 @@ export default function Site3DView({ buildings, unitFloorPlans, siteSettings }) 
       const refHeight = masterBounds && isFiniteNum(masterBounds.height) && masterBounds.height > 0 ? masterBounds.height : 60;
       const refMinX = masterBounds && isFiniteNum(masterBounds.minX) ? masterBounds.minX : 0;
       const refMinY = masterBounds && isFiniteNum(masterBounds.minY) ? masterBounds.minY : 0;
-      const planScale = masterBounds ? (Math.max(refWidth, refHeight) > 400 ? 0.001 : 1) : 1; // 배치도 자체도 mm일 수 있어 보정
+      // 배치도 자체도 mm로 그려졌을 수 있으므로 m로 정규화한다. 호실 평면도와 반드시 같은 기준(normalizeScale)을
+      // 써야 한다 - 배치도는 부지 규모(수백 m대)라 임계값이 다르면, 같은 mm 도면인데도 호실 평면도는 "mm"로
+      // 판정하고 배치도는 "이미 m"로 잘못 판정하는 식으로 서로 다르게 해석되어 동과 배치도 사이 비율이 어긋난다.
+      // 그래도 자동 추정이 실제 도면과 다를 수 있으므로, spacingAdjust로 사용자가 배치 간격만 직접 보정할 수 있게 한다.
+      const autoScale = masterBounds ? normalizeScale(masterBounds) : 1;
+      const planScale = autoScale * spacingAdjust;
+      setAutoScaleInfo(masterBounds ? { autoScale, refWidth, refHeight } : null);
 
       function siteWorldPos(b) {
         const sx = isFiniteNum(b.siteX) ? b.siteX : 0;
@@ -241,7 +251,7 @@ export default function Site3DView({ buildings, unitFloorPlans, siteSettings }) 
       return undefined;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buildings, unitFloorPlans, siteSettings]);
+  }, [buildings, unitFloorPlans, siteSettings, spacingAdjust]);
 
   if (noPlacement) {
     return (
@@ -253,6 +263,27 @@ export default function Site3DView({ buildings, unitFloorPlans, siteSettings }) 
 
   return (
     <div className="card" style={{ overflow: "hidden" }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <label style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink-soft)", flexShrink: 0 }}>배치 간격 보정</label>
+        <input
+          type="range"
+          min="0.1"
+          max="8"
+          step="0.05"
+          value={spacingAdjust}
+          onChange={(e) => setSpacingAdjust(Number(e.target.value))}
+          style={{ flex: 1, minWidth: 160, maxWidth: 320 }}
+        />
+        <span className="mono" style={{ fontSize: 12, color: "var(--ink-soft)", width: 46, flexShrink: 0 }}>
+          {spacingAdjust.toFixed(2)}x
+        </span>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSpacingAdjust(1)} disabled={spacingAdjust === 1}>
+          자동값으로
+        </button>
+        <span style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>
+          동 사이의 배치 간격만 조정합니다. 건물 자체 크기는 등록된 호실 평면도 실측 그대로입니다.
+        </span>
+      </div>
       {renderError && (
         <div style={{ padding: "12px 16px", color: "var(--fail)", fontSize: 12.5, borderBottom: "1px solid var(--line)" }}>
           {renderError}
@@ -266,6 +297,7 @@ export default function Site3DView({ buildings, unitFloorPlans, siteSettings }) 
       <div ref={containerRef} style={{ width: "100%", height: 560 }} />
       <div style={{ padding: "10px 16px", fontSize: 11.5, color: "var(--ink-faint)", borderTop: "1px solid var(--line)" }}>
         드래그로 회전, 스크롤로 확대·축소할 수 있습니다. 평면도가 등록되지 않은 호실은 반투명 상자로 자리만 표시됩니다.
+        {autoScaleInfo && ` (배치도 자동 추정 배율: ${autoScaleInfo.autoScale}×)`}
       </div>
     </div>
   );
