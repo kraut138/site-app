@@ -5,6 +5,7 @@ import Workers from "./components/Workers.jsx";
 import Equipment from "./components/Equipment.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
+import Site3DView from "./components/Site3DView.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
 import RoleSelect from "./components/RoleSelect.jsx";
 import SafetyOverview from "./components/SafetyOverview.jsx";
@@ -334,6 +335,7 @@ export default function App() {
         {view === "sitelayout" && (
           <SiteLayout buildings={buildings} checklistItems={checklistItems} inspections={inspections} onNavigateToUnit={handleNavigateToUnit} />
         )}
+        {view === "site3d" && <Site3DView buildings={buildings} unitFloorPlans={unitFloorPlans} siteSettings={siteSettings} />}
       </Layout>
       <Toast message={toast} onDone={() => setToast("")} />
     </>
