@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ROLES } from "../data.js";
+import { ROLES, isAdminRole } from "../data.js";
 import Dashboard from "./Dashboard.jsx";
 import Inspections from "./Inspections.jsx";
 import NCR from "./NCR.jsx";
@@ -30,8 +30,8 @@ export default function OperationsHub({
   onReorderChecklistItems,
   notify,
 }) {
-  const visibleSubTabs = SUBTABS.filter((t) => !t.restrictedToSuper || role === ROLES.SUPER);
-  const [subTab, setSubTab] = useState(role === ROLES.SUPER ? "dashboard" : "inspections");
+  const visibleSubTabs = SUBTABS.filter((t) => !t.restrictedToSuper || isAdminRole(role));
+  const [subTab, setSubTab] = useState(isAdminRole(role) ? "dashboard" : "inspections");
   const activeSubTab = visibleSubTabs.some((t) => t.id === subTab) ? subTab : visibleSubTabs[0]?.id;
 
   return (

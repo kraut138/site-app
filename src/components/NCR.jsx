@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { getCategory, formatDateTime, findUnitFloorPlan, ROLES, NCR_STATUSES } from "../data.js";
+import { getCategory, formatDateTime, findUnitFloorPlan, ROLES, isAdminRole, NCR_STATUSES } from "../data.js";
 import { compressImage } from "../api.js";
 import { Icon, StatusBadge, CategoryTag, Modal } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
@@ -209,7 +209,7 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
         </div>
       )}
 
-      {role === ROLES.SUPER && ncr.status === "재검측요청" && (
+      {isAdminRole(role) && ncr.status === "재검측요청" && (
         <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
           <div className="field">
             <label>재검측 의견 (반려 시 필수)</label>

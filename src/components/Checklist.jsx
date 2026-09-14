@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CATEGORIES, ROLES, itemsForCategory, DEFAULT_ITEMS_BY_CATEGORY } from "../data.js";
+import { CATEGORIES, ROLES, isAdminRole, itemsForCategory, DEFAULT_ITEMS_BY_CATEGORY } from "../data.js";
 import { Icon } from "./UI.jsx";
 
 // 안전/환경은 별도 "안전 현황" 탭에서 다루므로 이 탭에서는 제외
@@ -12,7 +12,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [dragIndex, setDragIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
-  const canEdit = role === ROLES.SUPER;
+  const canEdit = isAdminRole(role);
 
   async function commitReorder(categoryId, newOrderItems) {
     try {

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { CATEGORIES, getCategory, itemsForCategory, findItemText, formatDateTime, findUnitFloorPlan, ROLES } from "../data.js";
+import { CATEGORIES, getCategory, itemsForCategory, findItemText, formatDateTime, findUnitFloorPlan, ROLES, isAdminRole } from "../data.js";
 import { Icon, StatusBadge, CategoryTag, Modal, EmptyState, Stamp } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 import ConfirmationRequestForm from "./ConfirmationRequestForm.jsx";
@@ -36,7 +36,7 @@ export default function Inspections({
 
   const pendingInFiltered = filtered.filter((i) => i.status === "대기");
   const selected = inspections.find((i) => i.id === selectedId) || null;
-  const canBatch = role === ROLES.SUPER;
+  const canBatch = isAdminRole(role);
 
   // 공종 -> 세부 공종 순으로 그룹화. 한 요청이 세부 항목을 여러 개 체크했다면 그 항목마다 각각 나타난다
   // (체크박스 선택 상태는 요청 id 기준으로 공유되므로 어느 그룹에서 선택하든 동일하게 반영된다).
@@ -418,7 +418,7 @@ function InspectionDetail({ insp, building, role, checklistItems, unitFloorPlans
         </div>
       )}
 
-      {role === ROLES.SUPER && !decided && (
+      {isAdminRole(role) && !decided && (
         <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
           {showReject && (
             <div className="field">

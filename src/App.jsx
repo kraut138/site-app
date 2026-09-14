@@ -11,7 +11,7 @@ import LoginScreen from "./components/LoginScreen.jsx";
 import SafetyOverview from "./components/SafetyOverview.jsx";
 import QrUnitScreen from "./components/QrUnitScreen.jsx";
 import { Toast } from "./components/UI.jsx";
-import { ROLES, isViewAllowed } from "./data.js";
+import { ROLES, isAdminRole, isViewAllowed } from "./data.js";
 import * as api from "./api.js";
 import { subscribeAuth, fetchUserProfile, logOut, updateUserLanguage } from "./auth.js";
 import { LanguageProvider } from "./LanguageContext.jsx";
@@ -370,7 +370,7 @@ export default function App() {
               onCreate={handleCreateBuilding}
               onDelete={handleDeleteBuilding}
               onUpdateBuilding={handleUpdateBuilding}
-              canEdit={role === ROLES.SUPER}
+              canEdit={isAdminRole(role)}
               unitFloorPlans={unitFloorPlans}
               onCreateFloorPlan={handleCreateUnitFloorPlan}
               onUpdateFloorPlan={handleUpdateUnitFloorPlan}

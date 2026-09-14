@@ -3,6 +3,13 @@ import { Icon } from "./UI.jsx";
 import { ROLES, isViewAllowed } from "../data.js";
 import { useLanguage } from "../LanguageContext.jsx";
 
+// 역할별로 사이드바에 붙는 색상 클래스와 표시 라벨 키. 관리자는 기본(남색) 그대로 둔다.
+function roleAppearance(role) {
+  if (role === ROLES.SUB) return { className: "role-sub", labelKey: "role.sub" };
+  if (role === ROLES.INSPECTOR) return { className: "role-inspector", labelKey: "role.inspector" };
+  return { className: "", labelKey: "role.super" };
+}
+
 const NAV_GROUPS = [
   {
     groupKey: "nav.group.status",
@@ -36,9 +43,10 @@ const PAGE_META = {
 export default function Layout({ role, userProfile, onLogout, view, setView, badges = {}, children }) {
   const { t } = useLanguage();
   const meta = PAGE_META[view] || {};
+  const { className: roleClassName, labelKey: roleLabelKey } = roleAppearance(role);
   return (
     <div className="app-shell">
-      <aside className={`sidebar${role === ROLES.SUB ? " role-sub" : ""}`}>
+      <aside className={`sidebar${roleClassName ? ` ${roleClassName}` : ""}`}>
         <div className="sidebar-brand">
           <div className="sidebar-brand-mark">
             <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -79,7 +87,7 @@ export default function Layout({ role, userProfile, onLogout, view, setView, bad
 
         <div className="sidebar-foot">
           <div className="role-switcher">
-            <div className="label">{role === ROLES.SUB ? t("role.sub") : t("role.super")}</div>
+            <div className="label">{t(roleLabelKey)}</div>
             <div className="account-info">
               <span className="account-name">{userProfile?.name || userProfile?.email || ""}</span>
               <button className="btn btn-ghost btn-sm" onClick={onLogout}>

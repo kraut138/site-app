@@ -127,6 +127,11 @@ textarea {
   --sidebar-accent: #3f9169;
 }
 
+.sidebar.role-inspector {
+  --sidebar-bg: #4a3a0a;
+  --sidebar-accent: #d9a520;
+}
+
 .sidebar-brand {
   display: flex;
   align-items: center;

@@ -139,20 +139,29 @@ export function findUnitFloorPlan(unitFloorPlans, buildingId, unit) {
 }
 export const NCR_STATUSES = ["발생", "조치중", "재검측요청", "완료"];
 
+// 내부 값(SUB/SUPER)은 기존에 가입된 계정의 Firestore 데이터와 호환되어야 하므로 그대로 둔다.
+// 화면에 실제로 보이는 이름("관리자" 등)은 i18n.js의 role.super/role.inspector에서 따로 관리한다.
 export const ROLES = {
   SUB: "하도급사",
   SUPER: "감리단",
+  INSPECTOR: "감리자",
 };
 
-// 뷰(탭)별 접근 가능한 역할. 값을 생략하면 두 역할 모두 접근 가능.
+// "관리자"와 "감리자"는 지금은 완전히 같은 권한(감리단 등급)을 갖는다 - 구분은 사이드바 색상과 표시 이름뿐이다.
+// 나중에 두 역할의 권한을 다르게 만들고 싶어지면 이 함수 하나만 손보면 된다.
+export function isAdminRole(role) {
+  return role === ROLES.SUPER || role === ROLES.INSPECTOR;
+}
+
+// 뷰(탭)별 접근 가능한 역할. 값을 생략하면 모든 역할이 접근 가능.
 // (대시보드는 "현장관리" 탭 내부의 서브탭이며, OperationsHub.jsx에서 role로 별도 제한됨)
 export const VIEW_ROLES = {
   workers: [ROLES.SUB],
   equipment: [ROLES.SUB],
-  buildings: [ROLES.SUPER],
-  sitelayout: [ROLES.SUPER],
-  unitinfo: [ROLES.SUPER],
-  safety: [ROLES.SUPER],
+  buildings: [ROLES.SUPER, ROLES.INSPECTOR],
+  sitelayout: [ROLES.SUPER, ROLES.INSPECTOR],
+  unitinfo: [ROLES.SUPER, ROLES.INSPECTOR],
+  safety: [ROLES.SUPER, ROLES.INSPECTOR],
 };
 
 export function isViewAllowed(viewId, role) {
