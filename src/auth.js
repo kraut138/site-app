@@ -17,6 +17,18 @@ const DIRECTOR_SIGNUP_CODE = "SOJANG2026";
 
 function friendlyAuthError(err) {
   const code = err?.code || "";
+  if (code === "auth/invalid-api-key" || code.startsWith("auth/api-key-not-valid")) {
+    return "회원가입·로그인 서비스 연결 설정을 확인해야 합니다. 관리자에게 문의해주세요. (Firebase API 키 오류)";
+  }
+  if (code === "auth/operation-not-allowed") {
+    return "이메일 가입 기능이 아직 활성화되지 않았습니다. 관리자에게 문의해주세요.";
+  }
+  if (code === "auth/network-request-failed") {
+    return "서버에 연결하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해주세요.";
+  }
+  if (code === "auth/too-many-requests") {
+    return "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
+  }
   if (code === "auth/email-already-in-use") return "이미 가입된 이메일입니다.";
   if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
     return "이메일 또는 비밀번호가 올바르지 않습니다.";

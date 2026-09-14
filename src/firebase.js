@@ -3,7 +3,7 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDHnbKm7gPwLEyh75W0LcLaZB9zcjFdICY",
+  apiKey: "AIzaSyDHnbKm7gPwlEyh75W0LcLaZB9zcjFdICY",
   authDomain: "apt-construction-qc.firebaseapp.com",
   projectId: "apt-construction-qc",
   storageBucket: "apt-construction-qc.firebasestorage.app",
