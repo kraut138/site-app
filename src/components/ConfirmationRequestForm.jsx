@@ -3,6 +3,7 @@ import { CATEGORIES, getCategory, itemsForCategory, unitOptions, findUnitFloorPl
 import { compressImage } from "../api.js";
 import { Icon } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
+import { useLanguage } from "../LanguageContext.jsx";
 
 // 마감·설비 공종은 골조공사가 이 호실에서 전부 승인되기 전에는 요청할 수 없다(실제 시공 순서를 반영).
 const FRAME_GATED_CATEGORIES = ["finish", "mep"];
@@ -24,16 +25,13 @@ function unitLockReason(inspections, checklistItems, buildingId, floor, unit, ca
   return null;
 }
 
-const LOCK_MESSAGES = {
-  requested: "이미 요청했거나 승인된 호실입니다 (반려된 경우 다시 선택할 수 있어요)",
-  "frame-pending": "골조공사가 모두 승인되기 전에는 이 공종을 요청할 수 없어요",
-};
-
 // 하도급사가 감리단에게 공사 완료 확인을 요청하는 폼 ("공사 확인 요청").
 // 제출되면 공사 확인 요청 내역(감리검측 승인 큐)에 대기 건으로 들어간다.
 // fixedUnit: {buildingId, floor, unit}이 주어지면(QR로 특정 호실에 들어온 경우) 동/호실 선택 UI를 생략하고
 // 그 호실 하나로 고정한다.
 export default function ConfirmationRequestForm({ buildings, checklistItems, inspections, unitFloorPlans, fixedUnit, onClose, onSubmit }) {
+  const { t } = useLanguage();
+  const LOCK_MESSAGES = { requested: t("req.lockRequested"), "frame-pending": t("req.lockFramePending") };
   const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
   const [buildingId, setBuildingId] = useState(fixedUnit?.buildingId || buildings[0]?.id || "");
   const [selectedUnits, setSelectedUnits] = useState(() => (fixedUnit ? new Set([`${fixedUnit.floor}-${fixedUnit.unit}`]) : new Set()));
@@ -46,6 +44,7 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
   const [error, setError] = useState("");
 
   const category = getCategory(categoryId);
+  const categoryName = t(`category.${categoryId}.name`);
   const categoryItems = itemsForCategory(checklistItems, categoryId);
   const selectedBuilding = buildings.find((b) => b.id === buildingId) || null;
   const floorsList = selectedBuilding ? Array.from({ length: selectedBuilding.floors || 1 }, (_, i) => i + 1).reverse() : [];
@@ -123,11 +122,11 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
   async function submit(e) {
     e.preventDefault();
     if (!buildingId || selectedUnits.size === 0 || !requestedBy) {
-      setError("동, 호실 선택(1개 이상), 요청자 이름은 필수입니다.");
+      setError(t("req.validationError"));
       return;
     }
     if (fixedUnit && fixedUnitLockReason) {
-      setError("이미 요청했거나 승인된 공종입니다.");
+      setError(t("req.lockedSubmitError"));
       return;
     }
     setBusy(true);
@@ -157,7 +156,7 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
     <form onSubmit={submit}>
         <div className="field-row">
           <div className="field">
-            <label>공종 선택</label>
+            <label>{t("req.category")}</label>
             <select
               className="input"
               value={categoryId}
@@ -168,13 +167,13 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
               }}
             >
               {CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>{t(`category.${c.id}.name`)}</option>
               ))}
             </select>
           </div>
           {!fixedUnit && (
             <div className="field">
-              <label>동</label>
+              <label>{t("req.building")}</label>
               <select className="input" value={buildingId} onChange={(e) => handleBuildingChange(e.target.value)}>
                 {buildings.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
@@ -186,24 +185,24 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
 
         {fixedUnit ? (
           <div className="field">
-            <label>적용 호실</label>
+            <label>{t("req.appliedUnit")}</label>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--blueprint-deep)" }}>
-              {selectedBuilding?.name} {fixedUnit.floor}층 {fixedUnit.unit}호
+              {selectedBuilding?.name} {t("insp.location", { floor: fixedUnit.floor, unit: fixedUnit.unit })}
             </div>
           </div>
         ) : (
         <div className="field">
-          <label>호실 선택 {selectedUnits.size > 0 ? `(${selectedUnits.size}개 선택됨)` : ""}</label>
+          <label>{t("req.selectUnits")} {selectedUnits.size > 0 ? t("req.unitsSelectedCount", { count: selectedUnits.size }) : ""}</label>
           {!selectedBuilding ? (
-            <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>먼저 동을 선택해주세요.</div>
+            <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>{t("req.selectBuildingFirst")}</div>
           ) : (
             <>
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={selectAllUnits}>
-                  이 동 전체 선택
+                  {t("req.selectAllInBuilding")}
                 </button>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelectedUnits(new Set())}>
-                  선택 해제
+                  {t("req.clearSelection")}
                 </button>
               </div>
               <div style={{ maxHeight: 260, overflowY: "auto", border: "1px solid var(--line)", borderRadius: "var(--radius-s)", padding: "8px 10px" }}>
@@ -229,7 +228,7 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
                           padding: 0,
                         }}
                       >
-                        {f}층
+                        {t("req.floorLabel", { floor: f })}
                       </button>
                       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                         {unitsPerFloorList.map((u) => {
@@ -262,15 +261,15 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
         {fixedUnit && fixedUnitLockReason ? (
           <div style={{ padding: "14px 16px", background: "var(--surface-alt)", borderRadius: "var(--radius-s)", fontSize: 12.5, color: "var(--ink-soft)" }}>
             {fixedUnitLockReason === "frame-pending"
-              ? `골조공사가 모두 승인되기 전에는 ${category.name}을 요청할 수 없어요.`
-              : `${category.name}에 대해 이미 요청했거나 승인이 완료됐어요. 다른 공종을 선택하시거나, 반려된 경우 다시 요청할 수 있습니다.`}
+              ? t("req.frameGatedMsg", { category: categoryName })
+              : t("req.alreadyRequestedMsg", { category: categoryName })}
           </div>
         ) : (
         <>
         <div className="field">
-          <label>{category.name} 공종 — 확인된 항목 선택</label>
+          <label>{t("req.checkedItemsLabel", { category: categoryName })}</label>
           {categoryItems.length === 0 && (
-            <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>등록된 공종 항목이 없습니다.</div>
+            <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>{t("req.noItems")}</div>
           )}
           {categoryItems.map((item) => (
             <label key={item.id} className={`checklist-item${checkedItemIds.includes(item.id) ? " checked" : ""}`}>
@@ -281,16 +280,16 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
         </div>
 
         <div className="field">
-          <label>도면 위치 지정</label>
+          <label>{t("req.drawingLocation")}</label>
           <DrawingPin pin={pin} onPin={setPin} pinColor="#17456f" dxfData={previewFloorPlan} />
         </div>
 
         <div className="field">
-          <label>공사 확인 사진 (최대 3장)</label>
+          <label>{t("req.photos")}</label>
           <div className="photo-row">
             {photos.map((p, i) => (
               <div className="photo-thumb" key={i}>
-                <img src={p} alt={`확인사진 ${i + 1}`} />
+                <img src={p} alt={t("req.photoAlt", { n: i + 1 })} />
                 <button type="button" className="rm" onClick={() => setPhotos(photos.filter((_, idx) => idx !== i))}>
                   ✕
                 </button>
@@ -306,23 +305,23 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
         </div>
 
         <div className="field">
-          <label>메모 (선택)</label>
-          <textarea className="input" placeholder="특이사항을 입력하세요" value={memo} onChange={(e) => setMemo(e.target.value)} />
+          <label>{t("req.memo")}</label>
+          <textarea className="input" placeholder={t("req.memoPlaceholder")} value={memo} onChange={(e) => setMemo(e.target.value)} />
         </div>
 
         <div className="field">
-          <label>요청자 이름 / 소속</label>
-          <input className="input" placeholder="예: 대한철근 김현장" value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} />
+          <label>{t("req.requesterName")}</label>
+          <input className="input" placeholder={t("req.requesterPlaceholder")} value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} />
         </div>
 
         {error && <div style={{ color: "var(--fail)", fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
 
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy}>
-            {busy ? "제출 중…" : "공사 확인 요청 제출"}
+            {busy ? t("req.submitting") : t("req.submit")}
           </button>
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>
-            취소
+            {t("req.cancel")}
           </button>
         </div>
         </>

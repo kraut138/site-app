@@ -3,7 +3,6 @@ import { CATEGORIES, NCR_STATUSES } from "../data.js";
 import DrawingPin from "./DrawingPin.jsx";
 import { EmptyState } from "./UI.jsx";
 import { useLanguage } from "../LanguageContext.jsx";
-import { LANGUAGES } from "../i18n.js";
 
 const NCR_COLOR = {
   발생: "var(--fail)",
@@ -13,7 +12,7 @@ const NCR_COLOR = {
 };
 
 export default function Dashboard({ buildings, inspections, ncrs }) {
-  const { t, lang, setLang } = useLanguage();
+  const { t } = useLanguage();
   const total = inspections.length;
   const approved = inspections.filter((i) => i.status === "승인").length;
   const rejected = inspections.filter((i) => i.status === "반려").length;
@@ -100,7 +99,7 @@ export default function Dashboard({ buildings, inspections, ncrs }) {
                 {ncrByStatus.map((d) => (
                   <div key={d.status} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9, fontSize: 12.5 }}>
                     <span style={{ width: 9, height: 9, borderRadius: 2, background: d.color, flexShrink: 0 }} />
-                    <span style={{ flex: 1, color: "var(--ink-soft)" }}>{t(`ncrStatus.${d.status}`)}</span>
+                    <span style={{ flex: 1, color: "var(--ink-soft)" }}>{t(`status.${d.status}`)}</span>
                     <span className="mono" style={{ fontWeight: 700 }}>{d.value}</span>
                   </div>
                 ))}
@@ -140,23 +139,6 @@ export default function Dashboard({ buildings, inspections, ncrs }) {
           ) : (
             <DrawingPin pins={openPins} />
           )}
-        </div>
-      </div>
-
-      <div className="card card-pad" style={{ marginTop: 16 }}>
-        <div className="section-head">
-          <div className="section-title">{t("dashboard.language")}</div>
-        </div>
-        <div className="language-picker">
-          {LANGUAGES.map((l) => (
-            <button
-              key={l.code}
-              className={`language-pill${lang === l.code ? " active" : ""}`}
-              onClick={() => setLang(l.code)}
-            >
-              {l.label}
-            </button>
-          ))}
         </div>
       </div>
     </div>

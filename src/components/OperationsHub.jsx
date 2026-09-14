@@ -4,12 +4,13 @@ import Dashboard from "./Dashboard.jsx";
 import Inspections from "./Inspections.jsx";
 import NCR from "./NCR.jsx";
 import Checklist from "./Checklist.jsx";
+import { useLanguage } from "../LanguageContext.jsx";
 
 const SUBTABS = [
-  { id: "dashboard", label: "대시보드", restrictedToSuper: true },
-  { id: "inspections", label: "공사 확인 요청 내역", badgeKey: "pending" },
-  { id: "ncr", label: "NCR 관리", badgeKey: "ncr" },
-  { id: "checklist", label: "표준 공종" },
+  { id: "dashboard", labelKey: "ops.tab.dashboard", restrictedToSuper: true },
+  { id: "inspections", labelKey: "ops.tab.inspections", badgeKey: "pending" },
+  { id: "ncr", labelKey: "ops.tab.ncr", badgeKey: "ncr" },
+  { id: "checklist", labelKey: "ops.tab.checklist" },
 ];
 
 export default function OperationsHub({
@@ -30,6 +31,7 @@ export default function OperationsHub({
   onReorderChecklistItems,
   notify,
 }) {
+  const { t } = useLanguage();
   const visibleSubTabs = SUBTABS.filter((t) => !t.restrictedToSuper || isAdminRole(role));
   const [subTab, setSubTab] = useState(isAdminRole(role) ? "dashboard" : "inspections");
   const activeSubTab = visibleSubTabs.some((t) => t.id === subTab) ? subTab : visibleSubTabs[0]?.id;
@@ -37,15 +39,15 @@ export default function OperationsHub({
   return (
     <div>
       <div className="ops-subtabs">
-        {visibleSubTabs.map((t) => {
-          const badge = t.badgeKey ? badges[t.badgeKey] : 0;
+        {visibleSubTabs.map((tab) => {
+          const badge = tab.badgeKey ? badges[tab.badgeKey] : 0;
           return (
             <button
-              key={t.id}
-              className={`ops-subtab${activeSubTab === t.id ? " active" : ""}`}
-              onClick={() => setSubTab(t.id)}
+              key={tab.id}
+              className={`ops-subtab${activeSubTab === tab.id ? " active" : ""}`}
+              onClick={() => setSubTab(tab.id)}
             >
-              {t.label}
+              {t(tab.labelKey)}
               {!!badge && <span className="ops-subtab-badge">{badge > 99 ? "99+" : badge}</span>}
             </button>
           );

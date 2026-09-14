@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { CATEGORIES, ROLES, isAdminRole, itemsForCategory, DEFAULT_ITEMS_BY_CATEGORY } from "../data.js";
 import { Icon } from "./UI.jsx";
+import { useLanguage } from "../LanguageContext.jsx";
 
 // 안전/환경은 별도 "안전 현황" 탭에서 다루므로 이 탭에서는 제외
 const VISIBLE_CATEGORIES = CATEGORIES.filter((c) => c.id !== "safety");
 
 export default function Checklist({ role, items, onCreateItem, onDeleteItem, onResetCategory, onReorderItems, notify }) {
+  const { t } = useLanguage();
   const [openId, setOpenId] = useState(VISIBLE_CATEGORIES[0].id);
   const [newText, setNewText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -18,7 +20,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
     try {
       await onReorderItems(categoryId, newOrderItems.map((i) => i.id));
     } catch (err) {
-      notify("순서 변경에 실패했습니다.");
+      notify(t("checklist.reorderFailed"));
     }
   }
 
@@ -67,7 +69,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
     try {
       await onCreateItem({ categoryId: openId, text: newText.trim() });
       setNewText("");
-      notify("공종 항목을 추가했습니다.");
+      notify(t("checklist.itemAdded"));
     } finally {
       setBusy(false);
     }
@@ -77,7 +79,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
     setBusy(true);
     try {
       await onDeleteItem(id);
-      notify("공종 항목을 삭제했습니다.");
+      notify(t("checklist.itemDeleted"));
     } finally {
       setBusy(false);
     }
@@ -87,7 +89,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
     setBusy(true);
     try {
       await onResetCategory(categoryId, DEFAULT_ITEMS_BY_CATEGORY[categoryId] || []);
-      notify("공종을 기본값으로 초기화했습니다.");
+      notify(t("checklist.resetDone"));
     } finally {
       setBusy(false);
       setResetConfirmId(null);
@@ -118,10 +120,10 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                 <span style={{ width: 9, height: 9, borderRadius: 3, background: c.color, display: "inline-block" }} />
-                <span className="eyebrow">{count}개 항목</span>
+                <span className="eyebrow">{t("checklist.itemCount", { count })}</span>
               </div>
-              <div style={{ fontSize: 15.5, fontWeight: 700 }}>{c.name}</div>
-              <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>{c.description}</div>
+              <div style={{ fontSize: 15.5, fontWeight: 700 }}>{t(`category.${c.id}.name`)}</div>
+              <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>{t(`category.${c.id}.description`)}</div>
             </button>
           );
         })}
@@ -129,32 +131,33 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
 
       {VISIBLE_CATEGORIES.filter((c) => c.id === openId).map((c) => {
         const catItems = itemsForCategory(items, c.id);
+        const catName = t(`category.${c.id}.name`);
         return (
           <div className="card card-pad" key={c.id}>
             <div className="section-head">
               <div className="section-title">
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: c.color, display: "inline-block" }} />
-                {c.name} 표준 공종
+                {t("checklist.standardTitle", { name: catName })}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span className="eyebrow mono">TEMPLATE · {c.id.toUpperCase()}</span>
                 {canEdit && DEFAULT_ITEMS_BY_CATEGORY[c.id] && (
                   resetConfirmId === c.id ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 11.5, color: "var(--fail)" }}>현재 항목을 모두 지우고 기본값으로 바꿀까요?</span>
-                      <button className="btn btn-fail btn-sm" disabled={busy} onClick={() => handleReset(c.id)}>확인</button>
-                      <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setResetConfirmId(null)}>취소</button>
+                      <span style={{ fontSize: 11.5, color: "var(--fail)" }}>{t("checklist.resetConfirm")}</span>
+                      <button className="btn btn-fail btn-sm" disabled={busy} onClick={() => handleReset(c.id)}>{t("checklist.confirm")}</button>
+                      <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setResetConfirmId(null)}>{t("checklist.cancel")}</button>
                     </div>
                   ) : (
                     <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setResetConfirmId(c.id)}>
-                      기본값으로 초기화
+                      {t("checklist.resetToDefault")}
                     </button>
                   )
                 )}
               </div>
             </div>
             {catItems.length === 0 ? (
-              <div style={{ fontSize: 12.5, color: "var(--ink-faint)", padding: "10px 4px" }}>등록된 항목이 없습니다.</div>
+              <div style={{ fontSize: 12.5, color: "var(--ink-faint)", padding: "10px 4px" }}>{t("checklist.empty")}</div>
             ) : (
               <div>
                 {catItems.map((item, i) => (
@@ -168,7 +171,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
                     className={`checklist-drag-row${dragIndex === i ? " dragging" : ""}${dragOverIndex === i && dragIndex !== null && dragIndex !== i ? " drag-over" : ""}`}
                   >
                     {canEdit && (
-                      <span className="checklist-drag-handle" title="드래그해서 순서 변경">
+                      <span className="checklist-drag-handle" title={t("checklist.dragToReorder")}>
                         <Icon.Drag width="14" height="14" />
                       </span>
                     )}
@@ -183,7 +186,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
                           style={{ padding: 5 }}
                           disabled={busy || i === 0}
                           onClick={() => moveItem(catItems, c.id, i, -1)}
-                          aria-label="위로 이동"
+                          aria-label={t("checklist.moveUp")}
                         >
                           <Icon.ChevronRight width="13" height="13" style={{ transform: "rotate(-90deg)" }} />
                         </button>
@@ -192,7 +195,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
                           style={{ padding: 5 }}
                           disabled={busy || i === catItems.length - 1}
                           onClick={() => moveItem(catItems, c.id, i, 1)}
-                          aria-label="아래로 이동"
+                          aria-label={t("checklist.moveDown")}
                         >
                           <Icon.ChevronRight width="13" height="13" style={{ transform: "rotate(90deg)" }} />
                         </button>
@@ -201,7 +204,7 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
                           style={{ padding: 5 }}
                           disabled={busy}
                           onClick={() => handleDelete(item.id)}
-                          aria-label="삭제"
+                          aria-label={t("checklist.delete")}
                         >
                           <Icon.Trash width="13" height="13" />
                         </button>
@@ -216,14 +219,14 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
               <form onSubmit={handleAdd} style={{ display: "flex", gap: 8, marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
                 <input
                   className="input"
-                  placeholder={`${c.name}에 새 항목 추가`}
+                  placeholder={t("checklist.addPlaceholder", { name: catName })}
                   value={newText}
                   onChange={(e) => setNewText(e.target.value)}
                   style={{ flex: 1 }}
                 />
                 <button className="btn btn-primary btn-sm" disabled={busy || !newText.trim()}>
                   <Icon.Plus width="14" height="14" />
-                  추가
+                  {t("checklist.add")}
                 </button>
               </form>
             )}
@@ -234,8 +237,8 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
       <div style={{ marginTop: 18, display: "flex", gap: 8, alignItems: "flex-start", color: "var(--ink-soft)", fontSize: 12.5 }}>
         <Icon.Bell width="15" height="15" style={{ flexShrink: 0, marginTop: 1 }} />
         <span>
-          이 템플릿은 공사 확인 요청 내역 탭에서 검측 요청을 작성할 때 자동으로 불러와 항목별로 체크할 수 있습니다. 안전/환경 공종은 "안전 현황" 탭에서 별도로 관리합니다.
-          {canEdit ? " 항목 추가·삭제·순서 변경(드래그 또는 화살표 버튼)은 감리단/소장만 가능합니다." : ""}
+          {t("checklist.hint")}
+          {canEdit ? t("checklist.hintAdmin") : ""}
         </span>
       </div>
     </div>

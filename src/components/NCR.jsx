@@ -3,15 +3,10 @@ import { getCategory, formatDateTime, findUnitFloorPlan, ROLES, isAdminRole, NCR
 import { compressImage } from "../api.js";
 import { Icon, StatusBadge, CategoryTag, Modal } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
-
-const COLUMN_HINT = {
-  발생: "감리단 반려로 새로 발행된 건",
-  조치중: "하도급사가 시정 조치 진행 중",
-  재검측요청: "조치 완료, 감리단 재검측 대기",
-  완료: "재검측 승인 완료",
-};
+import { useLanguage } from "../LanguageContext.jsx";
 
 export default function NCR({ role, buildings, ncrs, unitFloorPlans, onUpdateStatus, notify }) {
+  const { t } = useLanguage();
   const [selectedId, setSelectedId] = useState(null);
   const selected = ncrs.find((n) => n.id === selectedId) || null;
 
@@ -25,12 +20,12 @@ export default function NCR({ role, buildings, ncrs, unitFloorPlans, onUpdateSta
           return (
             <div key={status}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, padding: "0 2px" }}>
-                <span className={`badge badge-${status}`}>{status}</span>
-                <span className="mono" style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>{items.length}건</span>
+                <span className={`badge badge-${status}`}>{t(`status.${status}`)}</span>
+                <span className="mono" style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>{items.length}{t("common.case")}</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 60 }}>
                 {items.length === 0 && (
-                  <div style={{ fontSize: 11.5, color: "var(--ink-faint)", padding: "10px 4px" }}>{COLUMN_HINT[status]}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-faint)", padding: "10px 4px" }}>{t(`ncr.columnHint.${status}`)}</div>
                 )}
                 {items.map((ncr) => {
                   const cat = getCategory(ncr.categoryId);
@@ -41,7 +36,7 @@ export default function NCR({ role, buildings, ncrs, unitFloorPlans, onUpdateSta
                         <CategoryTag category={cat} />
                       </div>
                       <div className="mono" style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 4 }}>
-                        {building ? building.name : "-"} {ncr.floor}층{ncr.unit ? ` ${ncr.unit}호` : ""}
+                        {building ? building.name : "-"} {ncr.unit ? t("insp.location", { floor: ncr.floor, unit: ncr.unit }) : t("insp.locationNoUnit", { floor: ncr.floor })}
                       </div>
                       <div style={{ fontSize: 12.5, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
                         {ncr.description}
@@ -65,7 +60,7 @@ export default function NCR({ role, buildings, ncrs, unitFloorPlans, onUpdateSta
           onClose={() => setSelectedId(null)}
           onAdvance={async (status, extra) => {
             await onUpdateStatus(selected.id, { status, ...extra });
-            notify(`NCR 상태가 "${status}"(으)로 변경되었습니다.`);
+            notify(t("ncr.statusChanged", { status: t(`status.${status}`) }));
           }}
         />
       )}
@@ -74,6 +69,7 @@ export default function NCR({ role, buildings, ncrs, unitFloorPlans, onUpdateSta
 }
 
 export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdvance }) {
+  const { t } = useLanguage();
   const category = getCategory(ncr.categoryId);
   const [comment, setComment] = useState("");
   const [actionPhotos, setActionPhotos] = useState([]);
@@ -107,12 +103,12 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
   }
 
   return (
-    <Modal title="NCR 상세" onClose={onClose} width="680px">
+    <Modal title={t("ncr.detailTitle")} onClose={onClose} width="680px">
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         <CategoryTag category={category} />
         <StatusBadge status={ncr.status} />
         <span className="mono" style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-          {building ? building.name : "-"} {ncr.floor}층{ncr.unit ? ` ${ncr.unit}호` : ""}
+          {building ? building.name : "-"} {ncr.unit ? t("insp.location", { floor: ncr.floor, unit: ncr.unit }) : t("insp.locationNoUnit", { floor: ncr.floor })}
         </span>
       </div>
 
@@ -120,24 +116,24 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
 
       <div className="grid grid-2" style={{ marginTop: 16 }}>
         <div>
-          <div className="eyebrow" style={{ marginBottom: 8 }}>부적합 내용</div>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>{t("ncr.description")}</div>
           <div style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>{ncr.description}</div>
-          <div className="eyebrow" style={{ marginBottom: 6 }}>담당</div>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>{t("ncr.assignee")}</div>
           <div style={{ fontSize: 12.8, color: "var(--ink-soft)" }}>{ncr.assignedTo}</div>
         </div>
         <div>
-          <div className="eyebrow" style={{ marginBottom: 8 }}>도면 위치</div>
-          {ncr.pin ? <DrawingPin pin={ncr.pin} pinColor="var(--fail)" dxfData={findUnitFloorPlan(unitFloorPlans, ncr.buildingId, ncr.unit)} /> : <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>지정된 위치 없음</div>}
+          <div className="eyebrow" style={{ marginBottom: 8 }}>{t("insp.drawingLocation")}</div>
+          {ncr.pin ? <DrawingPin pin={ncr.pin} pinColor="var(--fail)" dxfData={findUnitFloorPlan(unitFloorPlans, ncr.buildingId, ncr.unit)} /> : <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>{t("insp.noLocation")}</div>}
         </div>
       </div>
 
       {ncr.photos && ncr.photos.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div className="eyebrow" style={{ marginBottom: 8 }}>부적합 사진</div>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>{t("ncr.photos")}</div>
           <div className="photo-row">
             {ncr.photos.map((p, i) => (
               <div className="photo-thumb" key={i} style={{ width: 88, height: 88 }}>
-                <img src={p} alt={`부적합사진 ${i + 1}`} />
+                <img src={p} alt={t("ncr.photoAlt", { n: i + 1 })} />
               </div>
             ))}
           </div>
@@ -146,11 +142,11 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
 
       {ncr.actionPhotos && ncr.actionPhotos.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div className="eyebrow" style={{ marginBottom: 8 }}>조치 완료 사진</div>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>{t("ncr.actionPhotos")}</div>
           <div className="photo-row">
             {ncr.actionPhotos.map((p, i) => (
               <div className="photo-thumb" key={i} style={{ width: 88, height: 88 }}>
-                <img src={p} alt={`조치사진 ${i + 1}`} />
+                <img src={p} alt={t("ncr.actionPhotoAlt", { n: i + 1 })} />
               </div>
             ))}
           </div>
@@ -159,7 +155,7 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
 
       {ncr.history && ncr.history.length > 0 && (
         <div style={{ marginTop: 16 }}>
-          <div className="eyebrow" style={{ marginBottom: 8 }}>처리 이력</div>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>{t("insp.history")}</div>
           {ncr.history.map((h, i) => (
             <div key={i} style={{ display: "flex", gap: 10, fontSize: 12.3, color: "var(--ink-soft)", padding: "5px 0", borderBottom: i < ncr.history.length - 1 ? "1px solid var(--line)" : "none" }}>
               <span className="mono" style={{ color: "var(--ink-faint)", minWidth: 108 }}>{formatDateTime(h.at)}</span>
@@ -175,7 +171,7 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
       {role === ROLES.SUB && ncr.status === "발생" && (
         <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
           <button className="btn btn-primary btn-block" disabled={busy} onClick={() => advance("조치중")}>
-            {busy ? "처리 중…" : "조치 시작"}
+            {busy ? t("common.processing") : t("ncr.startAction")}
           </button>
         </div>
       )}
@@ -183,11 +179,11 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
       {role === ROLES.SUB && ncr.status === "조치중" && (
         <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
           <div className="field">
-            <label>조치 완료 사진 (선택)</label>
+            <label>{t("ncr.actionPhotoLabel")}</label>
             <div className="photo-row">
               {actionPhotos.map((p, i) => (
                 <div className="photo-thumb" key={i}>
-                  <img src={p} alt={`조치사진 ${i + 1}`} />
+                  <img src={p} alt={t("ncr.actionPhotoAlt", { n: i + 1 })} />
                   <button type="button" className="rm" onClick={() => setActionPhotos(actionPhotos.filter((_, idx) => idx !== i))}>✕</button>
                 </div>
               ))}
@@ -200,11 +196,11 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
             </div>
           </div>
           <div className="field">
-            <label>조치 내용 메모</label>
-            <textarea className="input" placeholder="예: 철근 이격거리 재조정 및 결속 완료" value={comment} onChange={(e) => setComment(e.target.value)} />
+            <label>{t("ncr.actionCommentLabel")}</label>
+            <textarea className="input" placeholder={t("ncr.actionCommentPlaceholder")} value={comment} onChange={(e) => setComment(e.target.value)} />
           </div>
           <button className="btn btn-primary btn-block" disabled={busy} onClick={() => advance("재검측요청", { photos: actionPhotos })}>
-            {busy ? "처리 중…" : "재검측 요청"}
+            {busy ? t("common.processing") : t("ncr.requestReinspection")}
           </button>
         </div>
       )}
@@ -212,12 +208,12 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
       {isAdminRole(role) && ncr.status === "재검측요청" && (
         <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
           <div className="field">
-            <label>재검측 의견 (반려 시 필수)</label>
-            <textarea className="input" placeholder="재검측 결과를 입력하세요" value={comment} onChange={(e) => setComment(e.target.value)} />
+            <label>{t("ncr.reinspectionCommentLabel")}</label>
+            <textarea className="input" placeholder={t("ncr.reinspectionCommentPlaceholder")} value={comment} onChange={(e) => setComment(e.target.value)} />
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <button className="btn btn-pass" style={{ flex: 1 }} disabled={busy} onClick={() => advance("완료")}>
-              <Icon.Check width="15" height="15" /> 재검측 승인
+              <Icon.Check width="15" height="15" /> {t("ncr.reinspectionApprove")}
             </button>
             <button
               className="btn btn-fail"
@@ -225,13 +221,13 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
               disabled={busy}
               onClick={() => {
                 if (!comment.trim()) {
-                  setError("반려 사유를 입력해주세요.");
+                  setError(t("insp.rejectReasonRequired"));
                   return;
                 }
                 advance("조치중");
               }}
             >
-              <Icon.Close width="14" height="14" /> 재검측 반려
+              <Icon.Close width="14" height="14" /> {t("ncr.reinspectionReject")}
             </button>
           </div>
         </div>
@@ -240,7 +236,7 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
       {ncr.status === "완료" && (
         <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid var(--line)", textAlign: "center", color: "var(--pass)", fontWeight: 600, fontSize: 13 }}>
           <Icon.Check width="16" height="16" style={{ verticalAlign: -3, marginRight: 5 }} />
-          재검측 승인 완료된 항목입니다
+          {t("ncr.completedMessage")}
         </div>
       )}
     </Modal>
@@ -248,6 +244,7 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
 }
 
 function NCRStepper({ status }) {
+  const { t } = useLanguage();
   const idx = NCR_STATUSES.indexOf(status);
   return (
     <div style={{ display: "flex", alignItems: "center" }}>
@@ -271,7 +268,7 @@ function NCRStepper({ status }) {
             >
               {i + 1}
             </div>
-            <span style={{ fontSize: 10.5, color: i <= idx ? "var(--ink)" : "var(--ink-faint)", fontWeight: i === idx ? 700 : 500, whiteSpace: "nowrap" }}>{s}</span>
+            <span style={{ fontSize: 10.5, color: i <= idx ? "var(--ink)" : "var(--ink-faint)", fontWeight: i === idx ? 700 : 500, whiteSpace: "nowrap" }}>{t(`status.${s}`)}</span>
           </div>
           {i < NCR_STATUSES.length - 1 && (
             <div style={{ flex: 1, height: 2, background: i < idx ? "var(--blueprint)" : "var(--surface-alt)", margin: "0 4px 18px" }} />

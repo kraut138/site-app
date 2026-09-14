@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from "react";
 import { CATEGORIES, formatDateTime } from "../data.js";
 import { Icon, StatusBadge, CategoryTag, EmptyState } from "./UI.jsx";
+import { useLanguage } from "../LanguageContext.jsx";
 
 export default function Workers({ workers, onCreateWorkers, notify }) {
+  const { t } = useLanguage();
   const [companyName, setCompanyName] = useState("");
   const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
   const [nameInput, setNameInput] = useState("");
@@ -32,12 +34,12 @@ export default function Workers({ workers, onCreateWorkers, notify }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!companyName.trim()) {
-      setError("건설사 이름을 입력해주세요.");
+      setError(t("workers.companyRequired"));
       return;
     }
     const finalNames = nameInput.trim() && !names.includes(nameInput.trim()) ? [...names, nameInput.trim()] : names;
     if (finalNames.length === 0) {
-      setError("등록할 인력 이름을 1명 이상 입력해주세요.");
+      setError(t("workers.namesRequired"));
       return;
     }
     setBusy(true);
@@ -46,7 +48,7 @@ export default function Workers({ workers, onCreateWorkers, notify }) {
       await onCreateWorkers({ companyName: companyName.trim(), categoryId, names: finalNames });
       setNames([]);
       setNameInput("");
-      notify(`${finalNames.length}명의 인력을 등록 요청했습니다.`);
+      notify(t("workers.success", { count: finalNames.length }));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -59,14 +61,14 @@ export default function Workers({ workers, onCreateWorkers, notify }) {
   return (
     <div>
       <div className="card card-pad" style={{ marginBottom: 20 }}>
-        <div className="section-title" style={{ marginBottom: 14 }}>인력 등록</div>
+        <div className="section-title" style={{ marginBottom: 14 }}>{t("workers.title")}</div>
         <form onSubmit={handleSubmit}>
           <div className="field">
-            <label>건설사 이름</label>
+            <label>{t("workers.companyName")}</label>
             <input
               className="input"
               list="company-datalist"
-              placeholder="예: 대한철근"
+              placeholder={t("workers.companyPlaceholder")}
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
             />
@@ -78,7 +80,7 @@ export default function Workers({ workers, onCreateWorkers, notify }) {
           </div>
 
           <div className="field">
-            <label>공종 선택</label>
+            <label>{t("workers.selectCategory")}</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {CATEGORIES.map((c) => (
                 <button
@@ -96,25 +98,25 @@ export default function Workers({ workers, onCreateWorkers, notify }) {
                   }}
                 >
                   <span className="cat-dot" style={{ background: c.color }} />
-                  {c.name}
+                  {t(`category.${c.id}.name`)}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="field">
-            <label>현장 인력 이름 (입력 후 Enter로 추가, 여러 명 등록 가능)</label>
+            <label>{t("workers.nameLabel")}</label>
             <div style={{ display: "flex", gap: 8 }}>
               <input
                 className="input"
-                placeholder="예: 김철수"
+                placeholder={t("workers.namePlaceholder")}
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
                 onKeyDown={handleNameKeyDown}
                 style={{ flex: 1 }}
               />
               <button type="button" className="btn btn-ghost" onClick={addName}>
-                <Icon.Plus width="14" height="14" /> 추가
+                <Icon.Plus width="14" height="14" /> {t("workers.add")}
               </button>
             </div>
             {names.length > 0 && (
@@ -126,7 +128,7 @@ export default function Workers({ workers, onCreateWorkers, notify }) {
                       type="button"
                       onClick={() => setNames(names.filter((_, idx) => idx !== i))}
                       style={{ border: "none", background: "none", cursor: "pointer", color: "var(--ink-faint)", padding: 0, fontSize: 12 }}
-                      aria-label={`${n} 제거`}
+                      aria-label={t("workers.remove", { name: n })}
                     >
                       ✕
                     </button>
@@ -139,17 +141,17 @@ export default function Workers({ workers, onCreateWorkers, notify }) {
           {error && <div style={{ color: "var(--fail)", fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
 
           <button className="btn btn-primary btn-block" disabled={busy}>
-            {busy ? "등록 중…" : "인력 등록 요청"}
+            {busy ? t("workers.registering") : t("workers.submit")}
           </button>
         </form>
       </div>
 
       <div className="card">
         <div style={{ padding: "16px 20px 4px" }}>
-          <div className="section-title">등록 현황</div>
+          <div className="section-title">{t("workers.status")}</div>
         </div>
         {sortedWorkers.length === 0 ? (
-          <EmptyState message="등록된 인력이 없습니다." />
+          <EmptyState message={t("workers.empty")} />
         ) : (
           sortedWorkers.map((w) => {
             const cat = CATEGORIES.find((c) => c.id === w.categoryId);

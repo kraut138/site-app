@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { useLanguage } from "../LanguageContext.jsx";
 
 /* ---------------- Icons (inline SVG, stroke-based) ---------------- */
 const iconProps = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round", strokeLinejoin: "round" };
@@ -163,16 +164,18 @@ export const Icon = {
 
 /* ---------------- Status badge ---------------- */
 export function StatusBadge({ status }) {
-  return <span className={`badge badge-${status}`}>{status}</span>;
+  const { t } = useLanguage();
+  return <span className={`badge badge-${status}`}>{t(`status.${status}`)}</span>;
 }
 
 /* ---------------- Category tag ---------------- */
 export function CategoryTag({ category }) {
+  const { t } = useLanguage();
   if (!category) return null;
   return (
     <span className="cat-tag" style={{ background: category.color + "1c", color: category.color }}>
       <span className="cat-dot" style={{ background: category.color }} />
-      {category.shortName}
+      {t(`category.${category.id}.shortName`)}
     </span>
   );
 }
