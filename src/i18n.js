@@ -19,6 +19,7 @@ const dict = {
     "role.sub": "하도급사",
     "role.super": "관리자",
     "role.inspector": "감리자",
+    "preview.label": "다른 역할로 보기",
     "common.logout": "로그아웃",
     "common.case": "건",
 
@@ -97,6 +98,7 @@ const dict = {
     "role.sub": "Subcontractor",
     "role.super": "Administrator",
     "role.inspector": "Inspector",
+    "preview.label": "Preview as",
     "common.logout": "Log out",
     "common.case": "",
 
@@ -175,6 +177,7 @@ const dict = {
     "role.sub": "Nhà thầu phụ",
     "role.super": "Quản trị viên",
     "role.inspector": "Giám sát viên",
+    "preview.label": "Xem trước với vai trò",
     "common.logout": "Đăng xuất",
     "common.case": "",
 
@@ -253,6 +256,7 @@ const dict = {
     "role.sub": "分包商",
     "role.super": "管理员",
     "role.inspector": "监理员",
+    "preview.label": "以其他角色预览",
     "common.logout": "登出",
     "common.case": "件",
 

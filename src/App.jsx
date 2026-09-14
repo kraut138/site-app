@@ -24,11 +24,15 @@ const initialDeepLink = readUnitDeepLink();
 
 export default function App() {
   // authUser: Firebase Auth 로그인 여부. userProfile: Firestore에 저장된 이름/역할.
-  // role은 더 이상 화면에서 자유롭게 바꿀 수 없고, 로그인한 계정에 저장된 값을 그대로 따른다.
+  // trueRole은 실제 계정 권한(로그인 시 그대로 고정), role은 화면에 실제 적용되는 값이다.
+  // 관리자(소장) 계정만 viewAsRole로 "미리보기" 역할을 골라 role을 바꿔볼 수 있다 - Firestore에 저장된
+  // 진짜 권한(trueRole)은 절대 안 바뀌므로, 하도급사·감리자 계정은 이 기능으로 권한이 올라갈 수 없다.
   const [authUser, setAuthUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const role = userProfile?.role || null;
+  const [viewAsRole, setViewAsRole] = useState(null);
+  const trueRole = userProfile?.role || null;
+  const role = trueRole === ROLES.SUPER && viewAsRole ? viewAsRole : trueRole;
   const lang = userProfile?.language || DEFAULT_LANGUAGE;
 
   async function handleChangeLanguage(nextLang) {
@@ -95,6 +99,7 @@ export default function App() {
 
   async function handleLogout() {
     await logOut();
+    setViewAsRole(null);
   }
 
   useEffect(() => {
@@ -311,7 +316,17 @@ export default function App() {
   } else {
     content = (
       <>
-        <Layout role={role} userProfile={userProfile} onLogout={handleLogout} view={view} setView={setView} badges={badges}>
+        <Layout
+          role={role}
+          trueRole={trueRole}
+          viewAsRole={viewAsRole}
+          onSetViewAsRole={setViewAsRole}
+          userProfile={userProfile}
+          onLogout={handleLogout}
+          view={view}
+          setView={setView}
+          badges={badges}
+        >
           {view === "operations" && (
             <OperationsHub
               key={role}

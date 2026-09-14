@@ -259,6 +259,39 @@ textarea {
   text-transform: uppercase;
 }
 
+.preview-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.preview-switcher .label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #8fa5b6;
+  text-transform: uppercase;
+}
+
+.topbar-role-switcher .role-pill-group {
+  background: var(--surface-alt);
+}
+
+.topbar-role-switcher .role-pill {
+  color: var(--ink-soft);
+  padding: 6px 9px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.topbar-role-switcher .role-pill.active {
+  background: var(--blueprint);
+  color: #fff;
+}
+
 .role-pill-group {
   display: flex;
   background: rgba(255, 255, 255, 0.08);

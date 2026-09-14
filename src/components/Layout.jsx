@@ -40,10 +40,15 @@ const PAGE_META = {
   safety: { titleKey: "page.safety.title", descKey: "page.safety.desc" },
 };
 
-export default function Layout({ role, userProfile, onLogout, view, setView, badges = {}, children }) {
+export default function Layout({ role, trueRole, viewAsRole, onSetViewAsRole, userProfile, onLogout, view, setView, badges = {}, children }) {
   const { t } = useLanguage();
   const meta = PAGE_META[view] || {};
   const { className: roleClassName, labelKey: roleLabelKey } = roleAppearance(role);
+  // 진짜 계정 권한이 관리자일 때만 세 역할을 넘나들며 미리보기할 수 있다 - 지금 보고 있는 역할(role)이
+  // 무엇이든, 전환 버튼 자체는 항상 보여야 다시 자기 자신(관리자)으로 돌아올 수 있다.
+  const canSwitchRole = trueRole === ROLES.SUPER;
+  const previewRoles = [ROLES.SUB, ROLES.SUPER, ROLES.INSPECTOR];
+  const previewLabelKey = { [ROLES.SUB]: "role.sub", [ROLES.SUPER]: "role.super", [ROLES.INSPECTOR]: "role.inspector" };
   return (
     <div className="app-shell">
       <aside className={`sidebar${roleClassName ? ` ${roleClassName}` : ""}`}>
@@ -86,6 +91,22 @@ export default function Layout({ role, userProfile, onLogout, view, setView, bad
         </nav>
 
         <div className="sidebar-foot">
+          {canSwitchRole && (
+            <div className="preview-switcher">
+              <div className="label">{t("preview.label")}</div>
+              <div className="role-pill-group">
+                {previewRoles.map((r) => (
+                  <button
+                    key={r}
+                    className={`role-pill${role === r ? " active" : ""}`}
+                    onClick={() => onSetViewAsRole(r === ROLES.SUPER ? null : r)}
+                  >
+                    {t(previewLabelKey[r])}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="role-switcher">
             <div className="label">{t(roleLabelKey)}</div>
             <div className="account-info">
@@ -108,6 +129,19 @@ export default function Layout({ role, userProfile, onLogout, view, setView, bad
             <div className="desc">{t(meta.descKey)}</div>
           </div>
           <div className="topbar-role-switcher">
+            {canSwitchRole && (
+              <div className="role-pill-group">
+                {previewRoles.map((r) => (
+                  <button
+                    key={r}
+                    className={`role-pill${role === r ? " active" : ""}`}
+                    onClick={() => onSetViewAsRole(r === ROLES.SUPER ? null : r)}
+                  >
+                    {t(previewLabelKey[r])}
+                  </button>
+                ))}
+              </div>
+            )}
             <span className="account-name">{userProfile?.name || userProfile?.email || ""}</span>
             <button className="btn btn-ghost btn-sm" onClick={onLogout}>
               {t("common.logout")}
