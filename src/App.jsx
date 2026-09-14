@@ -7,20 +7,26 @@ import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
 import Site3DView from "./components/Site3DView.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
-import RoleSelect from "./components/RoleSelect.jsx";
+import LoginScreen from "./components/LoginScreen.jsx";
 import SafetyOverview from "./components/SafetyOverview.jsx";
 import QrUnitScreen from "./components/QrUnitScreen.jsx";
 import { Toast } from "./components/UI.jsx";
 import { ROLES, isViewAllowed } from "./data.js";
 import * as api from "./api.js";
+import { subscribeAuth, fetchUserProfile, logOut } from "./auth.js";
 import { readUnitDeepLink, clearUnitDeepLinkFromUrl } from "./qr.js";
 
 // 페이지가 처음 로드될 때 딱 한 번만 읽는다 - QR 스캔으로 들어온 경우 여기에 값이 담긴다.
-// 이 값이 있으면 역할선택/사이드바 전체를 건너뛰고 QrUnitScreen(모바일 전용 화면)을 바로 보여준다.
+// 이 값이 있으면 로그인/사이드바 전체를 건너뛰고 QrUnitScreen(모바일 전용 화면)을 바로 보여준다.
 const initialDeepLink = readUnitDeepLink();
 
 export default function App() {
-  const [role, setRole] = useState(null);
+  // authUser: Firebase Auth 로그인 여부. userProfile: Firestore에 저장된 이름/역할.
+  // role은 더 이상 화면에서 자유롭게 바꿀 수 없고, 로그인한 계정에 저장된 값을 그대로 따른다.
+  const [authUser, setAuthUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const role = userProfile?.role || null;
   const [view, setView] = useState("operations");
   const [unitTarget, setUnitTarget] = useState(null);
   const [buildings, setBuildings] = useState([]);
@@ -49,6 +55,33 @@ export default function App() {
     // 정리해두지 않으면 나중에 다른 화면을 보다가 새로고침했을 때 계속 이 호실로 튕기게 된다.
     if (initialDeepLink) clearUnitDeepLinkFromUrl();
   }, []);
+
+  useEffect(() => {
+    // QR 스캔으로 들어온 경우엔 로그인 없이 바로 QrUnitScreen을 보여주므로 인증 상태를 볼 필요가 없다.
+    if (initialDeepLink) {
+      setAuthChecked(true);
+      return;
+    }
+    const unsubscribe = subscribeAuth(async (user) => {
+      setAuthUser(user);
+      if (user) {
+        try {
+          const profile = await fetchUserProfile(user.uid, user.email);
+          setUserProfile(profile);
+        } catch {
+          setUserProfile({ email: user.email, name: "", role: ROLES.SUB });
+        }
+      } else {
+        setUserProfile(null);
+      }
+      setAuthChecked(true);
+    });
+    return unsubscribe;
+  }, []);
+
+  async function handleLogout() {
+    await logOut();
+  }
 
   useEffect(() => {
     if (role && !isViewAllowed(view, role)) {
@@ -224,11 +257,19 @@ export default function App() {
   badges.operations = badges.pending + badges.ncr;
   badges.safetyTotal = badges.safetyNcr + badges.workersPending + badges.equipmentPending;
 
-  if (!role && !initialDeepLink) {
-    return <RoleSelect onSelect={(chosenRole, startView) => {
-      setRole(chosenRole);
-      setView(startView);
-    }} />;
+  if (!authChecked) {
+    return <CenterMessage>불러오는 중…</CenterMessage>;
+  }
+
+  if (!initialDeepLink && !authUser) {
+    return (
+      <LoginScreen
+        onSignedUp={(profile) => {
+          setAuthUser({ uid: profile.uid, email: profile.email });
+          setUserProfile(profile);
+        }}
+      />
+    );
   }
 
   if (loading) {
@@ -245,7 +286,7 @@ export default function App() {
     );
   }
 
-  // QR로 특정 호실을 스캔해 들어온 경우: 역할선택·사이드바 없이 이 화면만 보여준다.
+  // QR로 특정 호실을 스캔해 들어온 경우: 로그인·사이드바 없이 이 화면만 보여준다.
   if (initialDeepLink) {
     return (
       <QrUnitScreen
@@ -264,7 +305,7 @@ export default function App() {
 
   return (
     <>
-      <Layout role={role} setRole={setRole} view={view} setView={setView} badges={badges}>
+      <Layout role={role} userProfile={userProfile} onLogout={handleLogout} view={view} setView={setView} badges={badges}>
         {view === "operations" && (
           <OperationsHub
             role={role}

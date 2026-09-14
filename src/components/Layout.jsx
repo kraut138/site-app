@@ -32,7 +32,7 @@ const PAGE_META = {
   safety: { title: "안전 현황", desc: "안전/환경 공종의 검측·NCR과 현장 인력 현황을 모아서 확인합니다" },
 };
 
-export default function Layout({ role, setRole, view, setView, badges = {}, children }) {
+export default function Layout({ role, userProfile, onLogout, view, setView, badges = {}, children }) {
   const meta = PAGE_META[view] || {};
   return (
     <div className="app-shell">
@@ -77,13 +77,11 @@ export default function Layout({ role, setRole, view, setView, badges = {}, chil
 
         <div className="sidebar-foot">
           <div className="role-switcher">
-            <div className="label">현재 역할</div>
-            <div className="role-pill-group">
-              <button className={`role-pill${role === ROLES.SUB ? " active" : ""}`} onClick={() => setRole(ROLES.SUB)}>
-                하도급사
-              </button>
-              <button className={`role-pill${role === ROLES.SUPER ? " active" : ""}`} onClick={() => setRole(ROLES.SUPER)}>
-                감리단/소장
+            <div className="label">{role === ROLES.SUB ? "하도급사" : "감리단/소장"}</div>
+            <div className="account-info">
+              <span className="account-name">{userProfile?.name || userProfile?.email || ""}</span>
+              <button className="btn btn-ghost btn-sm" onClick={onLogout}>
+                로그아웃
               </button>
             </div>
           </div>
@@ -100,11 +98,9 @@ export default function Layout({ role, setRole, view, setView, badges = {}, chil
             <div className="desc">{meta.desc}</div>
           </div>
           <div className="topbar-role-switcher">
-            <button className={`role-pill${role === ROLES.SUB ? " active" : ""}`} onClick={() => setRole(ROLES.SUB)}>
-              하도급사
-            </button>
-            <button className={`role-pill${role === ROLES.SUPER ? " active" : ""}`} onClick={() => setRole(ROLES.SUPER)}>
-              감리단/소장
+            <span className="account-name">{userProfile?.name || userProfile?.email || ""}</span>
+            <button className="btn btn-ghost btn-sm" onClick={onLogout}>
+              로그아웃
             </button>
           </div>
         </header>
