@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { signUp, logIn } from "../auth.js";
+import { useLanguage } from "../LanguageContext.jsx";
 
 // 배경 일러스트는 기존 역할선택 화면 것을 그대로 재사용한다(styles.css의 .role-select-* 클래스도 공용).
 function SiteIllustration() {
@@ -63,6 +64,7 @@ function SiteIllustration() {
 }
 
 export default function LoginScreen({ onSignedUp }) {
+  const { t } = useLanguage();
   const [mode, setMode] = useState("login"); // "login" | "signup"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -132,32 +134,32 @@ export default function LoginScreen({ onSignedUp }) {
         <div className="role-select-logo">
           <img src={`${import.meta.env.BASE_URL}logo-kwangwoon.png`} alt="광운건설" />
         </div>
-        <h1>현장검측</h1>
-        <p>{mode === "login" ? "로그인하고 시작하세요" : "새 계정을 만드세요"}</p>
+        <h1>{t("login.title")}</h1>
+        <p>{mode === "login" ? t("login.subtitleLogin") : t("login.subtitleSignup")}</p>
 
         <form onSubmit={mode === "login" ? handleLogin : handleSignup} className="auth-form">
           <div className="field">
-            <label>아이디 (이메일)</label>
+            <label>{t("login.id")}</label>
             <input className="input" type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
           </div>
           <div className="field">
-            <label>비밀번호</label>
+            <label>{t("login.password")}</label>
             <input className="input" type="password" placeholder="6자 이상" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} />
           </div>
 
           {mode === "signup" && (
             <>
               <div className="field">
-                <label>비밀번호 확인</label>
+                <label>{t("login.passwordConfirm")}</label>
                 <input className="input" type="password" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} autoComplete="new-password" />
               </div>
               <div className="field">
-                <label>이름 (선택)</label>
+                <label>{t("login.name")}</label>
                 <input className="input" placeholder="예: 김현장" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div className="field">
-                <label>소장 가입 코드 (해당하는 경우만)</label>
-                <input className="input" placeholder="감리단/소장이시면 입력하세요" value={directorCode} onChange={(e) => setDirectorCode(e.target.value)} />
+                <label>{t("login.directorCode")}</label>
+                <input className="input" placeholder={t("login.directorCodePlaceholder")} value={directorCode} onChange={(e) => setDirectorCode(e.target.value)} />
               </div>
             </>
           )}
@@ -165,23 +167,23 @@ export default function LoginScreen({ onSignedUp }) {
           {error && <div className="auth-error">{error}</div>}
 
           <button className="btn btn-primary btn-block" disabled={busy} style={{ marginTop: 6 }}>
-            {busy ? "처리 중…" : mode === "login" ? "로그인" : "회원가입"}
+            {busy ? t("login.processing") : mode === "login" ? t("login.submitLogin") : t("login.submitSignup")}
           </button>
         </form>
 
         <div className="role-select-hint">
           {mode === "login" ? (
             <>
-              계정이 없으신가요?{" "}
+              {t("login.noAccount")}{" "}
               <button type="button" className="auth-link" onClick={() => switchMode("signup")}>
-                회원가입
+                {t("login.submitSignup")}
               </button>
             </>
           ) : (
             <>
-              이미 계정이 있으신가요?{" "}
+              {t("login.hasAccount")}{" "}
               <button type="button" className="auth-link" onClick={() => switchMode("login")}>
-                로그인
+                {t("login.submitLogin")}
               </button>
             </>
           )}

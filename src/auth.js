@@ -4,9 +4,10 @@ import {
   onAuthStateChanged,
   signOut,
 } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
 import { ROLES } from "./data.js";
+import { DEFAULT_LANGUAGE } from "./i18n.js";
 
 // 회원가입 시 이 코드를 입력하면 "감리단/소장" 권한으로 가입된다. 그 외에는 모두 "하도급사"로 가입된다.
 // 주의: 이 코드는 브라우저에 그대로 내려가는 프론트엔드 코드 안에 있으므로, 완벽한 보안 장치는 아니다.
@@ -30,7 +31,7 @@ export async function signUp({ email, password, name, directorCode }) {
   try {
     const role = directorCode && directorCode.trim() === DIRECTOR_SIGNUP_CODE ? ROLES.SUPER : ROLES.SUB;
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    const profile = { email, name: name || "", role, createdAt: new Date().toISOString() };
+    const profile = { email, name: name || "", role, language: DEFAULT_LANGUAGE, createdAt: new Date().toISOString() };
     await setDoc(doc(db, "users", cred.user.uid), profile);
     return { uid: cred.user.uid, ...profile };
   } catch (err) {
@@ -55,8 +56,13 @@ export async function logOut() {
 // 예외적인 경우(예: 수동으로 콘솔에서 계정만 만든 경우)에는 안전하게 하도급사로 취급한다.
 export async function fetchUserProfile(uid, fallbackEmail) {
   const snap = await getDoc(doc(db, "users", uid));
-  if (snap.exists()) return snap.data();
-  return { email: fallbackEmail || "", name: "", role: ROLES.SUB };
+  if (snap.exists()) return { language: DEFAULT_LANGUAGE, ...snap.data() };
+  return { email: fallbackEmail || "", name: "", role: ROLES.SUB, language: DEFAULT_LANGUAGE };
+}
+
+// 계정에 저장된 언어 설정을 바꾼다 - 다음에 이 계정으로 로그인할 때도 그대로 적용된다.
+export async function updateUserLanguage(uid, language) {
+  await updateDoc(doc(db, "users", uid), { language });
 }
 
 // 로그인 상태 변화를 구독한다. 콜백은 로그인 시 Firebase Auth user 객체를, 로그아웃 시 null을 받는다.

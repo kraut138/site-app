@@ -262,6 +262,33 @@ textarea {
   gap: 3px;
 }
 
+.language-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.language-pill {
+  border: 1.5px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink-soft);
+  padding: 8px 16px;
+  border-radius: var(--radius-s);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.language-pill:hover {
+  border-color: var(--blueprint);
+}
+
+.language-pill.active {
+  background: var(--blueprint);
+  border-color: var(--blueprint-deep);
+  color: #fff;
+}
+
 .account-info {
   display: flex;
   align-items: center;

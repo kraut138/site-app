@@ -1,38 +1,40 @@
 import React from "react";
 import { Icon } from "./UI.jsx";
 import { ROLES, isViewAllowed } from "../data.js";
+import { useLanguage } from "../LanguageContext.jsx";
 
 const NAV_GROUPS = [
   {
-    label: "공사현황",
+    groupKey: "nav.group.status",
     items: [
-      { id: "operations", label: "공사현황", Icon: Icon.Dashboard, badgeKey: "operations" },
-      { id: "workers", label: "인력 등록", Icon: Icon.Worker, badgeKey: "workersPending" },
-      { id: "equipment", label: "건설기계 등록", Icon: Icon.Excavator, badgeKey: "equipmentPending" },
-      { id: "unitinfo", label: "호실 정보", Icon: Icon.Door },
-      { id: "buildings", label: "동 관리", Icon: Icon.Building },
-      { id: "sitelayout", label: "골구도", Icon: Icon.Cube },
-      { id: "site3d", label: "현장 3D", Icon: Icon.CitySkyline },
+      { id: "operations", labelKey: "nav.operations", Icon: Icon.Dashboard, badgeKey: "operations" },
+      { id: "workers", labelKey: "nav.workers", Icon: Icon.Worker, badgeKey: "workersPending" },
+      { id: "equipment", labelKey: "nav.equipment", Icon: Icon.Excavator, badgeKey: "equipmentPending" },
+      { id: "unitinfo", labelKey: "nav.unitinfo", Icon: Icon.Door },
+      { id: "buildings", labelKey: "nav.buildings", Icon: Icon.Building },
+      { id: "sitelayout", labelKey: "nav.sitelayout", Icon: Icon.Cube },
+      { id: "site3d", labelKey: "nav.site3d", Icon: Icon.CitySkyline },
     ],
   },
   {
-    label: "안전관리",
-    items: [{ id: "safety", label: "안전 현황", Icon: Icon.Shield, badgeKey: "safetyTotal" }],
+    groupKey: "nav.group.safety",
+    items: [{ id: "safety", labelKey: "nav.safety", Icon: Icon.Shield, badgeKey: "safetyTotal" }],
   },
 ];
 
 const PAGE_META = {
-  operations: { title: "공사현황", desc: "대시보드·공사 확인 요청 내역·NCR 관리·표준 공종을 한 곳에서 확인합니다" },
-  workers: { title: "인력 등록", desc: "건설사·공종을 선택해 현장 인력을 등록하고 승인 현황을 확인합니다" },
-  equipment: { title: "건설기계 등록", desc: "현장에 반입하는 건설기계를 등록하고 감리단 승인 현황을 확인합니다" },
-  unitinfo: { title: "호실 정보", desc: "동·호수를 선택해 공종별 진행도, 특이사항, 평면도를 확인합니다" },
-  buildings: { title: "동 관리", desc: "현장 동·층·세대 정보를 관리합니다" },
-  sitelayout: { title: "골구도", desc: "동의 대략적인 위치와 형태를 3D로 확인합니다" },
-  site3d: { title: "현장 3D", desc: "등록된 평면도와 배치 위치를 바탕으로 현장 전체를 3D 매스로 확인합니다" },
-  safety: { title: "안전 현황", desc: "안전/환경 공종의 검측·NCR과 현장 인력 현황을 모아서 확인합니다" },
+  operations: { titleKey: "page.operations.title", descKey: "page.operations.desc" },
+  workers: { titleKey: "page.workers.title", descKey: "page.workers.desc" },
+  equipment: { titleKey: "page.equipment.title", descKey: "page.equipment.desc" },
+  unitinfo: { titleKey: "page.unitinfo.title", descKey: "page.unitinfo.desc" },
+  buildings: { titleKey: "page.buildings.title", descKey: "page.buildings.desc" },
+  sitelayout: { titleKey: "page.sitelayout.title", descKey: "page.sitelayout.desc" },
+  site3d: { titleKey: "page.site3d.title", descKey: "page.site3d.desc" },
+  safety: { titleKey: "page.safety.title", descKey: "page.safety.desc" },
 };
 
 export default function Layout({ role, userProfile, onLogout, view, setView, badges = {}, children }) {
+  const { t } = useLanguage();
   const meta = PAGE_META[view] || {};
   return (
     <div className="app-shell">
@@ -44,8 +46,8 @@ export default function Layout({ role, userProfile, onLogout, view, setView, bad
             </svg>
           </div>
           <div className="sidebar-brand-text">
-            <div className="title">현장검측</div>
-            <div className="sub">SITE QC SYSTEM</div>
+            <div className="title">{t("app.brand")}</div>
+            <div className="sub">{t("app.brandSub")}</div>
           </div>
         </div>
 
@@ -54,8 +56,8 @@ export default function Layout({ role, userProfile, onLogout, view, setView, bad
             const visibleItems = group.items.filter((item) => isViewAllowed(item.id, role));
             if (visibleItems.length === 0) return null;
             return (
-              <div className="sidebar-nav-group" key={group.label}>
-                <div className="sidebar-nav-group-label">{group.label}</div>
+              <div className="sidebar-nav-group" key={group.groupKey}>
+                <div className="sidebar-nav-group-label">{t(group.groupKey)}</div>
                 {visibleItems.map((item) => {
                   const badge = item.badgeKey ? badges[item.badgeKey] : 0;
                   return (
@@ -65,7 +67,7 @@ export default function Layout({ role, userProfile, onLogout, view, setView, bad
                       onClick={() => setView(item.id)}
                     >
                       <item.Icon className="icon" />
-                      {item.label}
+                      {t(item.labelKey)}
                       {!!badge && <span className="sidebar-nav-badge">{badge > 99 ? "99+" : badge}</span>}
                     </button>
                   );
@@ -77,11 +79,11 @@ export default function Layout({ role, userProfile, onLogout, view, setView, bad
 
         <div className="sidebar-foot">
           <div className="role-switcher">
-            <div className="label">{role === ROLES.SUB ? "하도급사" : "감리단/소장"}</div>
+            <div className="label">{role === ROLES.SUB ? t("role.sub") : t("role.super")}</div>
             <div className="account-info">
               <span className="account-name">{userProfile?.name || userProfile?.email || ""}</span>
               <button className="btn btn-ghost btn-sm" onClick={onLogout}>
-                로그아웃
+                {t("common.logout")}
               </button>
             </div>
           </div>
@@ -94,13 +96,13 @@ export default function Layout({ role, userProfile, onLogout, view, setView, bad
       <div className="main-col">
         <header className="topbar">
           <div>
-            <h1>{meta.title}</h1>
-            <div className="desc">{meta.desc}</div>
+            <h1>{t(meta.titleKey)}</h1>
+            <div className="desc">{t(meta.descKey)}</div>
           </div>
           <div className="topbar-role-switcher">
             <span className="account-name">{userProfile?.name || userProfile?.email || ""}</span>
             <button className="btn btn-ghost btn-sm" onClick={onLogout}>
-              로그아웃
+              {t("common.logout")}
             </button>
           </div>
         </header>

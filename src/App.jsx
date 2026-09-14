@@ -13,7 +13,9 @@ import QrUnitScreen from "./components/QrUnitScreen.jsx";
 import { Toast } from "./components/UI.jsx";
 import { ROLES, isViewAllowed } from "./data.js";
 import * as api from "./api.js";
-import { subscribeAuth, fetchUserProfile, logOut } from "./auth.js";
+import { subscribeAuth, fetchUserProfile, logOut, updateUserLanguage } from "./auth.js";
+import { LanguageProvider } from "./LanguageContext.jsx";
+import { DEFAULT_LANGUAGE } from "./i18n.js";
 import { readUnitDeepLink, clearUnitDeepLinkFromUrl } from "./qr.js";
 
 // 페이지가 처음 로드될 때 딱 한 번만 읽는다 - QR 스캔으로 들어온 경우 여기에 값이 담긴다.
@@ -27,6 +29,18 @@ export default function App() {
   const [userProfile, setUserProfile] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const role = userProfile?.role || null;
+  const lang = userProfile?.language || DEFAULT_LANGUAGE;
+
+  async function handleChangeLanguage(nextLang) {
+    setUserProfile((prev) => (prev ? { ...prev, language: nextLang } : prev));
+    if (authUser) {
+      try {
+        await updateUserLanguage(authUser.uid, nextLang);
+      } catch {
+        // 저장에 실패해도 화면 표시 언어는 이미 바뀐 상태로 둔다 - 다음 로그인 때만 이전 언어로 보일 뿐이다.
+      }
+    }
+  }
   const [view, setView] = useState("operations");
   const [unitTarget, setUnitTarget] = useState(null);
   const [buildings, setBuildings] = useState([]);
@@ -257,12 +271,11 @@ export default function App() {
   badges.operations = badges.pending + badges.ncr;
   badges.safetyTotal = badges.safetyNcr + badges.workersPending + badges.equipmentPending;
 
+  let content;
   if (!authChecked) {
-    return <CenterMessage>불러오는 중…</CenterMessage>;
-  }
-
-  if (!initialDeepLink && !authUser) {
-    return (
+    content = <CenterMessage>불러오는 중…</CenterMessage>;
+  } else if (!initialDeepLink && !authUser) {
+    content = (
       <LoginScreen
         onSignedUp={(profile) => {
           setAuthUser({ uid: profile.uid, email: profile.email });
@@ -270,25 +283,19 @@ export default function App() {
         }}
       />
     );
-  }
-
-  if (loading) {
-    return <CenterMessage>불러오는 중…</CenterMessage>;
-  }
-
-  if (loadError) {
-    return (
+  } else if (loading) {
+    content = <CenterMessage>불러오는 중…</CenterMessage>;
+  } else if (loadError) {
+    content = (
       <CenterMessage>
         데이터를 불러오지 못했습니다.
         <br />
         {loadError}
       </CenterMessage>
     );
-  }
-
-  // QR로 특정 호실을 스캔해 들어온 경우: 로그인·사이드바 없이 이 화면만 보여준다.
-  if (initialDeepLink) {
-    return (
+  } else if (initialDeepLink) {
+    // QR로 특정 호실을 스캔해 들어온 경우: 로그인·사이드바 없이 이 화면만 보여준다.
+    content = (
       <QrUnitScreen
         buildings={buildings}
         inspections={inspections}
@@ -301,85 +308,92 @@ export default function App() {
         onCreateConfirmationRequest={handleCreateInspection}
       />
     );
+  } else {
+    content = (
+      <>
+        <Layout role={role} userProfile={userProfile} onLogout={handleLogout} view={view} setView={setView} badges={badges}>
+          {view === "operations" && (
+            <OperationsHub
+              key={role}
+              role={role}
+              badges={badges}
+              buildings={buildings}
+              inspections={inspections}
+              ncrs={ncrs}
+              checklistItems={checklistItems}
+              unitFloorPlans={unitFloorPlans}
+              onCreateConfirmationRequest={handleCreateInspection}
+              onUpdateInspectionStatus={handleUpdateInspectionStatus}
+              onBatchUpdateInspectionStatus={handleBatchUpdateInspectionStatus}
+              onUpdateNcrStatus={handleUpdateNcrStatus}
+              onCreateChecklistItem={handleCreateChecklistItem}
+              onDeleteChecklistItem={handleDeleteChecklistItem}
+              onResetChecklistCategory={handleResetChecklistCategory}
+              onReorderChecklistItems={handleReorderChecklistItems}
+              notify={notify}
+            />
+          )}
+          {view === "workers" && <Workers workers={workers} onCreateWorkers={handleCreateWorkers} notify={notify} />}
+          {view === "equipment" && <Equipment equipment={equipment} onCreateEquipment={handleCreateEquipment} notify={notify} />}
+          {view === "safety" && (
+            <SafetyOverview
+              role={role}
+              buildings={buildings}
+              inspections={inspections}
+              ncrs={ncrs}
+              workers={workers}
+              equipment={equipment}
+              unitFloorPlans={unitFloorPlans}
+              onUpdateNcrStatus={handleUpdateNcrStatus}
+              onUpdateWorkerStatus={handleUpdateWorkerStatus}
+              onUpdateEquipmentStatus={handleUpdateEquipmentStatus}
+              notify={notify}
+            />
+          )}
+          {view === "unitinfo" && (
+            <UnitInfo
+              buildings={buildings}
+              inspections={inspections}
+              checklistItems={checklistItems}
+              unitNotes={unitNotes}
+              unitFloorPlans={unitFloorPlans}
+              initialTarget={unitTarget}
+              onConsumeInitialTarget={() => setUnitTarget(null)}
+              onCreateNote={handleCreateUnitNote}
+              onDeleteNote={handleDeleteUnitNote}
+              notify={notify}
+            />
+          )}
+          {view === "buildings" && (
+            <Buildings
+              buildings={buildings}
+              onCreate={handleCreateBuilding}
+              onDelete={handleDeleteBuilding}
+              onUpdateBuilding={handleUpdateBuilding}
+              canEdit={role === ROLES.SUPER}
+              unitFloorPlans={unitFloorPlans}
+              onCreateFloorPlan={handleCreateUnitFloorPlan}
+              onUpdateFloorPlan={handleUpdateUnitFloorPlan}
+              onDeleteFloorPlan={handleDeleteUnitFloorPlan}
+              siteSettings={siteSettings}
+              onUpdateSiteSettings={handleUpdateSiteSettings}
+              notify={notify}
+            />
+          )}
+          {view === "sitelayout" && (
+            <SiteLayout buildings={buildings} checklistItems={checklistItems} inspections={inspections} onNavigateToUnit={handleNavigateToUnit} />
+          )}
+          {view === "site3d" && <Site3DView buildings={buildings} unitFloorPlans={unitFloorPlans} siteSettings={siteSettings} />}
+        </Layout>
+        <Toast message={toast} onDone={() => setToast("")} />
+      </>
+    );
   }
 
   return (
-    <>
-      <Layout role={role} userProfile={userProfile} onLogout={handleLogout} view={view} setView={setView} badges={badges}>
-        {view === "operations" && (
-          <OperationsHub
-            role={role}
-            badges={badges}
-            buildings={buildings}
-            inspections={inspections}
-            ncrs={ncrs}
-            checklistItems={checklistItems}
-            unitFloorPlans={unitFloorPlans}
-            onCreateConfirmationRequest={handleCreateInspection}
-            onUpdateInspectionStatus={handleUpdateInspectionStatus}
-            onBatchUpdateInspectionStatus={handleBatchUpdateInspectionStatus}
-            onUpdateNcrStatus={handleUpdateNcrStatus}
-            onCreateChecklistItem={handleCreateChecklistItem}
-            onDeleteChecklistItem={handleDeleteChecklistItem}
-            onResetChecklistCategory={handleResetChecklistCategory}
-            onReorderChecklistItems={handleReorderChecklistItems}
-            notify={notify}
-          />
-        )}
-        {view === "workers" && <Workers workers={workers} onCreateWorkers={handleCreateWorkers} notify={notify} />}
-        {view === "equipment" && <Equipment equipment={equipment} onCreateEquipment={handleCreateEquipment} notify={notify} />}
-        {view === "safety" && (
-          <SafetyOverview
-            role={role}
-            buildings={buildings}
-            inspections={inspections}
-            ncrs={ncrs}
-            workers={workers}
-            equipment={equipment}
-            unitFloorPlans={unitFloorPlans}
-            onUpdateNcrStatus={handleUpdateNcrStatus}
-            onUpdateWorkerStatus={handleUpdateWorkerStatus}
-            onUpdateEquipmentStatus={handleUpdateEquipmentStatus}
-            notify={notify}
-          />
-        )}
-        {view === "unitinfo" && (
-          <UnitInfo
-            buildings={buildings}
-            inspections={inspections}
-            checklistItems={checklistItems}
-            unitNotes={unitNotes}
-            unitFloorPlans={unitFloorPlans}
-            initialTarget={unitTarget}
-            onConsumeInitialTarget={() => setUnitTarget(null)}
-            onCreateNote={handleCreateUnitNote}
-            onDeleteNote={handleDeleteUnitNote}
-            notify={notify}
-          />
-        )}
-        {view === "buildings" && (
-          <Buildings
-            buildings={buildings}
-            onCreate={handleCreateBuilding}
-            onDelete={handleDeleteBuilding}
-            onUpdateBuilding={handleUpdateBuilding}
-            canEdit={role === ROLES.SUPER}
-            unitFloorPlans={unitFloorPlans}
-            onCreateFloorPlan={handleCreateUnitFloorPlan}
-            onUpdateFloorPlan={handleUpdateUnitFloorPlan}
-            onDeleteFloorPlan={handleDeleteUnitFloorPlan}
-            siteSettings={siteSettings}
-            onUpdateSiteSettings={handleUpdateSiteSettings}
-            notify={notify}
-          />
-        )}
-        {view === "sitelayout" && (
-          <SiteLayout buildings={buildings} checklistItems={checklistItems} inspections={inspections} onNavigateToUnit={handleNavigateToUnit} />
-        )}
-        {view === "site3d" && <Site3DView buildings={buildings} unitFloorPlans={unitFloorPlans} siteSettings={siteSettings} />}
-      </Layout>
-      <Toast message={toast} onDone={() => setToast("")} />
-    </>
+    <LanguageProvider lang={lang} onChange={handleChangeLanguage}>
+      {content}
+    </LanguageProvider>
   );
 }
 
