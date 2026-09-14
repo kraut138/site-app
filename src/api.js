@@ -410,13 +410,28 @@ export async function createWorkers({ companyName, categoryId, names }) {
 }
 
 export async function updateWorkerStatus(id, data) {
-  if (!["승인", "반려"].includes(data.status)) {
-    throw new Error("status는 승인 또는 반려여야 합니다.");
+  if (!["승인", "반려", "퇴출"].includes(data.status)) {
+    throw new Error("status는 승인, 반려, 퇴출 중 하나여야 합니다.");
   }
   await updateDoc(doc(db, "workers", id), {
     status: data.status,
     approver: data.approver || "감리단",
     history: arrayUnion({ action: data.status, at: nowIso(), by: data.approver || "감리단", comment: data.comment || "" }),
+  });
+  const snap = await getDoc(doc(db, "workers", id));
+  return { id: snap.id, ...snap.data() };
+}
+
+// 인력 한 명에게 경고 카드를 부여한다. 3장이 누적되면 화면에서 퇴출 버튼이 활성화된다(그 판정 자체는
+// 프론트에서 warnings 배열 길이로 계산하고, 여기서는 그냥 경고 이력만 쌓는다).
+export async function addWorkerWarning(id, { reason, issuedBy }) {
+  if (!reason || !reason.trim()) {
+    throw new Error("경고 사유는 필수입니다.");
+  }
+  const warning = { reason: reason.trim(), issuedBy: issuedBy || "감리단", issuedAt: nowIso() };
+  await updateDoc(doc(db, "workers", id), {
+    warnings: arrayUnion(warning),
+    history: arrayUnion({ action: "경고", at: nowIso(), by: issuedBy || "감리단", comment: reason.trim() }),
   });
   const snap = await getDoc(doc(db, "workers", id));
   return { id: snap.id, ...snap.data() };

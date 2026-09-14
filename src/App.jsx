@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import Layout from "./components/Layout.jsx";
 import OperationsHub from "./components/OperationsHub.jsx";
 import Workers from "./components/Workers.jsx";
+import WorkerRoster from "./components/WorkerRoster.jsx";
 import Equipment from "./components/Equipment.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
@@ -222,6 +223,12 @@ export default function App() {
     return updated;
   }
 
+  async function handleAddWorkerWarning(id, data) {
+    const updated = await api.addWorkerWarning(id, data);
+    setWorkers((prev) => prev.map((w) => (w.id === id ? updated : w)));
+    return updated;
+  }
+
   async function handleCreateEquipment(data) {
     const created = await api.createEquipment(data);
     setEquipment((prev) => [...prev, created]);
@@ -349,6 +356,14 @@ export default function App() {
             />
           )}
           {view === "workers" && <Workers workers={workers} onCreateWorkers={handleCreateWorkers} notify={notify} />}
+          {view === "workerRoster" && (
+            <WorkerRoster
+              workers={workers}
+              onUpdateWorkerStatus={handleUpdateWorkerStatus}
+              onAddWorkerWarning={handleAddWorkerWarning}
+              notify={notify}
+            />
+          )}
           {view === "equipment" && <Equipment equipment={equipment} onCreateEquipment={handleCreateEquipment} notify={notify} />}
           {view === "safety" && (
             <SafetyOverview
@@ -356,11 +371,9 @@ export default function App() {
               buildings={buildings}
               inspections={inspections}
               ncrs={ncrs}
-              workers={workers}
               equipment={equipment}
               unitFloorPlans={unitFloorPlans}
               onUpdateNcrStatus={handleUpdateNcrStatus}
-              onUpdateWorkerStatus={handleUpdateWorkerStatus}
               onUpdateEquipmentStatus={handleUpdateEquipmentStatus}
               notify={notify}
             />

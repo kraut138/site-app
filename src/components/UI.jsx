@@ -86,6 +86,14 @@ export const Icon = {
       <path d="M9.5 5.5a2.5 2.5 0 0 1 5 0" />
     </svg>
   ),
+  IdCard: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="9" cy="11" r="2" />
+      <path d="M6 16c0-1.7 1.3-2.5 3-2.5s3 0.8 3 2.5" />
+      <path d="M14.5 9.5h4M14.5 13h4" />
+    </svg>
+  ),
   Excavator: (p) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
       <path d="M3 19h13" />

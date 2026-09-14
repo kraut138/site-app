@@ -162,6 +162,7 @@ export const VIEW_ROLES = {
   sitelayout: [ROLES.SUPER, ROLES.INSPECTOR],
   unitinfo: [ROLES.SUPER, ROLES.INSPECTOR],
   safety: [ROLES.SUPER, ROLES.INSPECTOR],
+  workerRoster: [ROLES.SUPER, ROLES.INSPECTOR],
 };
 
 export function isViewAllowed(viewId, role) {

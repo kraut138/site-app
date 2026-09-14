@@ -21,6 +21,7 @@ const NAV_GROUPS = [
       { id: "buildings", labelKey: "nav.buildings", Icon: Icon.Building },
       { id: "sitelayout", labelKey: "nav.sitelayout", Icon: Icon.Cube },
       { id: "site3d", labelKey: "nav.site3d", Icon: Icon.CitySkyline },
+      { id: "workerRoster", labelKey: "nav.workerRoster", Icon: Icon.IdCard },
     ],
   },
   {
@@ -37,6 +38,7 @@ const PAGE_META = {
   buildings: { titleKey: "page.buildings.title", descKey: "page.buildings.desc" },
   sitelayout: { titleKey: "page.sitelayout.title", descKey: "page.sitelayout.desc" },
   site3d: { titleKey: "page.site3d.title", descKey: "page.site3d.desc" },
+  workerRoster: { titleKey: "page.workerRoster.title", descKey: "page.workerRoster.desc" },
   safety: { titleKey: "page.safety.title", descKey: "page.safety.desc" },
 };
 
