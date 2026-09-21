@@ -1,0 +1,30 @@
+Firebase 회원가입 오류 수정본
+
+수정 내용
+- src/firebase.js: Firebase 콘솔에서 제공한 키로 수정했습니다.
+  기존 키의 gPwLEyh 부분에서 대문자 L을 소문자 l로 고쳐 gPwlEyh로 변경했습니다.
+- src/auth.js: API 키 오류, 이메일 가입 비활성화, 네트워크 오류, 과도한 요청에 대한 한국어 안내를 추가했습니다.
+- Firebase 설정의 나머지 값은 제공한 콘솔 설정과 동일합니다.
+
+기존 저장소에 적용하는 방법 (권장)
+1. ZIP 압축을 풉니다.
+2. 기존 GitHub 저장소 폴더의 src/firebase.js와 src/auth.js를 이 수정본의 같은 파일로 덮어씁니다.
+3. GitHub Desktop에서 변경 내용을 확인한 후 main 브랜치에 Commit, Push 합니다.
+4. GitHub 저장소의 Actions에서 Deploy to GitHub Pages 작업의 build와 deploy 성공을 확인합니다.
+5. 사이트에서 Ctrl+Shift+R로 새로고침한 뒤 회원가입을 시도합니다.
+
+전체 프로젝트로 사용할 때
+- ZIP에는 소스와 기존 GitHub Actions workflow가 들어 있습니다.
+- .git, node_modules, 과거 dist 및 Netlify 배포 자료는 포함하지 않았습니다.
+- GitHub Pages의 Source는 GitHub Actions로 설정합니다.
+- 로컬 실행은 npm install 후 npm run dev를 사용합니다.
+
+추가 확인
+- 이메일 가입 기능이 비활성화됐다는 안내가 나오면 Firebase Authentication의 이메일/비밀번호 로그인을 사용 설정합니다.
+- 이 수정본은 로그인 우회 기능을 추가하지 않습니다.
+- 기존 Firestore 규칙은 변경하지 않았으며, 원본은 모든 읽기/쓰기를 허용하고 있습니다.
+
+검증 범위
+- 제공된 콘솔 설정과 수정된 API 키의 일치를 확인했습니다.
+- 빌드 실행은 이 작업 환경의 파일 접근 제한으로 중단되어 성공 여부를 확인하지 못했습니다.
+- 실제 Firebase 계정 생성이나 배포는 수행하지 않았습니다.
