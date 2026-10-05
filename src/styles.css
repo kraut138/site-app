@@ -1830,3 +1830,58 @@ textarea.input {
   margin-left: 4px;
   border-left: 2px solid var(--line);
 }
+
+
+/* ============ 서류 탭 (전자서명 확인용) ============ */
+.doc-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.doc-title { font-size: 15px; font-weight: 700; }
+.doc-btns { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pour-hint { font-size: 12px; color: var(--ink-soft); background: var(--surface-alt); border-radius: var(--radius-s); padding: 8px 11px; margin-bottom: 12px; line-height: 1.5; }
+.doc-sheet-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-m); background: #fff; }
+.doc-slot-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.doc-slot-pill { border: 1.5px solid var(--line-strong); background: var(--surface); color: var(--ink-soft); padding: 8px 13px; border-radius: var(--radius-s); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.doc-slot-pill.active { background: var(--blueprint); border-color: var(--blueprint-deep); color: #fff; }
+.doc-resign { font-size: 11.5px; color: var(--pending); margin-top: 6px; }
+.doc-agree { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.45; margin: 4px 0 12px; cursor: pointer; }
+.doc-agree input { margin-top: 3px; }
+.doc-error { color: var(--fail); font-size: 12.5px; margin: 0 0 10px; }
+.doc-empty { font-size: 12.5px; color: var(--ink-faint); padding: 6px 2px; }
+.doc-record { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 8px 2px; border-bottom: 1px solid var(--line); }
+.doc-record:last-child { border-bottom: none; }
+.doc-record-slot { min-width: 150px; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+.doc-record-img { height: 34px; max-width: 120px; object-fit: contain; border-bottom: 1px solid var(--line); }
+.doc-record-name { font-weight: 700; font-size: 13px; }
+.doc-record-meta { font-size: 11.5px; color: var(--ink-faint); }
+
+.sigpad { border: 1.5px solid var(--line-strong); border-radius: var(--radius-s); background: #fff; }
+.sigpad-canvas { width: 100%; height: auto; aspect-ratio: 600 / 220; display: block; touch-action: none; cursor: crosshair; }
+.sigpad-foot { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-top: 1px solid var(--line); }
+.sigpad-hint { font-size: 11.5px; color: var(--ink-faint); }
+
+/* ---- 별지 제35호 서식 본문 (화면/인쇄 공용) ---- */
+.pour-sheet { background: #fff; color: #000; width: 297mm; min-height: 200mm; margin: 0 auto; padding: 9mm 8mm; font-family: var(--font-ui); box-shadow: 0 2px 14px rgba(0,0,0,.35); }
+.pour-sheet.inline { width: auto; min-width: 1080px; min-height: 0; margin: 0; box-shadow: none; }
+.pour-sheet-top { display: flex; justify-content: space-between; font-size: 10pt; }
+.pour-sheet h2 { text-align: center; font-size: 17pt; margin: 4px 0 8px; letter-spacing: 1px; }
+.pour-sheet-sub { font-size: 10pt; font-weight: 700; margin-bottom: 4px; }
+.pour-table { width: calc(100% - 2px); border-collapse: collapse; table-layout: fixed; font-size: 8.5pt; }
+.pour-table th, .pour-table td { border: 1px solid #000; padding: 2px 3px; text-align: center; vertical-align: middle; word-break: keep-all; }
+.pour-table th { background: #f1f1f1; font-weight: 700; line-height: 1.25; }
+.pour-table td { height: 52px; }
+.pour-table td.num { font-variant-numeric: tabular-nums; }
+.pour-table td.sig img { display: block; margin: 0 auto; max-height: 40px; max-width: 100%; }
+.pour-table tr { page-break-inside: avoid; }
+.pour-notes { margin-top: 8px; font-size: 8.5pt; line-height: 1.5; }
+
+/* ---- 인쇄 미리보기 / 인쇄 ---- */
+.pour-print-overlay { position: fixed; inset: 0; z-index: 3000; background: #5b6064; overflow: auto; padding: 58px 16px 28px; }
+.pour-print-toolbar { position: fixed; top: 0; left: 0; right: 0; height: 46px; background: #fff; display: flex; align-items: center; gap: 8px; padding: 0 16px; box-shadow: 0 1px 6px rgba(0,0,0,.25); z-index: 2; }
+
+@page { size: A4 landscape; margin: 8mm; }
+@media print {
+  body.doc-print-mode { background: #fff !important; }
+  body.doc-print-mode > #root { display: none !important; }
+  body.doc-print-mode .pour-print-overlay { position: static !important; inset: auto !important; background: none !important; padding: 0 !important; overflow: visible !important; }
+  body.doc-print-mode .pour-print-toolbar { display: none !important; }
+  body.doc-print-mode .pour-sheet { width: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+}

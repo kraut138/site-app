@@ -3,6 +3,7 @@ import Layout from "./components/Layout.jsx";
 import OperationsHub from "./components/OperationsHub.jsx";
 import Workers from "./components/Workers.jsx";
 import WorkerRoster from "./components/WorkerRoster.jsx";
+import Documents from "./components/Documents.jsx";
 import Equipment from "./components/Equipment.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
@@ -32,6 +33,7 @@ export default function App() {
   const [userProfile, setUserProfile] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [viewAsRole, setViewAsRole] = useState(null);
+  const [docSignatures, setDocSignatures] = useState({}); // 서류 탭 전자서명(확인용, 새로고침/로그아웃하면 사라짐)
   const trueRole = userProfile?.role || null;
   const role = trueRole === ROLES.SUPER && viewAsRole ? viewAsRole : trueRole;
   const lang = userProfile?.language || DEFAULT_LANGUAGE;
@@ -101,6 +103,7 @@ export default function App() {
   async function handleLogout() {
     await logOut();
     setViewAsRole(null);
+    setDocSignatures({});
   }
 
   useEffect(() => {
@@ -356,6 +359,16 @@ export default function App() {
             />
           )}
           {view === "workers" && <Workers workers={workers} onCreateWorkers={handleCreateWorkers} notify={notify} />}
+          {view === "documents" && (
+            <Documents
+              signatures={docSignatures}
+              signerName={(userProfile && userProfile.name) || ""}
+              signerAccount={(authUser && authUser.email) || (userProfile && userProfile.email) || ""}
+              onSign={(slot, sig) => setDocSignatures((prev) => ({ ...prev, [slot]: { ...sig, at: new Date().toISOString() } }))}
+              onClear={() => setDocSignatures({})}
+              notify={notify}
+            />
+          )}
           {view === "workerRoster" && (
             <WorkerRoster
               workers={workers}
