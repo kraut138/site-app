@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// 지금 앱은 로그인 기능이 없는(누구나 접속 가능) 구조이므로, 그 동작을 그대로 유지하기 위해
+// 모든 읽기/쓰기를 허용합니다. Firebase 콘솔 > Firestore Database > 규칙 탭에 이 내용을 붙여넣으세요.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
