@@ -1,0 +1,279 @@
+HTML
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VOICE-LOCK 통합 공정·품질 관제 대시보드</title>
+  <style>
+    :root {
+      --rebar: #1D4ED8; --mep: #D97706; --formwork: #EA580C; --qc: #15803D;
+      --bg: #F1F5F9; --card-bg: #FFFFFF; --text-main: #0F172A; --text-sub: #64748B;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Pretendard", Roboto, sans-serif; background: var(--bg); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
+
+    aside { width: 250px; background: #0F172A; color: white; padding: 24px 16px; display: flex; flex-direction: column; justify-content: space-between; }
+    .brand { font-size: 18px; font-weight: 800; margin-bottom: 30px; display: flex; align-items: center; gap: 8px; }
+    .brand span { background: #2563EB; padding: 3px 8px; border-radius: 6px; font-size: 11px; }
+    .menu-item { padding: 12px 14px; border-radius: 8px; font-size: 14px; font-weight: 600; color: #94A3B8; cursor: pointer; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; transition: 0.2s; }
+    .menu-item:hover, .menu-item.active { background: #1E293B; color: white; }
+
+    main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 24px 30px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    header h2 { font-size: 22px; font-weight: 800; }
+    .refresh-badge { background: #DCFCE7; color: #15803D; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: white; border-radius: 12px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-top: 4px solid; }
+    .stat-card.rebar { border-color: var(--rebar); }
+    .stat-card.mep { border-color: var(--mep); }
+    .stat-card.formwork { border-color: var(--formwork); }
+    .stat-card.qc { border-color: var(--qc); }
+    .stat-title { font-size: 13px; color: var(--text-sub); font-weight: 700; margin-bottom: 8px; }
+    .stat-val { font-size: 24px; font-weight: 800; display: flex; justify-content: space-between; align-items: baseline; }
+
+    .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; flex: 1; }
+    .section-card { background: white; border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); display: flex; flex-direction: column; }
+    .section-title { font-size: 16px; font-weight: 800; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 10px 12px; color: var(--text-sub); border-bottom: 1px solid #E2E8F0; font-weight: 700; }
+    td { padding: 14px 12px; border-bottom: 1px solid #F1F5F9; }
+    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+    .tag.done { background: #DCFCE7; color: #15803D; }
+    .tag.wait { background: #F1F5F9; color: #94A3B8; }
+    .btn-approve { padding: 6px 12px; background: #15803D; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn-approve:disabled { background: #CBD5E1; cursor: not-allowed; }
+
+    .feed-list { overflow-y: auto; flex: 1; max-height: 520px; }
+    .feed-card { border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px; margin-bottom: 12px; position: relative; border-left: 5px solid; }
+    .feed-card.rebar { border-left-color: var(--rebar); }
+    .feed-card.mep { border-left-color: var(--mep); }
+    .feed-card.formwork { border-left-color: var(--formwork); }
+    .feed-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; color: var(--text-sub); }
+    .feed-time { font-weight: 700; color: #2563EB; background: #EFF6FF; padding: 2px 6px; border-radius: 4px; }
+    .raw-audio { background: #F8FAFC; border-radius: 6px; padding: 8px 10px; font-size: 13px; color: #334155; margin: 8px 0; border: 1px dashed #CBD5E1; }
+    .spec-summary { font-size: 13px; font-weight: 600; color: #0F172A; line-height: 1.4; }
+
+    /* QR 코드 인쇄 팝업 모달 */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; justify-content: center; align-items: center; }
+    .modal-content { background: white; width: 850px; max-height: 90vh; border-radius: 16px; padding: 26px; overflow-y: auto; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .qr-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px; }
+    .qr-card { border: 3px solid; border-radius: 12px; padding: 14px; text-align: center; }
+    .btn-print { background: #2563EB; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; }
+    .btn-close { background: #94A3B8; color: white; padding: 10px 18px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; margin-left: 8px; }
+  </style>
+</head>
+<body>
+
+  <aside>
+    <div>
+      <div class="brand">VOICE-LOCK <span>시공사 관제</span></div>
+      <div class="menu-item active">📊 통합 공정 현황</div>
+      <div class="menu-item" onclick="openQrModal()">🖨️ QR 코드 인쇄 및 발급</div>
+      <div class="menu-item" onclick="clearData()">🗑️ 피드 데이터 초기화</div>
+    </div>
+    <div style="font-size: 12px; color: #64748B;">
+      로그인: 김철수 기사 (공사부)<br>
+      시스템: 실시간 동기화 On
+    </div>
+  </aside>
+
+  <main>
+    <header>
+      <div>
+        <h2>103동 3층 골조공사 통합 관제 현황</h2>
+        <span style="font-size: 13px; color: #64748B;">반장님이 QR 스캔 후 녹음한 내용이 실시간 자동 반영됩니다.</span>
+      </div>
+      <div class="refresh-badge">● 실시간 자동 동기화 중</div>
+    </header>
+
+    <div class="stats-grid">
+      <div class="stat-card rebar">
+        <div class="stat-title">🟦 철근 (REBAR)</div>
+        <div class="stat-val" id="statRebar">0 건</div>
+      </div>
+      <div class="stat-card mep">
+        <div class="stat-title">🟨 설비 (MEP)</div>
+        <div class="stat-val" id="statMep">0 건</div>
+      </div>
+      <div class="stat-card formwork">
+        <div class="stat-title">🟧 형틀 (FORMWORK)</div>
+        <div class="stat-val" id="statForm">0 건</div>
+      </div>
+      <div class="stat-card qc">
+        <div class="stat-title">🟩 타설 승인 게이트</div>
+        <div class="stat-val" id="statQc">준비중</div>
+      </div>
+    </div>
+
+    <div class="content-grid">
+      <!-- 부재별 진행표 -->
+      <div class="section-card">
+        <div class="section-title">
+          <span>부재별 공정 릴레이 락(Lock)</span>
+          <span style="font-size: 12px; color: #64748B;">3개 공종 완료 시 타설 해제</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>부재명</th>
+              <th>철근</th>
+              <th>설비</th>
+              <th>형틀</th>
+              <th>타설 허가</th>
+            </tr>
+          </thead>
+          <tbody id="matrixTable">
+            <tr>
+              <td><strong>3F C1 기둥</strong></td>
+              <td id="c1-rebar"><span class="tag wait">대기</span></td>
+              <td id="c1-mep"><span class="tag wait">대기</span></td>
+              <td id="c1-formwork"><span class="tag wait">대기</span></td>
+              <td><button class="btn-approve" id="c1-btn" disabled>🔒 타설 잠김</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 실시간 녹음 수신 피드 -->
+      <div class="section-card">
+        <div class="section-title">
+          <span>실시간 은어 정제 수신 피드</span>
+          <span style="font-size: 12px; color: #2563EB;" id="feedCount">0건 수신</span>
+        </div>
+        <div class="feed-list" id="feedList">
+          <div style="text-align: center; color: #94A3B8; padding: 40px 0;">
+            반장님이 QR을 찍고 녹음하면<br>여기에 시각과 원문, 시방서 변환 내용이 즉시 표시됩니다.
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- QR 코드 인쇄 팝업 모달 -->
+  <div class="modal-overlay" id="qrModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>현장 부착용 공종별 컬러 QR 스티커</h3>
+        <div>
+          <button class="btn-print" onclick="window.print()">인쇄하기 (A4)</button>
+          <button class="btn-close" onclick="closeQrModal()">닫기</button>
+        </div>
+      </div>
+      <div class="qr-grid" id="qrContainer">
+        <!-- JS로 동적 생성 -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 1. QR 모달 열기/닫기
+    function openQrModal() {
+      const baseUrl = window.location.href.replace('dashboard.html', 'index.html');
+      const container = document.getElementById('qrContainer');
+      container.innerHTML = `
+        <div class="qr-card" style="border-color:#1D4ED8;">
+          <h4 style="color:#1D4ED8;">🟦 철근 공종 (REBAR)</h4>
+          <p style="font-size:12px; color:#64748B; margin:4px 0 8px;">103동 3층 A구역 (C1 기둥)</p>
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=170x170&data=${encodeURIComponent(baseUrl + '?trade=rebar&color=blue&zone=103동 3층 A구역&elem=C1 기둥')}&color=1D4ED8">
+        </div>
+        <div class="qr-card" style="border-color:#D97706;">
+          <h4 style="color:#D97706;">🟨 설비 공종 (MEP)</h4>
+          <p style="font-size:12px; color:#64748B; margin:4px 0 8px;">103동 3층 A구역 (C1 기둥)</p>
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=170x170&data=${encodeURIComponent(baseUrl + '?trade=mep&color=yellow&zone=103동 3층 A구역&elem=C1 기둥')}&color=D97706">
+        </div>
+        <div class="qr-card" style="border-color:#EA580C;">
+          <h4 style="color:#EA580C;">🟧 형틀 공종 (FORMWORK)</h4>
+          <p style="font-size:12px; color:#64748B; margin:4px 0 8px;">103동 3층 A구역 (C1 기둥)</p>
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=170x170&data=${encodeURIComponent(baseUrl + '?trade=formwork&color=orange&zone=103동 3층 A구역&elem=C1 기둥')}&color=EA580C">
+        </div>
+        <div class="qr-card" style="border-color:#15803D;">
+          <h4 style="color:#15803D;">🟩 품질 승인 (CONCRETE QC)</h4>
+          <p style="font-size:12px; color:#64748B; margin:4px 0 8px;">103동 3층 A구역 (C1 기둥)</p>
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=170x170&data=${encodeURIComponent(baseUrl + '?trade=qc&color=green&zone=103동 3층 A구역&elem=C1 기둥')}&color=15803D">
+        </div>
+      `;
+      document.getElementById('qrModal').style.display = 'flex';
+    }
+
+    function closeQrModal() {
+      document.getElementById('qrModal').style.display = 'none';
+    }
+
+    // 2. 실시간 피드 및 매트릭스 렌더링
+    function renderDashboard() {
+      const reports = JSON.parse(localStorage.getItem('voicelock_reports') || '[]');
+      const feedList = document.getElementById('feedList');
+      document.getElementById('feedCount').innerText = `${reports.length}건 수신됨`;
+
+      if (reports.length === 0) {
+        feedList.innerHTML = `<div style="text-align: center; color: #94A3B8; padding: 40px 0;">반장님이 QR을 찍고 녹음하면<br>여기에 시각과 원문, 시방서 변환 내용이 즉시 표시됩니다.</div>`;
+        return;
+      }
+
+      let rebarCount = 0, mepCount = 0, formCount = 0;
+      feedList.innerHTML = '';
+
+      reports.forEach(item => {
+        if (item.trade === 'rebar') rebarCount++;
+        if (item.trade === 'mep') mepCount++;
+        if (item.trade === 'formwork') formCount++;
+
+        const card = document.createElement('div');
+        card.className = `feed-card ${item.trade}`;
+        card.innerHTML = `
+          <div class="feed-header">
+            <span><strong>${item.author}</strong> (📍 ${item.zone} ${item.elem})</span>
+            <span class="feed-time">⏱ 녹음시각 ${item.time}</span>
+          </div>
+          <div class="raw-audio">🗣️️ <strong>반장 발화 원문:</strong> "${item.rawText}"</div>
+          <div class="spec-summary">📑 <strong>국토부 시방서 정제:</strong> ${item.summary}</div>
+        `;
+        feedList.appendChild(card);
+      });
+
+      document.getElementById('statRebar').innerText = `${rebarCount} 건`;
+      document.getElementById('statMep').innerText = `${mepCount} 건`;
+      document.getElementById('statForm').innerText = `${formCount} 건`;
+
+      // C1 기둥 공종 릴레이 상태 업데이트
+      const hasRebar = reports.some(r => r.trade === 'rebar');
+      const hasMep = reports.some(r => r.trade === 'mep');
+      const hasForm = reports.some(r => r.trade === 'formwork');
+
+      if (hasRebar) document.getElementById('c1-rebar').innerHTML = '<span class="tag done">✓ 완료</span>';
+      if (hasMep) document.getElementById('c1-mep').innerHTML = '<span class="tag done">✓ 완료</span>';
+      if (hasForm) document.getElementById('c1-formwork').innerHTML = '<span class="tag done">✓ 완료</span>';
+
+      const btn = document.getElementById('c1-btn');
+      if (hasRebar && hasMep && hasForm) {
+        btn.disabled = false;
+        btn.innerText = "✅ 타설 승인 (해제)";
+        btn.onclick = () => alert("103동 3층 C1 기둥 타설 승인 완료! 감리 보고서가 생성되었습니다.");
+        document.getElementById('statQc').innerText = "승인 가능";
+      }
+    }
+
+    function clearData() {
+      if (confirm("모든 녹음 기록을 초기화하시겠습니까?")) {
+        localStorage.removeItem('voicelock_reports');
+        renderDashboard();
+      }
+    }
+
+    // 다른 탭/창(반장님 모바일 웹)에서 데이터가 들어오면 즉시 화면 갱신
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'voicelock_last_update' || e.key === 'voicelock_reports') {
+        renderDashboard();
+      }
+    });
+
+    // 1초 주기로 자동 확인
+    setInterval(renderDashboard, 1000);
+    renderDashboard();
+  </script>
+</body>
+</html>

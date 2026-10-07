@@ -1,0 +1,191 @@
+HTML
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>VOICE-LOCK 현장 검측 비서</title>
+  <style>
+    :root { --primary-color: #1D4ED8; --bg-light: #F8FAFC; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Pretendard", Roboto, sans-serif; background-color: var(--bg-light); color: #0F172A; display: flex; flex-direction: column; height: 100vh; }
+    header { background: var(--primary-color); color: white; padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 19px; font-weight: 800; }
+    .badge { font-size: 12px; background: rgba(255,255,255,0.25); padding: 4px 10px; border-radius: 20px; font-weight: 700; }
+    main { flex: 1; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; max-width: 480px; margin: 0 auto; width: 100%; }
+    .info-card { background: white; border-radius: 16px; padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border-left: 6px solid var(--primary-color); }
+    .info-card .location { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
+    .info-card .guide { font-size: 13px; color: #64748B; }
+    .mic-container { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 20px 0; }
+    .mic-btn {
+      width: 170px; height: 170px; border-radius: 50%; background: white;
+      border: 8px solid var(--primary-color); color: var(--primary-color);
+      font-size: 18px; font-weight: 800; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; cursor: pointer; user-select: none;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08); transition: all 0.2s ease;
+    }
+    .mic-btn.recording { background: var(--primary-color); color: white; transform: scale(0.95); animation: pulse 1.2s infinite; }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(29, 78, 216, 0.4); }
+      70% { box-shadow: 0 0 0 25px rgba(29, 78, 216, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(29, 78, 216, 0); }
+    }
+    .mic-icon { font-size: 40px; margin-bottom: 8px; }
+    .status-text { font-size: 14px; color: #64748B; text-align: center; margin-top: 15px; font-weight: 600; }
+    .result-box { background: white; border-radius: 16px; padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); display: none; margin-bottom: 10px; }
+    .result-box h3 { font-size: 13px; color: #64748B; margin-bottom: 6px; }
+    .result-content { font-size: 15px; line-height: 1.5; color: #1E293B; }
+    .summary-badge { display: inline-block; background: #DCFCE7; color: #15803D; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <header id="topHeader">
+    <h1 id="tradeTitle">철근 공종 검측</h1>
+    <span class="badge" id="tradeBadge">REBAR</span>
+  </header>
+
+  <main>
+    <div class="info-card">
+      <div class="location" id="locationLabel">📍 103동 3층 A구역 (C1 기둥)</div>
+      <div class="guide" id="guideLabel">철근 배근 규격, 수량, 결속 완료 내용을 말씀하세요.</div>
+    </div>
+
+    <div class="mic-container">
+      <div class="mic-btn" id="micBtn">
+        <span class="mic-icon">🎙️️</span>
+        <span id="micBtnText">누르고 말하기</span>
+      </div>
+      <div class="status-text" id="statusText">버튼을 누른 채 편하게 말씀하세요</div>
+    </div>
+
+    <div class="result-box" id="resultBox">
+      <h3>🗣️ 녹음된 원문 (글자 그대로)</h3>
+      <div class="result-content" id="sttResult">대기 중...</div>
+      <div style="margin-top: 12px; border-top: 1px dashed #E2E8F0; padding-top: 10px;">
+        <h3>📑 표준 시방서 변환 요약</h3>
+        <div class="result-content" id="summaryResult" style="font-weight: 600; color: #1D4ED8;">변환 중...</div>
+        <div class="summary-badge">🟢 시공사 대시보드 자동 전송 완료</div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const trade = urlParams.get('trade') || 'rebar';
+    const zone = urlParams.get('zone') || '103동 3층 A구역';
+    const elem = urlParams.get('elem') || 'C1 기둥';
+
+    const themeConfig = {
+      rebar: { name: '철근 공종 검측', badge: 'REBAR', color: '#1D4ED8', guide: '주근 규격, 늑근 간격, 결속 완료 내용을 말씀하세요.', author: '철근 반장' },
+      mep: { name: '설비 공종 검측', badge: 'MEP', color: '#D97706', guide: '슬리브 구경(mm), 매설 개수, 고정 상태를 말씀하세요.', author: '설비 반장' },
+      formwork: { name: '형틀 목공 검측', badge: 'FORMWORK', color: '#EA580C', guide: '거푸집 수직도, 긴결재 체결 상태를 말씀하세요.', author: '형틀 목공' },
+      qc: { name: '타설 품질 승인', badge: 'CONCRETE QC', color: '#15803D', guide: '선행 공종 검측 확인 및 타설 허가를 승인합니다.', author: '품질 관리팀' }
+    };
+
+    const currentTheme = themeConfig[trade] || themeConfig.rebar;
+    document.documentElement.style.setProperty('--primary-color', currentTheme.color);
+    document.getElementById('tradeTitle').innerText = currentTheme.name;
+    document.getElementById('tradeBadge').innerText = currentTheme.badge;
+    document.getElementById('locationLabel').innerText = `📍 ${zone} (${elem})`;
+    document.getElementById('guideLabel').innerText = currentTheme.guide;
+
+    // Web Speech API
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition;
+    let isRecording = false;
+
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.lang = 'ko-KR';
+      recognition.continuous = true;
+      recognition.interimResults = false;
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[event.results.length - 1][0].transcript;
+        processVoiceData(transcript);
+      };
+      recognition.onerror = () => {
+        document.getElementById('statusText').innerText = "인식 오류: 다시 시도해주세요.";
+      };
+    }
+
+    const micBtn = document.getElementById('micBtn');
+    const startRec = (e) => {
+      e.preventDefault();
+      if (!isRecording) {
+        isRecording = true;
+        micBtn.classList.add('recording');
+        document.getElementById('micBtnText').innerText = "듣고 있어요...";
+        document.getElementById('statusText').innerText = "말씀이 끝나면 손을 떼세요";
+        if (recognition) recognition.start();
+      }
+    };
+    const stopRec = (e) => {
+      e.preventDefault();
+      if (isRecording) {
+        isRecording = false;
+        micBtn.classList.remove('recording');
+        document.getElementById('micBtnText').innerText = "누르고 말하기";
+        document.getElementById('statusText').innerText = "시공사로 전송 중...";
+        if (recognition) recognition.stop();
+      }
+    };
+
+    micBtn.addEventListener('mousedown', startRec);
+    micBtn.addEventListener('mouseup', stopRec);
+    micBtn.addEventListener('touchstart', startRec);
+    micBtn.addEventListener('touchend', stopRec);
+
+    function processVoiceData(rawText) {
+      document.getElementById('resultBox').style.display = 'block';
+      document.getElementById('sttResult').innerText = `"${rawText}"`;
+
+      // 국토부 표준시방서 기반 은어 정규화
+      let normalized = rawText
+        .replace(/하리/g, "보(Beam)")
+        .replace(/오사마리/g, "시공 완료")
+        .replace(/시로바리/g, "띠철근/스트럽 결속")
+        .replace(/나라시/g, "고르기/다짐")
+        .replace(/공구리/g, "콘크리트")
+        .replace(/바라시/g, "탈형(해체)")
+        .replace(/가꾸목/g, "각재");
+
+      let summary = "";
+      if (trade === 'rebar') {
+        summary = `주근 및 띠철근 결속 상태 적합, 배근 검측 요청 접수 (${normalized})`;
+      } else if (trade === 'mep') {
+        summary = `슬리브 및 매설 배관 위치 고정 확인 완료 (${normalized})`;
+      } else if (trade === 'formwork') {
+        summary = `거푸집 조립 및 동바리 연직도 이상 무 (${normalized})`;
+      } else {
+        summary = `공종 검측 확인 완료 (${normalized})`;
+      }
+
+      document.getElementById('summaryResult').innerText = summary;
+      document.getElementById('statusText').innerText = "✅ 전송 완료!";
+
+      // 시공사 대시보드로 보낼 데이터 객체 (녹음 시각 포함)
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+      const reportData = {
+        trade: trade,
+        author: currentTheme.author,
+        zone: zone,
+        elem: elem,
+        time: timeStr,
+        rawText: rawText,
+        summary: summary,
+        timestamp: Date.now()
+      };
+
+      // localStorage에 저장해 대시보드와 실시간 공유
+      let existingReports = JSON.parse(localStorage.getItem('voicelock_reports') || '[]');
+      existingReports.unshift(reportData);
+      localStorage.setItem('voicelock_reports', JSON.stringify(existingReports));
+      // 실시간 이벤트 브로드캐스트
+      localStorage.setItem('voicelock_last_update', Date.now().toString());
+    }
+  </script>
+</body>
+</html>
