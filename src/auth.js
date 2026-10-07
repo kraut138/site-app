@@ -40,8 +40,7 @@ function friendlyAuthError(err) {
   return err?.message || "처리 중 오류가 발생했습니다.";
 }
 
-// 회원가입: Firebase Auth 계정 생성 + Firestore에 역할·이름을 담은 프로필 문서 생성.
-export async function signUp({ email, password, name, directorCode }) {
+async function createAccount({ email, password, name, directorCode }) {
   try {
     const code = directorCode ? directorCode.trim() : "";
     const role = code === DIRECTOR_SIGNUP_CODE ? ROLES.SUPER : code === INSPECTOR_SIGNUP_CODE ? ROLES.INSPECTOR : ROLES.SUB;
@@ -52,6 +51,26 @@ export async function signUp({ email, password, name, directorCode }) {
   } catch (err) {
     throw new Error(friendlyAuthError(err));
   }
+}
+
+// 가입이 진행되는 동안의 결과(성공하면 만들어진 프로필, 실패하면 null).
+// 계정이 만들어지는 순간 인증 상태 구독(App.jsx)이 곧바로 프로필을 읽으러 오는데, 이때 프로필 저장이 아직
+// 끝나기 전이면 "프로필 없음"으로 읽혀 하도급사로 잘못 표시되는 경우가 있었다(관리자 코드를 넣고도 드물게 발생).
+// 그래서 가입이 끝날 때까지 프로필 읽기를 기다리게 한다.
+let signupInFlight = null;
+
+// 회원가입: Firebase Auth 계정 생성 + Firestore에 역할·이름을 담은 프로필 문서 생성.
+export function signUp(args) {
+  const run = createAccount(args);
+  const tracked = run.then(
+    (profile) => profile,
+    () => null
+  );
+  signupInFlight = tracked;
+  tracked.then(() => {
+    if (signupInFlight === tracked) signupInFlight = null;
+  });
+  return run;
 }
 
 export async function logIn({ email, password }) {
@@ -70,6 +89,10 @@ export async function logOut() {
 // Firestore에 저장된 사용자 프로필(역할 등)을 읽어온다. 계정은 있지만 프로필 문서가 없는
 // 예외적인 경우(예: 수동으로 콘솔에서 계정만 만든 경우)에는 안전하게 하도급사로 취급한다.
 export async function fetchUserProfile(uid, fallbackEmail) {
+  if (signupInFlight) {
+    const created = await signupInFlight;
+    if (created && created.uid === uid) return { language: DEFAULT_LANGUAGE, ...created };
+  }
   const snap = await getDoc(doc(db, "users", uid));
   if (snap.exists()) return { language: DEFAULT_LANGUAGE, ...snap.data() };
   return { email: fallbackEmail || "", name: "", role: ROLES.SUB, language: DEFAULT_LANGUAGE };

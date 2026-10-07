@@ -163,6 +163,7 @@ export const VIEW_ROLES = {
   unitinfo: [ROLES.SUPER, ROLES.INSPECTOR],
   safety: [ROLES.SUPER, ROLES.INSPECTOR],
   workerRoster: [ROLES.SUPER, ROLES.INSPECTOR],
+  qrcodes: [ROLES.SUPER, ROLES.INSPECTOR],
 };
 
 export function isViewAllowed(viewId, role) {

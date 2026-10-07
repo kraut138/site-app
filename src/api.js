@@ -13,6 +13,7 @@ import {
   arrayUnion,
 } from "firebase/firestore";
 import { db } from "./firebase.js";
+import { QR_LIMITS, newQrBoardId, isValidQrBoardId } from "./qr.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -467,6 +468,126 @@ export async function updateEquipmentStatus(id, data) {
   });
   const snap = await getDoc(doc(db, "equipment", id));
   return { id: snap.id, ...snap.data() };
+}
+
+// ---------------- QR 기록판 (임의 QR 코드 + 스캔한 사람이 남기는 메모·사진·음성) ----------------
+// qrCodes/{id}   : { title, note, createdAt, createdBy }
+// qrEntries/{id} : { qrId, author, text, hasImage, hasAudio, audioSec, thumb, createdAt }  <- 목록용(가벼움)
+// qrMedia/{id}   : { qrId, image, audio }  <- 사진 원본·음성. 사진을 크게 보거나 음성을 재생할 때만 읽는다(id는 qrEntries와 같음)
+// 목록에는 작은 미리보기(thumb)만 실어서, 기록이 많아져도 목록을 여는 데이터가 크게 늘지 않게 했다.
+
+function newestFirst(a, b) {
+  return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+}
+
+export async function createQrCode({ title, note, createdBy }) {
+  const cleanTitle = String(title || "").trim();
+  if (!cleanTitle) throw new Error("QR 코드 이름을 입력해주세요.");
+  const payload = {
+    title: cleanTitle.slice(0, QR_LIMITS.titleMax),
+    note: String(note || "").trim().slice(0, QR_LIMITS.noteMax),
+    createdAt: nowIso(),
+    createdBy: createdBy || "",
+  };
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const id = newQrBoardId();
+    const ref = doc(db, "qrCodes", id);
+    const existing = await getDoc(ref);
+    if (existing.exists()) continue; // 10글자 무작위 코드라 사실상 겹치지 않지만, 겹치면 다시 뽑는다
+    await setDoc(ref, payload);
+    return { id, ...payload };
+  }
+  throw new Error("QR 코드를 만들지 못했습니다. 다시 시도해주세요.");
+}
+
+export async function updateQrCode(id, { title, note }) {
+  const cleanTitle = String(title || "").trim();
+  if (!cleanTitle) throw new Error("QR 코드 이름을 입력해주세요.");
+  const patch = {
+    title: cleanTitle.slice(0, QR_LIMITS.titleMax),
+    note: String(note || "").trim().slice(0, QR_LIMITS.noteMax),
+  };
+  await updateDoc(doc(db, "qrCodes", id), patch);
+  return patch;
+}
+
+// 관리자 탭용: 모든 QR 코드와 모든 기록(미리보기만, 사진 원본·음성 제외)
+export async function fetchQrOverview() {
+  const [codesSnap, entriesSnap] = await Promise.all([getDocs(collection(db, "qrCodes")), getDocs(collection(db, "qrEntries"))]);
+  return { codes: snapToArray(codesSnap).sort(newestFirst), entries: snapToArray(entriesSnap).sort(newestFirst) };
+}
+
+// 스캔 화면용: QR 코드 1개와 그 QR에 남겨진 기록. QR 코드가 없으면 code가 null이다.
+export async function fetchQrBoard(qrId) {
+  if (!isValidQrBoardId(qrId)) return { code: null, entries: [] };
+  const snap = await getDoc(doc(db, "qrCodes", qrId));
+  if (!snap.exists()) return { code: null, entries: [] };
+  const entriesSnap = await getDocs(query(collection(db, "qrEntries"), where("qrId", "==", qrId)));
+  return { code: { id: snap.id, ...snap.data() }, entries: snapToArray(entriesSnap).sort(newestFirst) };
+}
+
+export async function createQrEntry({ qrId, author, text, image, thumb, audio, audioSec }) {
+  if (!isValidQrBoardId(qrId)) throw new Error("잘못된 QR 코드입니다.");
+  const cleanText = String(text || "").trim().slice(0, QR_LIMITS.textMax);
+  if (!cleanText && !image && !audio) throw new Error("메모, 사진, 음성 중 하나 이상을 입력해주세요.");
+  const mediaChars = (image ? image.length : 0) + (audio ? audio.length : 0);
+  if (mediaChars > QR_LIMITS.mediaDocMaxChars) {
+    const err = new Error("첨부 용량이 너무 큽니다.");
+    err.code = "qr/too-large";
+    throw err;
+  }
+  const meta = {
+    qrId,
+    author: String(author || "").trim().slice(0, QR_LIMITS.authorMax),
+    text: cleanText,
+    hasImage: !!image,
+    hasAudio: !!audio,
+    createdAt: nowIso(),
+  };
+  if (image) meta.thumb = thumb || "";
+  if (audio) meta.audioSec = Math.max(0, Math.round(audioSec || 0));
+
+  // 목록용 문서와 사진·음성 문서를 한 번에(둘 다 저장되거나 둘 다 안 되게) 저장한다.
+  const entryRef = doc(collection(db, "qrEntries"));
+  const batch = writeBatch(db);
+  batch.set(entryRef, meta);
+  if (image || audio) {
+    const media = { qrId };
+    if (image) media.image = image;
+    if (audio) media.audio = audio;
+    batch.set(doc(db, "qrMedia", entryRef.id), media);
+  }
+  await batch.commit();
+  return { id: entryRef.id, ...meta };
+}
+
+export async function fetchQrMedia(entryId) {
+  const snap = await getDoc(doc(db, "qrMedia", entryId));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function deleteQrEntry(id) {
+  const batch = writeBatch(db);
+  batch.delete(doc(db, "qrEntries", id));
+  batch.delete(doc(db, "qrMedia", id));
+  await batch.commit();
+  return { ok: true };
+}
+
+// QR 코드를 지우면 그 QR에 남겨진 기록도 함께 지운다. 중간에 실패해도 다시 시도할 수 있도록 QR 코드 문서는 맨 마지막에 지운다.
+export async function deleteQrCode(id) {
+  const entriesSnap = await getDocs(query(collection(db, "qrEntries"), where("qrId", "==", id)));
+  const entryIds = entriesSnap.docs.map((d) => d.id);
+  for (let i = 0; i < entryIds.length; i += 200) {
+    const batch = writeBatch(db);
+    entryIds.slice(i, i + 200).forEach((entryId) => {
+      batch.delete(doc(db, "qrEntries", entryId));
+      batch.delete(doc(db, "qrMedia", entryId));
+    });
+    await batch.commit();
+  }
+  await deleteDoc(doc(db, "qrCodes", id));
+  return { ok: true, removedEntries: entryIds.length };
 }
 
 // ---------------- image helper (변경 없음, 순수 클라이언트 로직) ----------------

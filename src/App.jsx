@@ -4,6 +4,8 @@ import OperationsHub from "./components/OperationsHub.jsx";
 import Workers from "./components/Workers.jsx";
 import WorkerRoster from "./components/WorkerRoster.jsx";
 import Documents from "./components/Documents.jsx";
+import QrCodes from "./components/QrCodes.jsx";
+import QrBoardScreen from "./components/QrBoardScreen.jsx";
 import Equipment from "./components/Equipment.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
@@ -18,11 +20,13 @@ import * as api from "./api.js";
 import { subscribeAuth, fetchUserProfile, logOut, updateUserLanguage } from "./auth.js";
 import { LanguageProvider } from "./LanguageContext.jsx";
 import { DEFAULT_LANGUAGE } from "./i18n.js";
-import { readUnitDeepLink, clearUnitDeepLinkFromUrl } from "./qr.js";
+import { readUnitDeepLink, clearUnitDeepLinkFromUrl, readQrBoardLink } from "./qr.js";
 
 // 페이지가 처음 로드될 때 딱 한 번만 읽는다 - QR 스캔으로 들어온 경우 여기에 값이 담긴다.
 // 이 값이 있으면 로그인/사이드바 전체를 건너뛰고 QrUnitScreen(모바일 전용 화면)을 바로 보여준다.
-const initialDeepLink = readUnitDeepLink();
+// QR 기록판 QR(?qr=코드)로 들어온 경우도 같은 방식으로 로그인 없이 전용 화면만 보여준다. 두 QR이 함께 있으면 기록판이 우선이다.
+const initialQrBoardId = readQrBoardLink();
+const initialDeepLink = initialQrBoardId ? null : readUnitDeepLink();
 
 export default function App() {
   // authUser: Firebase Auth 로그인 여부. userProfile: Firestore에 저장된 이름/역할.
@@ -78,8 +82,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // QR 스캔으로 들어온 경우엔 로그인 없이 바로 QrUnitScreen을 보여주므로 인증 상태를 볼 필요가 없다.
-    if (initialDeepLink) {
+    // QR 스캔으로 들어온 경우엔 로그인 없이 바로 QrUnitScreen / QrBoardScreen을 보여주므로 인증 상태를 볼 필요가 없다.
+    if (initialDeepLink || initialQrBoardId) {
       setAuthChecked(true);
       return;
     }
@@ -113,6 +117,11 @@ export default function App() {
   }, [role, view]);
 
   useEffect(() => {
+    // QR 기록판 화면은 공사 데이터가 필요 없으니, 스캔한 사람의 기기에서 전체 데이터를 읽어오지 않는다.
+    if (initialQrBoardId) {
+      setLoading(false);
+      return undefined;
+    }
     let alive = true;
     api
       .fetchBootstrap()
@@ -287,7 +296,9 @@ export default function App() {
   badges.safetyTotal = badges.safetyNcr + badges.workersPending + badges.equipmentPending;
 
   let content;
-  if (!authChecked) {
+  if (initialQrBoardId) {
+    content = <QrBoardScreen qrId={initialQrBoardId} />;
+  } else if (!authChecked) {
     content = <CenterMessage>불러오는 중…</CenterMessage>;
   } else if (!initialDeepLink && !authUser) {
     content = (
@@ -298,7 +309,8 @@ export default function App() {
         }}
       />
     );
-  } else if (loading) {
+  } else if (loading || (!initialDeepLink && !userProfile)) {
+    // 로그인은 됐지만 역할(프로필)을 아직 못 읽은 짧은 순간에도 여기서 기다린다 - 역할 없이 화면을 그리면 메뉴가 비어 보인다.
     content = <CenterMessage>불러오는 중…</CenterMessage>;
   } else if (loadError) {
     content = (
@@ -369,6 +381,7 @@ export default function App() {
               notify={notify}
             />
           )}
+          {view === "qrcodes" && <QrCodes createdBy={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />}
           {view === "workerRoster" && (
             <WorkerRoster
               workers={workers}

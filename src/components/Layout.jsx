@@ -23,6 +23,7 @@ const NAV_GROUPS = [
       { id: "site3d", labelKey: "nav.site3d", Icon: Icon.CitySkyline },
       { id: "workerRoster", labelKey: "nav.workerRoster", Icon: Icon.IdCard },
       { id: "documents", labelKey: "nav.documents", Icon: Icon.Inspection },
+      { id: "qrcodes", labelKey: "nav.qrcodes", Icon: Icon.Qr },
     ],
   },
   {
@@ -41,6 +42,7 @@ const PAGE_META = {
   site3d: { titleKey: "page.site3d.title", descKey: "page.site3d.desc" },
   workerRoster: { titleKey: "page.workerRoster.title", descKey: "page.workerRoster.desc" },
   documents: { titleKey: "page.documents.title", descKey: "page.documents.desc" },
+  qrcodes: { titleKey: "page.qrcodes.title", descKey: "page.qrcodes.desc" },
   safety: { titleKey: "page.safety.title", descKey: "page.safety.desc" },
 };
 

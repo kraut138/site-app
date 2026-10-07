@@ -162,6 +162,21 @@ export const Icon = {
       <circle cx="15" cy="18" r="1.6" />
     </svg>
   ),
+  Qr: (p) => (
+    <svg className="icon" {...iconProps} {...p}>
+      <rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1" />
+      <rect x="14" y="3.5" width="6.5" height="6.5" rx="1" />
+      <rect x="3.5" y="14" width="6.5" height="6.5" rx="1" />
+      <path d="M14 14h2.6v2.6H14zM18.4 14h2.1M14 18.4v2.1M17.6 17.6h2.9v2.9" />
+    </svg>
+  ),
+  Mic: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0" />
+      <path d="M12 18v3" />
+    </svg>
+  ),
   Empty: (p) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="34" height="34" {...p}>
       <path d="M4 19V7.5L12 3l8 4.5V19" />
