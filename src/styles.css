@@ -1984,3 +1984,476 @@ textarea.input {
   .qr-detail-qr { width: 100%; max-width: 280px; height: auto; aspect-ratio: 1; margin: 0 auto; }
   .qr-detail-info { min-width: 0; width: 100%; }
 }
+
+/* ============ 음성 검측 (하도급사) ============ */
+.vl-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.vl-section-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+
+.vl-trades {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.vl-trade {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--line);
+  border-top: 4px solid var(--vl);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
+}
+
+.vl-trade:hover:not(:disabled) {
+  background: var(--vl-tint);
+}
+
+.vl-trade:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.vl-trade.is-active {
+  background: var(--vl-tint);
+  border-color: var(--vl);
+}
+
+.vl-trade:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.vl-trade-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--vl);
+  flex-shrink: 0;
+}
+
+.vl-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.vl-recorder {
+  border-top: 5px solid var(--vl);
+  overflow: hidden;
+}
+
+.vl-rec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px 0;
+}
+
+.vl-rec-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.vl-badge {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--vl);
+  color: #fff;
+}
+
+.vl-rec-body {
+  padding: 14px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.vl-loc {
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--vl);
+  border-radius: var(--radius-m);
+  padding: 12px 14px 2px;
+  background: var(--surface);
+}
+
+.vl-loc-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.vl-loc-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 10px;
+}
+
+.vl-loc-fields .field {
+  margin-bottom: 12px;
+}
+
+.vl-guide {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.vl-note {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--pending);
+  background: var(--pending-bg);
+  border-radius: var(--radius-s);
+  padding: 9px 12px;
+  margin-bottom: 12px;
+}
+
+.vl-rec-body > .vl-note {
+  margin-bottom: 0;
+}
+
+.vl-mic-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0 2px;
+}
+
+.vl-mic {
+  width: 170px;
+  height: 170px;
+  padding: 0 14px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 8px solid var(--vl);
+  color: var(--vl);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 10px 25px rgba(16, 21, 26, 0.08);
+  transition: all 0.2s ease;
+}
+
+/* 듣는 중에는 마우스를 올려 둔(또는 휴대폰에서 방금 터치한) 상태에서도 배경이 연해지지 않아야 흰 글씨가 보인다 */
+.vl-mic:hover:not(:disabled):not(.is-listening) {
+  background: var(--vl-tint);
+}
+
+.vl-mic.is-listening {
+  background: var(--vl);
+  /* 주황·호박색 같은 밝은 공종 색에서도 흰 글씨가 또렷하도록 안쪽을 살짝 어둡게(지원하지 않는 브라우저는 위의 원래 색 그대로) */
+  background: color-mix(in srgb, var(--vl) 80%, #000);
+  color: #fff;
+  transform: scale(0.95);
+  animation: vlPulse 1.2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vl-mic.is-listening {
+    animation: none;
+  }
+}
+
+.vl-mic:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@keyframes vlPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 21, 26, 0.25);
+  }
+  70% {
+    box-shadow: 0 0 0 25px rgba(16, 21, 26, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 21, 26, 0);
+  }
+}
+
+.vl-status {
+  margin-top: 14px;
+  min-height: 20px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.vl-status.is-error {
+  color: var(--fail);
+}
+
+.vl-status.is-ok {
+  color: var(--pass);
+}
+
+.vl-result {
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--vl);
+  border-radius: var(--radius-m);
+  padding: 14px 16px;
+  background: var(--surface);
+}
+
+.vl-result h3 {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.vl-result-raw {
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.vl-result-sep {
+  border-top: 1px dashed var(--line-strong);
+  margin: 12px 0;
+}
+
+.vl-result-summary {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.vl-result-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.vl-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--pass-bg);
+  color: var(--pass);
+  padding: 4px 10px;
+  border-radius: var(--radius-s);
+}
+
+.vl-saving {
+  color: var(--ink-soft);
+}
+
+.vl-result.is-error {
+  border-left-color: var(--fail);
+}
+
+.vl-retry {
+  margin-top: 10px;
+}
+
+.vl-text {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vl-text-toggle {
+  align-self: center;
+  border: none;
+  background: none;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--blueprint);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.vl-text-form {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.vl-text-form textarea.input {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+}
+
+.vl-feed {
+  padding: 16px 18px 18px;
+}
+
+.vl-feed-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vl-feed-head .section-title {
+  margin-right: auto;
+}
+
+.vl-feed-count {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--blueprint);
+}
+
+.vl-feed-zone {
+  margin: 4px 0 12px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.vl-feed-loading {
+  text-align: center;
+  padding: 36px 0;
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+
+.vl-feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vl-card {
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--vl);
+  border-radius: var(--radius-m);
+  padding: 12px 14px;
+  background: var(--surface);
+}
+
+.vl-card-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.vl-card-trade {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.vl-card-via {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--ink-soft);
+}
+
+.vl-card-time {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+.vl-card-loc {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.vl-card-raw {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-s);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.vl-card-summary {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .vl-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .vl-trades {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .vl-loc-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .vl-elem {
+    grid-column: 1 / -1;
+  }
+  .vl-rec-head {
+    padding: 14px 14px 0;
+  }
+  .vl-rec-body {
+    padding: 12px 14px 16px;
+  }
+  .vl-mic {
+    width: 156px;
+    height: 156px;
+  }
+}

@@ -5,6 +5,7 @@ import Workers from "./components/Workers.jsx";
 import WorkerRoster from "./components/WorkerRoster.jsx";
 import Documents from "./components/Documents.jsx";
 import QrCodes from "./components/QrCodes.jsx";
+import VoiceInspection from "./components/VoiceInspection.jsx";
 import QrBoardScreen from "./components/QrBoardScreen.jsx";
 import Equipment from "./components/Equipment.jsx";
 import Buildings from "./components/Buildings.jsx";
@@ -372,6 +373,9 @@ export default function App() {
             />
           )}
           {view === "workers" && <Workers workers={workers} onCreateWorkers={handleCreateWorkers} notify={notify} />}
+          {view === "voice" && (
+            <VoiceInspection buildings={buildings} userName={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />
+          )}
           {view === "documents" && (
             <Documents
               signatures={docSignatures}

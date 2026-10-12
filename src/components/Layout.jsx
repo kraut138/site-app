@@ -14,6 +14,7 @@ const NAV_GROUPS = [
     groupKey: "nav.group.status",
     items: [
       { id: "operations", labelKey: "nav.operations", Icon: Icon.Dashboard, badgeKey: "operations" },
+      { id: "voice", labelKey: "nav.voice", Icon: Icon.Mic },
       { id: "workers", labelKey: "nav.workers", Icon: Icon.Worker, badgeKey: "workersPending" },
       { id: "equipment", labelKey: "nav.equipment", Icon: Icon.Excavator, badgeKey: "equipmentPending" },
       { id: "unitinfo", labelKey: "nav.unitinfo", Icon: Icon.Door },
@@ -33,6 +34,7 @@ const NAV_GROUPS = [
 
 const PAGE_META = {
   operations: { titleKey: "page.operations.title", descKey: "page.operations.desc" },
+  voice: { titleKey: "page.voice.title", descKey: "page.voice.desc" },
   workers: { titleKey: "page.workers.title", descKey: "page.workers.desc" },
   equipment: { titleKey: "page.equipment.title", descKey: "page.equipment.desc" },
   unitinfo: { titleKey: "page.unitinfo.title", descKey: "page.unitinfo.desc" },

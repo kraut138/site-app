@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase.js";
 import { QR_LIMITS, newQrBoardId, isValidQrBoardId } from "./qr.js";
+import { VOICE_TRADES, VOICE_LIMITS, clockString } from "./voice.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -588,6 +589,62 @@ export async function deleteQrCode(id) {
   }
   await deleteDoc(doc(db, "qrCodes", id));
   return { ok: true, removedEntries: entryIds.length };
+}
+
+// ---------------- 음성 검측 보고 (하도급사가 공종별로 말로 남기는 작업 보고) ----------------
+// voiceReports/{id}: 시안(dashboard.html)이 쓰던 필드 이름(trade, author, zone, elem, time, rawText, summary, timestamp)을 그대로 따른다.
+// 그래서 나중에 관리자 화면(대시보드)을 만들 때 이 컬렉션을 그대로 읽어 쓰면 된다.
+//   trade: "rebar" | "mep" | "formwork" | "qc"   zone: "101동 3층"   elem: "C1 기둥"   via: "voice"(음성) | "text"(직접 입력)
+const VOICE_SAVE_TIMEOUT_MS = 12000;
+
+// 연결이 불안한 현장(지하 등)에서는 Firestore 쓰기가 에러 없이 한참 대기 상태로 남을 수 있다.
+// 그 경우 화면이 "저장 중"에 멈춰 있지 않도록 시간 제한을 두고, 다시 보내도 중복되지 않게 문서 id를 미리 정해 둔다.
+function withTimeout(promise, ms, code) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error("시간이 너무 오래 걸립니다."), { code })), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+export function newVoiceReportId() {
+  return doc(collection(db, "voiceReports")).id;
+}
+
+export async function createVoiceReport(data) {
+  const trade = String(data.trade || "");
+  if (!VOICE_TRADES.some((t) => t.id === trade)) throw new Error("공종이 올바르지 않습니다.");
+  const id = String(data.id || "");
+  const zone = String(data.zone || "").trim();
+  const elem = String(data.elem || "").trim().slice(0, VOICE_LIMITS.elem);
+  const rawText = String(data.rawText || "").trim().slice(0, VOICE_LIMITS.rawText);
+  if (!id || !zone || !elem || !rawText) throw new Error("위치(동·층·부재)와 내용은 필수입니다.");
+  const now = new Date();
+  const floor = Number(data.floor);
+  const payload = {
+    trade,
+    author: String(data.author || "").trim().slice(0, 60),
+    buildingId: String(data.buildingId || ""),
+    buildingName: String(data.buildingName || ""),
+    floor: Number.isInteger(floor) ? floor : 0,
+    zone,
+    elem,
+    time: clockString(now),
+    rawText,
+    normalized: String(data.normalized || ""),
+    summary: String(data.summary || ""),
+    via: data.via === "text" ? "text" : "voice",
+    createdAt: now.toISOString(),
+    timestamp: now.getTime(),
+  };
+  await withTimeout(setDoc(doc(db, "voiceReports", id), payload), VOICE_SAVE_TIMEOUT_MS, "voice/timeout");
+  return { id, ...payload };
+}
+
+// 한 위치(동+층)의 보고를 최신순으로 가져온다. (인덱스 없이 쓰려고 정렬은 화면에서 한다)
+export async function fetchVoiceReports(zone) {
+  const snap = await getDocs(query(collection(db, "voiceReports"), where("zone", "==", zone)));
+  return snapToArray(snap).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 }
 
 // ---------------- image helper (변경 없음, 순수 클라이언트 로직) ----------------

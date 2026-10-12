@@ -167,6 +167,7 @@ export function isAdminRole(role) {
 export const VIEW_ROLES = {
   workers: [ROLES.SUB],
   equipment: [ROLES.SUB],
+  voice: [ROLES.SUB],
   buildings: [ROLES.SUPER],
   sitelayout: [ROLES.SUPER],
   unitinfo: [ROLES.SUPER],
