@@ -15,7 +15,7 @@ import LoginScreen from "./components/LoginScreen.jsx";
 import SafetyOverview from "./components/SafetyOverview.jsx";
 import QrUnitScreen from "./components/QrUnitScreen.jsx";
 import { Toast } from "./components/UI.jsx";
-import { ROLES, isAdminRole, isViewAllowed } from "./data.js";
+import { ROLES, isAdminRole, isViewAllowed, normalizeRole } from "./data.js";
 import * as api from "./api.js";
 import { subscribeAuth, fetchUserProfile, logOut, updateUserLanguage } from "./auth.js";
 import { LanguageProvider } from "./LanguageContext.jsx";
@@ -32,13 +32,14 @@ export default function App() {
   // authUser: Firebase Auth 로그인 여부. userProfile: Firestore에 저장된 이름/역할.
   // trueRole은 실제 계정 권한(로그인 시 그대로 고정), role은 화면에 실제 적용되는 값이다.
   // 관리자(소장) 계정만 viewAsRole로 "미리보기" 역할을 골라 role을 바꿔볼 수 있다 - Firestore에 저장된
-  // 진짜 권한(trueRole)은 절대 안 바뀌므로, 하도급사·감리자 계정은 이 기능으로 권한이 올라갈 수 없다.
+  // 진짜 권한(trueRole)은 절대 안 바뀌므로, 하도급사 계정은 이 기능으로 권한이 올라갈 수 없다.
+  // 역할은 하도급사/관리자 두 가지뿐이라, 저장된 값이 예전 "감리자"이거나 알 수 없는 값이어도 normalizeRole이 둘 중 하나로 맞춰준다.
   const [authUser, setAuthUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [viewAsRole, setViewAsRole] = useState(null);
   const [docSignatures, setDocSignatures] = useState({}); // 서류 탭 전자서명(확인용, 새로고침/로그아웃하면 사라짐)
-  const trueRole = userProfile?.role || null;
+  const trueRole = userProfile ? normalizeRole(userProfile.role) : null;
   const role = trueRole === ROLES.SUPER && viewAsRole ? viewAsRole : trueRole;
   const lang = userProfile?.language || DEFAULT_LANGUAGE;
 

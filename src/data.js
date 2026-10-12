@@ -140,17 +140,26 @@ export function findUnitFloorPlan(unitFloorPlans, buildingId, unit) {
 export const NCR_STATUSES = ["발생", "조치중", "재검측요청", "완료"];
 
 // 내부 값(SUB/SUPER)은 기존에 가입된 계정의 Firestore 데이터와 호환되어야 하므로 그대로 둔다.
-// 화면에 실제로 보이는 이름("관리자" 등)은 i18n.js의 role.super/role.inspector에서 따로 관리한다.
+// 화면에 실제로 보이는 이름("관리자" 등)은 i18n.js의 role.sub/role.super에서 따로 관리한다.
 export const ROLES = {
   SUB: "하도급사",
   SUPER: "감리단",
-  INSPECTOR: "감리자",
 };
 
-// "관리자"와 "감리자"는 지금은 완전히 같은 권한(감리단 등급)을 갖는다 - 구분은 사이드바 색상과 표시 이름뿐이다.
-// 나중에 두 역할의 권한을 다르게 만들고 싶어지면 이 함수 하나만 손보면 된다.
+// 예전에 있던 "감리자" 역할의 저장값. 지금은 없는 역할이지만, 그 역할로 가입해 둔 계정이 Firestore에 남아 있을 수 있어
+// 이름만 알아둔다. normalizeRole()이 이런 계정을 "관리자"로 보여준다(예전에도 관리자와 권한이 완전히 같았다).
+const LEGACY_INSPECTOR_ROLE = "감리자";
+
+// 계정에 저장된 역할 값을 지금 있는 두 역할(하도급사/관리자) 중 하나로 바꿔준다.
+// 알 수 없는 값이나 빈 값은 가장 낮은 권한인 하도급사로 본다.
+export function normalizeRole(role) {
+  if (role === ROLES.SUPER || role === LEGACY_INSPECTOR_ROLE) return ROLES.SUPER;
+  return ROLES.SUB;
+}
+
+// 승인·편집처럼 관리자만 할 수 있는 기능은 모두 이 함수로 판단한다.
 export function isAdminRole(role) {
-  return role === ROLES.SUPER || role === ROLES.INSPECTOR;
+  return role === ROLES.SUPER;
 }
 
 // 뷰(탭)별 접근 가능한 역할. 값을 생략하면 모든 역할이 접근 가능.
@@ -158,12 +167,12 @@ export function isAdminRole(role) {
 export const VIEW_ROLES = {
   workers: [ROLES.SUB],
   equipment: [ROLES.SUB],
-  buildings: [ROLES.SUPER, ROLES.INSPECTOR],
-  sitelayout: [ROLES.SUPER, ROLES.INSPECTOR],
-  unitinfo: [ROLES.SUPER, ROLES.INSPECTOR],
-  safety: [ROLES.SUPER, ROLES.INSPECTOR],
-  workerRoster: [ROLES.SUPER, ROLES.INSPECTOR],
-  qrcodes: [ROLES.SUPER, ROLES.INSPECTOR],
+  buildings: [ROLES.SUPER],
+  sitelayout: [ROLES.SUPER],
+  unitinfo: [ROLES.SUPER],
+  safety: [ROLES.SUPER],
+  workerRoster: [ROLES.SUPER],
+  qrcodes: [ROLES.SUPER],
 };
 
 export function isViewAllowed(viewId, role) {

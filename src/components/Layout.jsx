@@ -6,7 +6,6 @@ import { useLanguage } from "../LanguageContext.jsx";
 // 역할별로 사이드바에 붙는 색상 클래스와 표시 라벨 키. 관리자는 기본(남색) 그대로 둔다.
 function roleAppearance(role) {
   if (role === ROLES.SUB) return { className: "role-sub", labelKey: "role.sub" };
-  if (role === ROLES.INSPECTOR) return { className: "role-inspector", labelKey: "role.inspector" };
   return { className: "", labelKey: "role.super" };
 }
 
@@ -50,11 +49,11 @@ export default function Layout({ role, trueRole, viewAsRole, onSetViewAsRole, us
   const { t } = useLanguage();
   const meta = PAGE_META[view] || {};
   const { className: roleClassName, labelKey: roleLabelKey } = roleAppearance(role);
-  // 진짜 계정 권한이 관리자일 때만 세 역할을 넘나들며 미리보기할 수 있다 - 지금 보고 있는 역할(role)이
+  // 진짜 계정 권한이 관리자일 때만 두 역할(하도급사/관리자)을 넘나들며 미리보기할 수 있다 - 지금 보고 있는 역할(role)이
   // 무엇이든, 전환 버튼 자체는 항상 보여야 다시 자기 자신(관리자)으로 돌아올 수 있다.
   const canSwitchRole = trueRole === ROLES.SUPER;
-  const previewRoles = [ROLES.SUB, ROLES.SUPER, ROLES.INSPECTOR];
-  const previewLabelKey = { [ROLES.SUB]: "role.sub", [ROLES.SUPER]: "role.super", [ROLES.INSPECTOR]: "role.inspector" };
+  const previewRoles = [ROLES.SUB, ROLES.SUPER];
+  const previewLabelKey = { [ROLES.SUB]: "role.sub", [ROLES.SUPER]: "role.super" };
   return (
     <div className="app-shell">
       <aside className={`sidebar${roleClassName ? ` ${roleClassName}` : ""}`}>
