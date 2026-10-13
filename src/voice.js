@@ -110,6 +110,7 @@ export const GLOSSARY_MESSAGES = {
   duplicate: "이미 표에 있는 은어예요. 그 줄을 고쳐 주세요.",
   full: `표에는 용어를 ${GLOSSARY_LIMITS.max}개까지 넣을 수 있어요.`,
   "not-found": "이미 지워졌거나 바뀐 용어예요. 목록을 새로 불러왔어요.",
+  "no-rows": "올릴 수 있는 용어가 없어요. 파일의 내용을 확인해 주세요.",
 };
 
 // ---- 문장 속에서 은어 찾기 ----

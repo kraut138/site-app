@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "./UI.jsx";
+import GlossaryImport from "./GlossaryImport.jsx";
 import * as api from "../api.js";
 import { setGlossaryTerms, adoptGlossary } from "../glossaryStore.js";
 import { GLOSSARY_LIMITS, GLOSSARY_MESSAGES, applyGlossary, checkTerm, slangKey } from "../voice.js";
@@ -46,7 +47,7 @@ function Marked({ parts }) {
 export default function Glossary({ adminName, notify }) {
   const [terms, setTerms] = useState([]);
   const [load, setLoad] = useState("loading"); // loading | ready | error
-  const [busy, setBusy] = useState(""); // "" | "add" | "edit" | "delete" - 저장하는 동안 다른 조작을 막는다
+  const [busy, setBusy] = useState(""); // "" | "add" | "edit" | "delete" | "import" - 저장하는 동안 다른 조작을 막는다
 
   const [newSlang, setNewSlang] = useState("");
   const [newStandard, setNewStandard] = useState("");
@@ -122,6 +123,14 @@ export default function Glossary({ adminName, notify }) {
     setTerms(nextTerms);
     setGlossaryTerms(nextTerms);
     setRowError("");
+  }
+
+  // 엑셀로 올린 결과를 반영한다. 열려 있던 수정·삭제 확인은 닫고(올린 내용에 따라 그 줄이 바뀌거나 사라질 수 있다), 찾기 글자도 지워 새 줄이 가려지지 않게 한다.
+  function applyImported(nextTerms) {
+    commit(nextTerms);
+    setEditId("");
+    setDeleteId("");
+    setQuery("");
   }
 
   // 그 사이 다른 관리자가 지웠거나 바꾼 줄이면 알려 주고 목록을 새로 불러온다.
@@ -316,6 +325,8 @@ export default function Glossary({ adminName, notify }) {
               </div>
             )}
           </section>
+
+          <GlossaryImport terms={terms} adminName={adminName} busy={busy} setBusy={setBusy} onApplied={applyImported} onReload={() => loadTerms(true)} notify={notify} />
 
           <section className="card gl-table-card">
             <div className="gl-table-head">

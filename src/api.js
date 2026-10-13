@@ -15,6 +15,7 @@ import {
 import { db } from "./firebase.js";
 import { QR_LIMITS, newQrBoardId, isValidQrBoardId } from "./qr.js";
 import { VOICE_TRADES, VOICE_LIMITS, clockString, defaultGlossary, sanitizeGlossary, checkTerm, GLOSSARY_MESSAGES } from "./voice.js";
+import { cleanImportEntries, planGlossaryImport, applyGlossaryImport } from "./glossaryImport.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -711,6 +712,19 @@ export async function deleteGlossaryTerm(id, by) {
     by
   );
   return { terms };
+}
+
+// 엑셀·CSV에서 읽은 용어들을 한꺼번에 반영한다(glossaryImport.js가 줄을 읽고 견주는 방법을 정한다).
+//   entries: parseTermRows가 받아들인 줄들, mode: "merge"(지금 표에 더하기) | "replace"(표 전체를 파일로 바꾸기)
+// 다른 관리자가 그 사이에 표를 고쳤을 수 있어 여기서 최신 표를 다시 읽어 견준다(화면에 보인 미리보기와 숫자가 조금 다를 수 있다).
+// 반환: { terms(저장된 최신 표), plan(실제로 반영한 내용), changed(표가 실제로 바뀌었는지) }. 바뀔 게 없으면 저장하지 않는다.
+export async function importGlossaryTerms(entries, mode, by) {
+  const current = await fetchGlossary();
+  const plan = planGlossaryImport(cleanImportEntries(entries), current.terms, mode);
+  if (plan.blocked) throw glossaryError(plan.blocked);
+  if (plan.changes === 0) return { terms: current.terms, plan, changed: false };
+  const terms = await saveGlossary(applyGlossaryImport(plan, current.terms, newGlossaryId), by);
+  return { terms, plan, changed: true };
 }
 
 // ---------------- image helper (변경 없음, 순수 클라이언트 로직) ----------------
