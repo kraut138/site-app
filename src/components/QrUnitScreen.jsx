@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { Toast } from "./UI.jsx";
 import UnitDetailPanel from "./UnitDetailPanel.jsx";
 import ConfirmationRequestForm from "./ConfirmationRequestForm.jsx";
+import VoiceInspection from "./VoiceInspection.jsx";
 
 /**
  * QR 코드로 특정 호실에 접속했을 때 보여주는 독립된 모바일 화면.
- * 사이드바·역할선택 없이, 그 호실의 정보와 "공사 확인 요청"(호실 선택 생략)만 보여준다.
+ * 사이드바·역할선택 없이, 맨 위에 "음성 검측"(녹음 → 텍스트 변환, 위치는 이 호실로 고정),
+ * 그 아래로 호실의 정보와 "공사 확인 요청"(호실 선택 생략)을 보여준다.
  */
 export default function QrUnitScreen({
   buildings,
@@ -23,6 +25,8 @@ export default function QrUnitScreen({
   const notify = (msg) => setToast(msg);
 
   const building = buildings.find((b) => b.id === target.buildingId) || buildings[0] || null;
+  // 층 값이 비정상(0, NaN 등)인 QR이면 위치를 정할 수 없으므로 음성 검측은 숨긴다.
+  const floorOk = Number.isInteger(target.floor) && target.floor !== 0;
 
   if (!building) {
     return (
@@ -49,6 +53,14 @@ export default function QrUnitScreen({
       </div>
 
       <div className="qr-screen-body">
+        {floorOk && (
+          <VoiceInspection
+            buildings={[building]}
+            unit={{ buildingId: building.id, floor: target.floor, unit: target.unit }}
+            notify={notify}
+          />
+        )}
+
         <UnitDetailPanel
           building={building}
           buildingId={building.id}

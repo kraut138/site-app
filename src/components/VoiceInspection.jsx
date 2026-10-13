@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, EmptyState } from "./UI.jsx";
 import { useLanguage } from "../LanguageContext.jsx";
 import { formatDateTime } from "../data.js";
+import { QR_LIMITS } from "../qr.js";
 import * as api from "../api.js";
 import {
   VOICE_TRADES,
@@ -15,28 +16,50 @@ import {
   buildZone,
 } from "../voice.js";
 
-// 하도급사 전용 "음성 검측" 탭 (시안 index.html의 기능).
-// 공종을 고르고 위치(동·층·부재)를 정한 뒤 마이크로 말하면 → 음성 인식 → 현장 은어를 표준 용어로 바꾸고 → 공종별 요약 문장을 만들어 → 저장한다.
+// "음성 검측" (시안 index.html의 기능). 두 곳에서 쓴다.
+//  1) 하도급사 전용 "음성 검측" 탭: 공종을 고르고 위치(동·층·부재)를 정한 뒤 마이크로 말한다.
+//  2) 호실 QR 스캔 화면(unit 속성을 줄 때): 위치(동·층·호)는 QR이 이미 정해 주므로 고르지 않고, 로그인이 없으니 이름은 직접 적는다(선택).
+// 말하면 → 음성 인식 → 인식된 글자를 바로 화면에 보여 주고 → 현장 은어를 표준 용어로 바꿔 → 공종별 요약 문장을 만들어 → 저장한다.
 // 음성 인식이 안 되는 기기(앱 안의 브라우저 등)를 위해 직접 입력으로도 같은 과정을 거치게 했다.
 // 화면 문구는 하도급사가 외국인 근로자일 수 있어 번역 사전(voice.*)을 쓴다. 저장되는 발화 원문·요약은 말한 그대로(한국어)다.
 
 const STORAGE_KEY = "voiceInspectionSelection";
+const UNIT_STORAGE_KEY = "voiceUnitSelection"; // 호실 QR 화면에서는 공종만 기억한다(탭의 위치 선택과 섞이지 않게 따로 둔다)
+const AUTHOR_KEY = "qrBoardAuthor"; // QR 기록판과 같은 키 - 한 번 적은 이름을 두 화면에서 함께 쓴다
 const PAGE_SIZE = 20;
+const UNIT_PAGE_SIZE = 3; // 호실 화면은 길어지지 않도록 처음에는 최근 3건만 보여 준다
+const UNIT_PAGE_STEP = 10;
 
-function readSaved() {
+function readSaved(key) {
   try {
-    const value = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}");
+    const value = JSON.parse(window.localStorage.getItem(key) || "{}");
     return value && typeof value === "object" ? value : {};
   } catch {
     return {};
   }
 }
 
-function writeSaved(value) {
+function writeSaved(key, value) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+    window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
     // 선택을 기억해 두지 못해도 보고를 남기는 데에는 영향이 없다.
+  }
+}
+
+function readAuthor() {
+  try {
+    return window.localStorage.getItem(AUTHOR_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function writeAuthor(value) {
+  try {
+    window.localStorage.setItem(AUTHOR_KEY, value);
+  } catch {
+    // 이름을 기억해 두지 못해도 보고를 남기는 데에는 영향이 없다.
   }
 }
 
@@ -50,13 +73,20 @@ function errorKey(code) {
   return "voice.err.generic";
 }
 
-export default function VoiceInspection({ buildings, userName, notify }) {
+// props: buildings, userName(로그인한 계정 이름), notify,
+//        unit: { buildingId, floor, unit } - 호실 QR 화면에서만 준다. 주면 위치가 이 호실로 고정되고 이름을 직접 입력받는다.
+export default function VoiceInspection({ buildings, userName, notify, unit = null }) {
   const { t } = useLanguage();
-  const [initial] = useState(readSaved);
+  const unitMode = !!unit;
+  const unitFloor = unitMode ? Number(unit.floor) : 0;
+  const unitName = unitMode ? String(unit.unit).trim().slice(0, 30) : ""; // 호수(너무 긴 값은 잘라 쓴다)
+  const unitLabel = unitName ? `${unitName}호` : ""; // 부재 칸에 저장되는 값(저장 내용은 한국어 고정). 호수가 비어 있으면 위치를 정할 수 없어 녹음이 잠긴다.
+  const [initial] = useState(() => readSaved(unitMode ? UNIT_STORAGE_KEY : STORAGE_KEY));
   const [tradeId, setTradeId] = useState(() => (VOICE_TRADES.some((x) => x.id === initial.tradeId) ? initial.tradeId : VOICE_TRADES[0].id));
   const [buildingId, setBuildingId] = useState(() => (buildings.some((b) => b.id === initial.buildingId) ? initial.buildingId : ""));
   const [floor, setFloor] = useState(() => (Number.isInteger(initial.floor) && initial.floor !== 0 ? initial.floor : 1));
   const [elem, setElem] = useState(() => (typeof initial.elem === "string" ? initial.elem.slice(0, VOICE_LIMITS.elem) : ""));
+  const [authorName, setAuthorName] = useState(() => (unitMode ? readAuthor().slice(0, QR_LIMITS.authorMax) : ""));
 
   const [supported] = useState(() => !!getSpeechRecognition());
   const [status, setStatus] = useState("idle"); // idle | listening | stopping | saving
@@ -67,24 +97,40 @@ export default function VoiceInspection({ buildings, userName, notify }) {
 
   const [reports, setReports] = useState([]);
   const [feedState, setFeedState] = useState("loading"); // loading | ready | error
-  const [visible, setVisible] = useState(PAGE_SIZE);
+  const [visible, setVisible] = useState(unitMode ? UNIT_PAGE_SIZE : PAGE_SIZE);
 
   // 선택한 값들로 위치를 계산한다. 저장해 둔 동이 없어졌거나 층이 그 동에 없으면 안전한 값으로 대체한다.
+  // 호실 QR 화면에서는 QR이 정한 동·층·호를 그대로 쓴다(층 값이 이상하면 위치를 만들지 않아 녹음이 잠긴다).
   const trade = getTrade(tradeId);
-  const building = buildings.find((b) => b.id === buildingId) || buildings[0] || null;
+  const building = unitMode ? buildings.find((b) => b.id === unit.buildingId) || null : buildings.find((b) => b.id === buildingId) || buildings[0] || null;
   const floors = building ? floorChoices(building.floors) : [];
-  const activeFloor = floors.includes(floor) ? floor : 1;
-  const zone = building ? buildZone(building.name, activeFloor) : "";
-  const canRecord = !!building && elem.trim().length > 0;
+  const unitFloorOk = Number.isInteger(unitFloor) && unitFloor !== 0;
+  const activeFloor = unitMode ? unitFloor : floors.includes(floor) ? floor : 1;
+  // 호실 화면에서 층이나 호수가 비정상이면 위치를 만들지 않는다(그러면 목록도 비어 있고 녹음도 잠긴다 - 같은 층 전체 보고가 보이는 일이 없도록).
+  const zone = building && (!unitMode || (unitFloorOk && !!unitLabel)) ? buildZone(building.name, activeFloor) : "";
+  const elemValue = unitMode ? unitLabel : elem;
+  const canRecord = !!building && !!zone && elemValue.trim().length > 0;
   const busy = status !== "idle";
 
   // 음성 인식 이벤트 처리기는 한 번만 만들어 두므로, 최신 값은 ref로 읽는다.
+  // elemFilter: 호실 화면에서는 같은 층의 보고 중 이 호실 것만 목록에 보이게 거르는 기준.
   const latest = useRef({});
-  latest.current = { tradeId, building, floor: activeFloor, elem, userName, zone, t, notify };
+  latest.current = {
+    tradeId,
+    building,
+    floor: activeFloor,
+    elem: elemValue,
+    elemFilter: unitMode ? unitLabel : "",
+    userName: unitMode ? authorName.trim() : userName,
+    zone,
+    t,
+    notify,
+  };
   const mounted = useRef(true);
   const recRef = useRef(null);
   const gotResult = useRef(false);
   const gotError = useRef(false);
+  const resultRef = useRef(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -103,8 +149,13 @@ export default function VoiceInspection({ buildings, userName, notify }) {
   }, []);
 
   useEffect(() => {
-    writeSaved({ tradeId, buildingId: building ? building.id : "", floor: activeFloor, elem });
-  }, [tradeId, building, activeFloor, elem]);
+    if (unitMode) writeSaved(UNIT_STORAGE_KEY, { tradeId });
+    else writeSaved(STORAGE_KEY, { tradeId, buildingId: building ? building.id : "", floor: activeFloor, elem });
+  }, [unitMode, tradeId, building, activeFloor, elem]);
+
+  useEffect(() => {
+    if (unitMode) writeAuthor(authorName.trim());
+  }, [unitMode, authorName]);
 
   // 말을 끝냈다고 눌렀는데 브라우저가 끝났다는 신호를 끝내 보내지 않는 경우에도 화면이 멈춰 있지 않도록 안전장치를 둔다.
   useEffect(() => {
@@ -127,7 +178,8 @@ export default function VoiceInspection({ buildings, userName, notify }) {
     try {
       const list = await api.fetchVoiceReports(targetZone);
       if (!mounted.current || latest.current.zone !== targetZone) return; // 그 사이 다른 위치로 바꿨으면 버린다
-      setReports(list);
+      const only = latest.current.elemFilter;
+      setReports(only ? list.filter((r) => r.elem === only) : list);
       setFeedState("ready");
     } catch {
       if (mounted.current && latest.current.zone === targetZone) setFeedState("error");
@@ -135,11 +187,31 @@ export default function VoiceInspection({ buildings, userName, notify }) {
   }, []);
 
   useEffect(() => {
-    setVisible(PAGE_SIZE);
+    setVisible(unitMode ? UNIT_PAGE_SIZE : PAGE_SIZE);
     setResult(null);
     setMessage(null);
     loadReports(zone);
-  }, [zone, loadReports]);
+  }, [zone, unitMode, loadReports]);
+
+  // 방금 인식된 글자가 휴대폰 화면 아래쪽(마이크 밑)에 생겨 보이지 않으면, 바로 읽을 수 있도록 필요한 만큼만 스크롤한다.
+  // 새 보고가 만들어질 때(id가 바뀔 때)만 움직이고, 같은 보고를 다시 보내거나 저장 결과가 바뀔 때는 움직이지 않는다.
+  const resultId = result ? result.id : "";
+  useEffect(() => {
+    if (!resultId) return;
+    const el = resultRef.current;
+    if (!el || typeof el.scrollIntoView !== "function") return;
+    let calm = false;
+    try {
+      calm = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    } catch {
+      calm = false;
+    }
+    try {
+      el.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" });
+    } catch {
+      el.scrollIntoView();
+    }
+  }, [resultId]);
 
   // ---------------- 보고 만들기·저장 ----------------
   async function sendReport(entry) {
@@ -289,10 +361,17 @@ export default function VoiceInspection({ buildings, userName, notify }) {
   const elemOptions = [...new Set([...reports.map((r) => r.elem).filter(Boolean), ...ELEM_SUGGESTIONS])];
   const shown = reports.slice(0, visible);
   const themeStyle = { "--vl": trade.color, "--vl-tint": `${trade.color}1c` };
+  const unitText = unitMode ? t("voice.loc.unitOption", { n: unitName }) : "";
 
   return (
-    <div className="vl-page" data-testid="vl-page">
+    <div className={`vl-page${unitMode ? " vl-page--unit" : ""}`} data-testid="vl-page">
       <section className="card card-pad">
+        {unitMode && (
+          <div className="vl-unit-head">
+            <div className="section-title">{t("nav.voice")}</div>
+            <p className="vl-unit-desc">{t("page.voice.desc")}</p>
+          </div>
+        )}
         <div className="vl-section-label">{t("voice.trade.label")}</div>
         <div className="vl-trades" role="group" aria-label={t("voice.trade.label")}>
           {VOICE_TRADES.map((tr) => (
@@ -333,6 +412,26 @@ export default function VoiceInspection({ buildings, userName, notify }) {
                 <div className="vl-note" data-testid="vl-no-buildings">
                   {t("voice.loc.noBuildings")}
                 </div>
+              ) : unitMode ? (
+                <>
+                  <div className="vl-loc-fixed" data-testid="vl-unit-location">
+                    {building.name} {floorText(activeFloor)} {unitText}
+                  </div>
+                  <div className="field vl-name">
+                    <label htmlFor="vl-name">{t("qr.compose.name")}</label>
+                    <input
+                      id="vl-name"
+                      className="input"
+                      maxLength={QR_LIMITS.authorMax}
+                      placeholder={t("qr.compose.namePh")}
+                      autoComplete="name"
+                      value={authorName}
+                      disabled={busy}
+                      onChange={(e) => setAuthorName(e.target.value)}
+                      data-testid="vl-name"
+                    />
+                  </div>
+                </>
               ) : (
                 <div className="vl-loc-fields">
                   <div className="field">
@@ -419,7 +518,7 @@ export default function VoiceInspection({ buildings, userName, notify }) {
             </div>
 
             {result && (
-              <div className={`vl-result${result.state === "error" ? " is-error" : ""}`} data-testid="vl-result">
+              <div ref={resultRef} className={`vl-result${result.state === "error" ? " is-error" : ""}`} data-testid="vl-result">
                 <h3>{t("voice.result.raw")}</h3>
                 <div className="vl-result-raw" data-testid="vl-raw">
                   "{result.rawText}"
@@ -471,7 +570,7 @@ export default function VoiceInspection({ buildings, userName, notify }) {
 
         <section className="card vl-feed" data-testid="vl-feed">
           <div className="vl-feed-head">
-            <div className="section-title">{t("voice.feed.title")}</div>
+            <div className="section-title">{t(unitMode ? "voice.feed.titleUnit" : "voice.feed.title")}</div>
             <span className="vl-feed-count" data-testid="vl-feed-count">
               {t("voice.feed.count", { n: reports.length })}
             </span>
@@ -479,7 +578,7 @@ export default function VoiceInspection({ buildings, userName, notify }) {
               {t("voice.feed.refresh")}
             </button>
           </div>
-          <div className="vl-feed-zone">{building ? `${building.name} ${floorText(activeFloor)}` : ""}</div>
+          <div className="vl-feed-zone">{building ? `${building.name} ${floorText(activeFloor)}${unitMode ? ` ${unitText}` : ""}` : ""}</div>
 
           {feedState === "error" ? (
             <div className="vl-note" data-testid="vl-feed-error">
@@ -497,7 +596,7 @@ export default function VoiceInspection({ buildings, userName, notify }) {
                   <article key={r.id} className="vl-card" style={{ "--vl": (tr || trade).color }} data-testid="vl-card">
                     <header className="vl-card-head">
                       {tr && <span className="vl-card-trade">{t(`voice.trade.${tr.id}`)}</span>}
-                      <strong>{r.author || "-"}</strong>
+                      <strong>{r.author || t("qr.list.anonymous")}</strong>
                       {r.via === "text" && <span className="vl-card-via">{t("voice.card.viaText")}</span>}
                       <time className="vl-card-time">{formatDateTime(r.createdAt)}</time>
                     </header>
@@ -510,7 +609,7 @@ export default function VoiceInspection({ buildings, userName, notify }) {
                 );
               })}
               {reports.length > visible && (
-                <button type="button" className="btn btn-ghost btn-block" onClick={() => setVisible((v) => v + PAGE_SIZE)} data-testid="vl-more">
+                <button type="button" className="btn btn-ghost btn-block" onClick={() => setVisible((v) => v + (unitMode ? UNIT_PAGE_STEP : PAGE_SIZE))} data-testid="vl-more">
                   {t("voice.feed.more")}
                 </button>
               )}
