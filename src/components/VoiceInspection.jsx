@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, EmptyState } from "./UI.jsx";
 import { useLanguage } from "../LanguageContext.jsx";
-import { formatDateTime } from "../data.js";
+import { formatDateTime, getCategory } from "../data.js";
 import { QR_LIMITS } from "../qr.js";
 import * as api from "../api.js";
 import {
@@ -16,6 +16,7 @@ import {
   buildZone,
 } from "../voice.js";
 import { getGlossaryTerms, getGlossaryPending, refreshGlossary } from "../glossaryStore.js";
+import { analyzeReport, hasEffect } from "../unitProgress.js";
 
 // "음성 검측" (시안 index.html의 기능). 두 곳에서 쓴다.
 //  1) 하도급사 전용 "음성 검측" 탭: 공종을 고르고 위치(동·층·부재)를 정한 뒤 마이크로 말한다.
@@ -88,9 +89,69 @@ function NormalizedText({ parts }) {
   );
 }
 
+// 방금 저장한 보고가 호실 진행도에 어떻게 반영됐는지 알려 준다.
+// 반영된 항목이 있으면 항목별 상태를, 반영하지 못했으면 이유(호실을 모름·여러 호실 등)와 다시 말하는 방법을 보여 준다.
+const NO_UNIT_KEY = { none: "voice.progress.noUnit", location: "voice.progress.noUnit", multiple: "voice.progress.multiUnit", conflict: "voice.progress.conflict" };
+
+function phraseList(list) {
+  const shown = list.slice(0, 3).map((x) => `“${x.phrase}”`);
+  return shown.join(", ") + (list.length > 3 ? " …" : "");
+}
+
+function ProgressNote({ progress, unitLabel, t }) {
+  const { resolved, analysis } = progress;
+  const effect = hasEffect(analysis);
+  return (
+    <div className="vl-progress" data-testid="vl-progress">
+      <div className="vl-result-sep" />
+      <h4 className="vl-progress-title">{t("voice.progress.title")}</h4>
+      {effect && resolved.ok ? (
+        <>
+          <div className="vl-progress-msg is-ok" data-testid="vl-progress-msg">
+            {t("voice.progress.applied", { unit: unitLabel })}
+          </div>
+          <ul className="vl-progress-list">
+            {analysis.categories.map((c) => (
+              <li key={`c-${c.categoryId}`} className="vl-progress-chip is-done" data-testid="vl-progress-item">
+                <span>{t("voice.progress.category", { name: (getCategory(c.categoryId) || {}).name || c.categoryId })}</span>
+              </li>
+            ))}
+            {analysis.items.map((i) => (
+              <li key={i.itemId} className={`vl-progress-chip ${i.state === "done" ? "is-done" : "is-doing"}`} data-testid="vl-progress-item">
+                <span>{i.text}</span>
+                <b>{i.state === "done" ? t("voice.progress.done") : t("voice.progress.doing", { n: i.percent })}</b>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : effect ? (
+        <div className="vl-progress-msg is-warn" data-testid="vl-progress-msg">
+          {t(NO_UNIT_KEY[resolved.reason] || "voice.progress.noUnit")}
+        </div>
+      ) : (
+        <div className="vl-progress-msg" data-testid="vl-progress-msg">
+          {t("voice.progress.none")}
+        </div>
+      )}
+      {analysis.ambiguous.length > 0 && (
+        <div className="vl-progress-note" data-testid="vl-progress-ambiguous">
+          {t("voice.progress.ambiguous", { list: phraseList(analysis.ambiguous) })}
+        </div>
+      )}
+      {analysis.skipped.length > 0 && (
+        <div className="vl-progress-note" data-testid="vl-progress-skipped">
+          {t("voice.progress.skipped", { list: phraseList(analysis.skipped) })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // props: buildings, userName(로그인한 계정 이름), notify,
 //        unit: { buildingId, floor, unit } - 호실 QR 화면에서만 준다. 주면 위치가 이 호실로 고정되고 이름을 직접 입력받는다.
-export default function VoiceInspection({ buildings, userName, notify, unit = null }) {
+//        checklistItems: 공종 세부 항목 목록 - 말한 내용에서 "도배 완료" 같은 진행 상황을 읽어 호실 진행도에 반영할 때 쓴다(없으면 읽지 않는다).
+//        onSaved(report): 보고가 저장된 직후 불린다(호실 QR 화면이 같은 화면의 호실 진행도를 바로 새로 계산하려고 쓴다).
+export default function VoiceInspection({ buildings, userName, notify, unit = null, checklistItems = [], onSaved = null }) {
   const { t } = useLanguage();
   const unitMode = !!unit;
   const unitFloor = unitMode ? Number(unit.floor) : 0;
@@ -140,6 +201,9 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
     zone,
     t,
     notify,
+    checklistItems,
+    onSaved,
+    fixedUnit: unitMode ? unitName : "",
   };
   const mounted = useRef(true);
   const recRef = useRef(null);
@@ -251,6 +315,13 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
       setMessage({ kind: "ok", key: "voice.status.done" });
       if (latest.current.zone === entry.zone) setReports((prev) => [saved, ...prev.filter((r) => r.id !== saved.id)]);
       latest.current.notify(latest.current.t("voice.sent"));
+      if (latest.current.onSaved) {
+        try {
+          latest.current.onSaved(saved);
+        } catch {
+          // 진행도 화면을 새로 그리는 일이 실패해도 저장된 보고에는 영향이 없다.
+        }
+      }
     } catch {
       if (!mounted.current) return;
       setResult({ ...entry, state: "error" });
@@ -290,6 +361,21 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
 
   function makeReport(cur, rawText, via) {
     const fixed = applyGlossary(rawText, getGlossaryTerms());
+    const elem = cur.elem.trim();
+    // 바뀐 문장에서 어느 호실의 어느 항목이 완료/진행중인지 읽는다(화면에 알려 주는 용도 - 저장하는 값이 아니다).
+    // 호실 정보 화면은 저장된 글에서 같은 방법으로 다시 계산하므로, 여기서 보여 주는 내용과 그쪽 결과가 같다.
+    let progress = null;
+    try {
+      if (Array.isArray(cur.checklistItems) && cur.checklistItems.length > 0) {
+        progress = analyzeReport(
+          { buildingId: cur.building.id, buildingName: cur.building.name, floor: cur.floor, elem, normalized: fixed.text, rawText },
+          cur.checklistItems,
+          { fixedUnit: cur.fixedUnit, unitsPerFloor: cur.building.unitsPerFloor }
+        );
+      }
+    } catch {
+      progress = null;
+    }
     sendReport({
       id: api.newVoiceReportId(),
       trade: cur.tradeId,
@@ -298,12 +384,13 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
       buildingName: cur.building.name,
       floor: cur.floor,
       zone: cur.zone,
-      elem: cur.elem.trim(),
+      elem,
       rawText,
       normalized: fixed.text,
       parts: fixed.parts, // 화면에서 바뀐 부분을 강조하는 데만 쓴다(저장하지 않는다)
       replacedCount: fixed.hits.reduce((sum, h) => sum + h.count, 0),
       summary: buildSummary(cur.tradeId, fixed.text),
+      progress, // 호실 진행도에 반영된 내용(저장하지 않는다)
       via,
     });
   }
@@ -590,6 +677,13 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
                 <div className="vl-result-summary" data-testid="vl-summary">
                   {result.summary}
                 </div>
+                {result.progress && (
+                  <ProgressNote
+                    progress={result.progress}
+                    unitLabel={result.progress.resolved.ok ? `${floorText(result.progress.resolved.floor)} ${t("voice.loc.unitOption", { n: result.progress.resolved.unit })}` : ""}
+                    t={t}
+                  />
+                )}
                 {result.state !== "error" && (
                   <div className="vl-result-foot">
                     {result.state === "saving" && <span className="vl-saving">{t("voice.status.sending")}</span>}

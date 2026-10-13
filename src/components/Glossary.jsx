@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "./UI.jsx";
 import GlossaryImport from "./GlossaryImport.jsx";
+import GlossaryReapply from "./GlossaryReapply.jsx";
 import * as api from "../api.js";
 import { setGlossaryTerms, adoptGlossary } from "../glossaryStore.js";
 import { GLOSSARY_LIMITS, GLOSSARY_MESSAGES, applyGlossary, checkTerm, slangKey } from "../voice.js";
@@ -269,7 +270,7 @@ export default function Glossary({ adminName, notify }) {
         <p>
           하도급사의 <strong>음성 검측</strong>(탭과 호실 QR 화면)에서 말하거나 입력한 내용이 이 표대로 표준 용어로 바뀌어 저장됩니다.
         </p>
-        <p className="gl-note">표를 고치면 그 뒤에 저장하는 보고부터 바로 적용돼요. 이미 저장된 보고는 바뀌지 않습니다.</p>
+        <p className="gl-note">표를 고치면 그 뒤에 저장하는 보고부터 바로 적용돼요. 이미 저장된 보고에도 적용하려면 아래 ‘저장된 음성 기록에 다시 적용’을 눌러 주세요.</p>
       </section>
 
       {load === "loading" && (
@@ -327,6 +328,8 @@ export default function Glossary({ adminName, notify }) {
           </section>
 
           <GlossaryImport terms={terms} adminName={adminName} busy={busy} setBusy={setBusy} onApplied={applyImported} onReload={() => loadTerms(true)} notify={notify} />
+
+          <GlossaryReapply terms={terms} adminName={adminName} busy={busy} setBusy={setBusy} notify={notify} />
 
           <section className="card gl-table-card">
             <div className="gl-table-head">

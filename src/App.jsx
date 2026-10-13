@@ -340,7 +340,12 @@ export default function App() {
             />
           )}
           {view === "voice" && (
-            <VoiceInspection buildings={buildings} userName={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />
+            <VoiceInspection
+              buildings={buildings}
+              userName={(userProfile && (userProfile.name || userProfile.email)) || ""}
+              notify={notify}
+              checklistItems={checklistItems}
+            />
           )}
           {view === "glossary" && <Glossary adminName={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />}
           {view === "safety" && (
@@ -368,6 +373,8 @@ export default function App() {
               onCreateNote={handleCreateUnitNote}
               onDeleteNote={handleDeleteUnitNote}
               notify={notify}
+              canEdit={isAdminRole(role)}
+              userName={(userProfile && (userProfile.name || userProfile.email)) || ""}
             />
           )}
           {view === "buildings" && (

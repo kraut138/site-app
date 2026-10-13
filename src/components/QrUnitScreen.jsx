@@ -22,6 +22,7 @@ export default function QrUnitScreen({
 }) {
   const [toast, setToast] = useState("");
   const [showRequestForm, setShowRequestForm] = useState(false);
+  const [savedVoice, setSavedVoice] = useState([]); // 이 화면에서 방금 저장한 음성 보고들 - 호실 진행도에 바로 반영한다
   const notify = (msg) => setToast(msg);
 
   const building = buildings.find((b) => b.id === target.buildingId) || buildings[0] || null;
@@ -58,6 +59,8 @@ export default function QrUnitScreen({
             buildings={[building]}
             unit={{ buildingId: building.id, floor: target.floor, unit: target.unit }}
             notify={notify}
+            checklistItems={checklistItems}
+            onSaved={(report) => setSavedVoice((prev) => [report, ...prev.filter((r) => r.id !== report.id)])}
           />
         )}
 
@@ -74,6 +77,7 @@ export default function QrUnitScreen({
           onDeleteNote={onDeleteNote}
           notify={notify}
           layout="stacked"
+          extraVoiceReports={savedVoice}
         />
 
         <div className="card card-pad" style={{ marginTop: 16, border: showRequestForm ? "1.5px solid var(--blueprint)" : undefined }}>

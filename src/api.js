@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase.js";
 import { QR_LIMITS, newQrBoardId, isValidQrBoardId } from "./qr.js";
-import { VOICE_TRADES, VOICE_LIMITS, clockString, defaultGlossary, sanitizeGlossary, checkTerm, GLOSSARY_MESSAGES } from "./voice.js";
+import { VOICE_TRADES, VOICE_LIMITS, clockString, defaultGlossary, sanitizeGlossary, checkTerm, applyGlossary, buildSummary, glossaryHash, GLOSSARY_MESSAGES } from "./voice.js";
 import { cleanImportEntries, planGlossaryImport, applyGlossaryImport } from "./glossaryImport.js";
 
 function nowIso() {
@@ -648,6 +648,26 @@ export async function fetchVoiceReports(zone) {
   return snapToArray(snap).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 }
 
+// 한 동의 한 층에서 남긴 모든 음성 보고(최신순). 호실 정보 화면이 '음성 보고 진행도'를 계산하는 데 쓴다.
+// 동 id와 층 숫자의 같음 조건 두 개뿐이라 별도 색인 없이 조회된다. (동 이름을 나중에 고쳐도 id로 찾으므로 옛 보고가 빠지지 않는다)
+const VOICE_FLOOR_READ_TIMEOUT_MS = 15000;
+
+export async function fetchFloorVoiceReports(buildingId, floor) {
+  const q = query(collection(db, "voiceReports"), where("buildingId", "==", String(buildingId || "")), where("floor", "==", Number(floor)));
+  const snap = await withTimeout(getDocs(q), VOICE_FLOOR_READ_TIMEOUT_MS, "voice/timeout");
+  return snapToArray(snap).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+}
+
+// 관리자가 잘못 인식된 보고를 호실 진행도에서 빼거나(off=true) 다시 넣는다(off=false). 보고 자체(글·요약)는 그대로 남는다.
+export async function setVoiceReportProgressOff(id, off, by) {
+  const ref = doc(db, "voiceReports", String(id));
+  const data = off
+    ? { progressOff: true, progressOffBy: String(by || "").trim().slice(0, 60), progressOffAt: nowIso() }
+    : { progressOff: false, progressOffBy: "", progressOffAt: "" };
+  await withTimeout(updateDoc(ref, data), VOICE_SAVE_TIMEOUT_MS, "voice/timeout");
+  return data;
+}
+
 // ---------------- 용어 DB (현장 은어 → 표준 용어) ----------------
 // meta/glossary: { terms: [{ id, slang, standard }], updatedAt, updatedBy }
 // 관리자 화면의 "용어 DB" 탭이 고치는 표이고, 음성 검측이 말한 내용을 표준 용어로 바꿀 때 이 표를 쓴다.
@@ -725,6 +745,122 @@ export async function importGlossaryTerms(entries, mode, by) {
   if (plan.changes === 0) return { terms: current.terms, plan, changed: false };
   const terms = await saveGlossary(applyGlossaryImport(plan, current.terms, newGlossaryId), by);
   return { terms, plan, changed: true };
+}
+
+// ---------------- 저장된 음성 기록에 용어 표 다시 적용 ----------------
+// 용어 표를 고치면 앞으로 남기는 음성 보고만 새 표로 바뀐다. 이미 저장된 기록의 '바뀐 문장(normalized)'과 '요약(summary)'은 저장할 때의 표대로 남아 있다.
+// 그래서 원문(rawText: 말한 그대로, 건드리지 않는다)에 지금의 표를 다시 적용해 두 값만 새로 만든다. 같은 표로 몇 번을 눌러도 결과는 같다.
+// 두 단계로 나눴다: (1) planGlossaryReapply - 모든 기록을 읽어 무엇이 바뀔지 계산만 한다(쓰기 없음), (2) applyGlossaryReapply - 바뀔 기록만 한 번에 400건씩 묶어 쓴다.
+// 미리보기와 적용 사이에 다른 관리자가 표를 또 고쳤다면 적용하지 않고 미리보기를 다시 하게 한다(보여 준 것과 다른 결과가 저장되지 않도록).
+// meta/glossaryApplied: { at, by, tableHash, total, changed } - 마지막으로 다시 적용한 기록(화면에 '언제, 몇 건'을 보여 주고, tableHash로 그 뒤에 표가 바뀌었는지 알려 준다)
+// tableHash는 표의 내용(은어·표준 용어·순서)으로 만든 지문이다(voice.js glossaryHash). 표를 저장한 시각이 아니라 내용을 견주므로,
+// 표를 고쳤다가 같은 내용으로 되돌려 놓았을 때는 '그대로'로 보이고, 화면은 표를 다시 읽지 않고도(이미 불러온 표로) 바뀐 여부를 알 수 있다.
+const REAPPLY_READ_TIMEOUT_MS = 30000;
+const REAPPLY_WRITE_TIMEOUT_MS = 30000;
+const REAPPLY_BATCH = 400;
+
+export async function planGlossaryReapply() {
+  const current = await fetchGlossary();
+  const snap = await withTimeout(getDocs(collection(db, "voiceReports")), REAPPLY_READ_TIMEOUT_MS, "voice/timeout");
+  const changes = [];
+  let total = 0;
+  let noText = 0;
+  snap.docs.forEach((d) => {
+    const data = d.data();
+    total += 1;
+    const rawText = typeof data.rawText === "string" ? data.rawText : "";
+    if (!rawText) {
+      noText += 1;
+      return;
+    }
+    const normalized = applyGlossary(rawText, current.terms).text;
+    const summary = buildSummary(String(data.trade || ""), normalized);
+    const before = typeof data.normalized === "string" ? data.normalized : "";
+    if (normalized === before && summary === (typeof data.summary === "string" ? data.summary : "")) return;
+    changes.push({
+      id: d.id,
+      timestamp: data.timestamp || 0,
+      zone: String(data.zone || ""),
+      elem: String(data.elem || ""),
+      rawText,
+      before,
+      normalized,
+      summary,
+    });
+  });
+  changes.sort((a, b) => b.timestamp - a.timestamp);
+  return { total, noText, changes, termCount: current.terms.length, tableHash: glossaryHash(current.terms), tableSaved: current.saved };
+}
+
+export async function fetchGlossaryApplied() {
+  const snap = await withTimeout(getDoc(doc(db, "meta", "glossaryApplied")), GLOSSARY_READ_TIMEOUT_MS, "glossary/timeout");
+  if (!snap.exists()) return null;
+  const d = snap.data();
+  return {
+    at: typeof d.at === "string" ? d.at : "",
+    by: typeof d.by === "string" ? d.by : "",
+    tableHash: typeof d.tableHash === "string" ? d.tableHash : "",
+    total: Number(d.total) || 0,
+    changed: Number(d.changed) || 0,
+  };
+}
+
+export async function recordGlossaryApplied({ tableHash, total, changed }, by) {
+  const record = {
+    at: nowIso(),
+    by: String(by || "").trim().slice(0, 60),
+    tableHash: String(tableHash || ""),
+    total: Number(total) || 0,
+    changed: Number(changed) || 0,
+  };
+  await withTimeout(setDoc(doc(db, "meta", "glossaryApplied"), record), GLOSSARY_WRITE_TIMEOUT_MS, "glossary/timeout");
+  return record;
+}
+
+// opts: { onProgress({ done, total }), shouldStop() } - 묶음 하나를 쓸 때마다 진행을 알리고, 멈추라고 하면 다음 묶음부터 쓰지 않는다.
+// 반환: { updated(바꾼 기록 수), missing(그 사이 지워져 건너뛴 수), stopped(중간에 멈췄는지), total(바꾸려던 기록 수) }
+export async function applyGlossaryReapply(plan, by, opts = {}) {
+  const changes = Array.isArray(plan && plan.changes) ? plan.changes : [];
+  const now = await fetchGlossary();
+  if (glossaryHash(now.terms) !== ((plan && plan.tableHash) || "")) throw glossaryError("table-changed");
+  let updated = 0;
+  let missing = 0;
+  let stopped = false;
+  const fields = (c) => ({ normalized: c.normalized, summary: c.summary });
+  for (let i = 0; i < changes.length; i += REAPPLY_BATCH) {
+    if (opts.shouldStop && opts.shouldStop()) {
+      stopped = true;
+      break;
+    }
+    const chunk = changes.slice(i, i + REAPPLY_BATCH);
+    try {
+      const batch = writeBatch(db);
+      chunk.forEach((c) => batch.update(doc(db, "voiceReports", c.id), fields(c)));
+      await withTimeout(batch.commit(), REAPPLY_WRITE_TIMEOUT_MS, "voice/timeout");
+      updated += chunk.length;
+    } catch (err) {
+      if (!err || err.code !== "not-found") throw err;
+      // 읽은 뒤에 지워진 기록이 끼어 있으면 묶음 전체가 거절된다 - 하나씩 다시 쓰면서 지워진 것만 건너뛴다.
+      for (const c of chunk) {
+        try {
+          await withTimeout(updateDoc(doc(db, "voiceReports", c.id), fields(c)), VOICE_SAVE_TIMEOUT_MS, "voice/timeout");
+          updated += 1;
+        } catch (err2) {
+          if (err2 && err2.code === "not-found") missing += 1;
+          else throw err2;
+        }
+      }
+    }
+    if (opts.onProgress) opts.onProgress({ done: Math.min(i + REAPPLY_BATCH, changes.length), total: changes.length });
+  }
+  if (!stopped) {
+    try {
+      await recordGlossaryApplied({ tableHash: plan.tableHash, total: plan.total, changed: updated }, by);
+    } catch {
+      // 기록을 남기지 못해도 이미 바뀐 내용에는 영향이 없다.
+    }
+  }
+  return { updated, missing, stopped, total: changes.length };
 }
 
 // ---------------- image helper (변경 없음, 순수 클라이언트 로직) ----------------

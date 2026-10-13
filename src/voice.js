@@ -99,6 +99,25 @@ export function checkTerm(input, terms, selfId = "") {
   return { code: "ok", slang, standard };
 }
 
+// 표의 내용으로 만든 짧은 지문(문자열). 저장된 음성 기록에 표를 다시 적용할 때 "마지막으로 적용한 표와 지금 표가 같은가"를 견주는 데 쓴다.
+// 줄의 id와 저장 시각은 문장을 바꾸는 결과에 영향이 없으므로 넣지 않고, 은어·표준 용어와 줄의 순서(같은 길이의 은어끼리는 순서가 결과를 정한다)만 본다.
+// 같은 내용이면 어느 기기에서 계산해도 같은 값이 나온다. (cyrb53 - 외부 라이브러리 없이 정수 연산만 쓴다)
+export function glossaryHash(terms) {
+  const rows = sanitizeGlossary(terms);
+  let s = String(rows.length);
+  for (const t of rows) s += `\u0001${t.slang}\u0002${t.standard}`;
+  let h1 = 0xdeadbeef ^ s.length;
+  let h2 = 0x41c6ce57 ^ s.length;
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
 // checkTerm / 저장소가 돌려주는 이유 코드에 대한 안내 문구(관리자 화면은 한국어만 쓴다).
 export const GLOSSARY_MESSAGES = {
   "empty-slang": "현장 은어를 입력해 주세요.",
@@ -111,6 +130,7 @@ export const GLOSSARY_MESSAGES = {
   full: `표에는 용어를 ${GLOSSARY_LIMITS.max}개까지 넣을 수 있어요.`,
   "not-found": "이미 지워졌거나 바뀐 용어예요. 목록을 새로 불러왔어요.",
   "no-rows": "올릴 수 있는 용어가 없어요. 파일의 내용을 확인해 주세요.",
+  "table-changed": "그 사이 용어 표가 바뀌었어요. 미리보기를 다시 해 주세요.",
 };
 
 // ---- 문장 속에서 은어 찾기 ----
