@@ -7,7 +7,8 @@ import VoiceInspection from "./VoiceInspection.jsx";
 /**
  * QR 코드로 특정 호실에 접속했을 때 보여주는 독립된 모바일 화면.
  * 사이드바·역할선택 없이, 맨 위에 "음성 검측"(녹음 → 텍스트 변환, 위치는 이 호실로 고정),
- * 그 아래로 호실의 정보와 "공사 확인 요청"(호실 선택 생략)을 보여준다.
+ * 그 아래로 호실의 특이사항·평면도와 "공사 확인 요청"(호실 선택 생략)을 보여준다.
+ * 화면을 간단하게 두려고 공종별 진행도 목록은 여기에 넣지 않는다(진행도와 음성 기록은 관리자 '호실 정보'에서 본다).
  */
 export default function QrUnitScreen({
   buildings,
@@ -22,7 +23,6 @@ export default function QrUnitScreen({
 }) {
   const [toast, setToast] = useState("");
   const [showRequestForm, setShowRequestForm] = useState(false);
-  const [savedVoice, setSavedVoice] = useState([]); // 이 화면에서 방금 저장한 음성 보고들 - 호실 진행도에 바로 반영한다
   const notify = (msg) => setToast(msg);
 
   const building = buildings.find((b) => b.id === target.buildingId) || buildings[0] || null;
@@ -60,7 +60,6 @@ export default function QrUnitScreen({
             unit={{ buildingId: building.id, floor: target.floor, unit: target.unit }}
             notify={notify}
             checklistItems={checklistItems}
-            onSaved={(report) => setSavedVoice((prev) => [report, ...prev.filter((r) => r.id !== report.id)])}
           />
         )}
 
@@ -77,7 +76,7 @@ export default function QrUnitScreen({
           onDeleteNote={onDeleteNote}
           notify={notify}
           layout="stacked"
-          extraVoiceReports={savedVoice}
+          showProgress={false}
         />
 
         <div className="card card-pad" style={{ marginTop: 16, border: showRequestForm ? "1.5px solid var(--blueprint)" : undefined }}>

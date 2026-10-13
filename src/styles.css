@@ -3325,32 +3325,132 @@ textarea.input {
   box-shadow: inset 0 0 0 1px var(--line-blue-soft);
 }
 
-/* 반영 내역 */
-.up-eff {
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  border-radius: var(--radius-s);
-  border-left: 3px solid var(--line-blue);
+/* 음성 기록(관리자 호실 정보): 하도급사가 녹음해 글로 바뀐 내용을 빠짐없이 보여 주는 카드 */
+.up-rec-refresh {
+  padding: 3px 9px;
+  font-size: 11.5px;
+}
+
+.up-rec-desc {
+  margin: -4px 0 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.up-rec-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-m);
   background: var(--surface-alt);
 }
 
-.up-eff.is-off {
-  border-left-color: var(--line-strong);
-  opacity: 0.72;
+.up-rec-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-.up-eff-head {
+.up-rec-tab b {
+  margin-left: 4px;
+  font-weight: 800;
+}
+
+.up-rec-tab.is-on {
+  background: var(--surface);
+  color: var(--blueprint);
+  box-shadow: 0 1px 2px rgba(16, 21, 26, 0.14);
+}
+
+.up-rec-empty {
+  padding: 22px 8px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-faint);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.up-rec-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blueprint);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.up-rec {
+  min-width: 0;
+}
+
+.up-rec .vl-card-raw,
+.up-rec .vl-card-norm,
+.up-rec .vl-card-summary {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.up-rec-units {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.up-chip.is-none {
+  background: var(--surface-alt);
+  color: var(--ink-soft);
+}
+
+/* 기록 한 건 아래: 그 말이 진행도에 어떻게 읽혔는지 */
+.up-rec-status {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px 8px;
-  font-size: 11.5px;
+  gap: 5px 6px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px dashed var(--line-strong);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.up-rec-status.is-none {
   color: var(--ink-faint);
 }
 
-.up-eff-head strong {
-  color: var(--ink);
-  font-size: 12.5px;
+.up-rec-status.is-warn {
+  color: var(--pending);
+}
+
+.up-rec-status-label {
+  font-weight: 700;
+}
+
+.up-rec-status .up-chip {
+  white-space: normal;
+}
+
+.up-rec-status.is-off .up-chip {
+  opacity: 0.55;
 }
 
 .up-eff-off {
@@ -3358,37 +3458,22 @@ textarea.input {
   border-radius: 999px;
   background: var(--fail-bg);
   color: var(--fail);
+  font-size: 11px;
   font-weight: 700;
 }
 
-.up-eff-text {
-  margin: 5px 0 6px;
-  font-size: 13px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-  word-break: keep-all;
-}
-
-.up-eff-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.up-eff-chips .up-chip {
-  white-space: normal;
-}
-
 .up-eff-toggle {
-  margin-top: 8px;
+  margin-left: auto;
 }
 
 /* 휴대폰: 손가락으로 누르기 쉽게 단추를 조금 키운다 */
 @media (max-width: 720px) {
-  .up-eff-toggle {
+  .up-eff-toggle,
+  .up-rec-tab {
     min-height: 40px;
   }
-  .up-voice-refresh {
+  .up-voice-refresh,
+  .up-rec-refresh {
     min-height: 36px;
   }
 }

@@ -648,7 +648,7 @@ export async function fetchVoiceReports(zone) {
   return snapToArray(snap).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 }
 
-// 한 동의 한 층에서 남긴 모든 음성 보고(최신순). 호실 정보 화면이 '음성 보고 진행도'를 계산하는 데 쓴다.
+// 한 동의 한 층에서 남긴 모든 음성 보고(최신순). 관리자 호실 정보 화면이 '음성 보고 진행도'를 계산하고 '음성 기록'을 보여 주는 데 쓴다.
 // 동 id와 층 숫자의 같음 조건 두 개뿐이라 별도 색인 없이 조회된다. (동 이름을 나중에 고쳐도 id로 찾으므로 옛 보고가 빠지지 않는다)
 const VOICE_FLOOR_READ_TIMEOUT_MS = 15000;
 

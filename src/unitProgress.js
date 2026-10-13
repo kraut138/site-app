@@ -106,6 +106,20 @@ export function resolveUnit(rep, opts = {}) {
   return { ok: false, reason: "none" };
 }
 
+// 보고 하나가 '어느 호실들과 관련 있는지'를 모두 찾는다. 진행도에 반영되는지와는 별개로, 관리자가 호실마다 기록을 빠짐없이 볼 때 쓴다.
+// 부재 칸에 적힌 호실(호실 QR 화면에서 남긴 보고는 그 호실)과 말한 글에서 찾은 호실을 합친다(중복 없음, 호수는 "01"처럼 두 자리).
+// 층·범위가 맞지 않는 표현("4층 호실"인데 3층 보고 등)은 호실로 세지 않는다. 호실을 알 수 없으면 빈 목록이다.
+export function relatedUnits(rep, unitsPerFloor) {
+  const floor = Number(rep && rep.floor);
+  if (!Number.isInteger(floor) || floor === 0) return [];
+  const text = String((rep && (rep.normalized || rep.rawText)) || "");
+  const out = [];
+  for (const u of [...findUnitMentions(rep && rep.elem, floor, unitsPerFloor).units, ...findUnitMentions(text, floor, unitsPerFloor).units]) {
+    if (!out.includes(u)) out.push(u);
+  }
+  return out;
+}
+
 // ---------------- 보고 → 반영 내용 ----------------
 
 // 보고 하나를 분석한다. 반환: { resolved(resolveUnit 결과), analysis(analyzeProgress 결과) }

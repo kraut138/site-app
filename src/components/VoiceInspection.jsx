@@ -150,8 +150,7 @@ function ProgressNote({ progress, unitLabel, t }) {
 // props: buildings, userName(로그인한 계정 이름), notify,
 //        unit: { buildingId, floor, unit } - 호실 QR 화면에서만 준다. 주면 위치가 이 호실로 고정되고 이름을 직접 입력받는다.
 //        checklistItems: 공종 세부 항목 목록 - 말한 내용에서 "도배 완료" 같은 진행 상황을 읽어 호실 진행도에 반영할 때 쓴다(없으면 읽지 않는다).
-//        onSaved(report): 보고가 저장된 직후 불린다(호실 QR 화면이 같은 화면의 호실 진행도를 바로 새로 계산하려고 쓴다).
-export default function VoiceInspection({ buildings, userName, notify, unit = null, checklistItems = [], onSaved = null }) {
+export default function VoiceInspection({ buildings, userName, notify, unit = null, checklistItems = [] }) {
   const { t } = useLanguage();
   const unitMode = !!unit;
   const unitFloor = unitMode ? Number(unit.floor) : 0;
@@ -202,7 +201,6 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
     t,
     notify,
     checklistItems,
-    onSaved,
     fixedUnit: unitMode ? unitName : "",
   };
   const mounted = useRef(true);
@@ -315,13 +313,6 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
       setMessage({ kind: "ok", key: "voice.status.done" });
       if (latest.current.zone === entry.zone) setReports((prev) => [saved, ...prev.filter((r) => r.id !== saved.id)]);
       latest.current.notify(latest.current.t("voice.sent"));
-      if (latest.current.onSaved) {
-        try {
-          latest.current.onSaved(saved);
-        } catch {
-          // 진행도 화면을 새로 그리는 일이 실패해도 저장된 보고에는 영향이 없다.
-        }
-      }
     } catch {
       if (!mounted.current) return;
       setResult({ ...entry, state: "error" });
