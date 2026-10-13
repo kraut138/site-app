@@ -223,7 +223,7 @@ const dict = {
     "roster.expelledNotice": "퇴출 처리된 인력입니다.",
     "status.퇴출": "퇴출",
     "page.safety.title": "안전 현황",
-    "page.safety.desc": "안전/환경 공종의 검측·NCR과 현장 인력 현황을 모아서 확인합니다",
+    "page.safety.desc": "안전/환경 공종의 검측·NCR과 건설기계 승인 대기를 모아서 확인합니다",
 
     "dashboard.totalRequests": "전체 검측 요청",
     "dashboard.pending": "대기",
@@ -645,7 +645,7 @@ const dict = {
     "roster.expelledNotice": "This worker has been expelled.",
     "status.퇴출": "Expelled",
     "page.safety.title": "Safety Status",
-    "page.safety.desc": "Safety/environment inspections, NCRs, and on-site worker status in one view",
+    "page.safety.desc": "Safety/environment inspections, NCRs, and pending equipment approvals in one view",
 
     "dashboard.totalRequests": "Total Requests",
     "dashboard.pending": "Pending",
@@ -1067,7 +1067,7 @@ const dict = {
     "roster.expelledNotice": "Nhân lực này đã bị trục xuất.",
     "status.퇴출": "Đã trục xuất",
     "page.safety.title": "Tình trạng an toàn",
-    "page.safety.desc": "Xem kiểm định an toàn/môi trường, NCR và tình trạng nhân lực tại một nơi",
+    "page.safety.desc": "Xem kiểm định an toàn/môi trường, NCR và thiết bị chờ duyệt tại một nơi",
 
     "dashboard.totalRequests": "Tổng yêu cầu kiểm định",
     "dashboard.pending": "Chờ xử lý",
@@ -1489,7 +1489,7 @@ const dict = {
     "roster.expelledNotice": "该人员已被清退。",
     "status.퇴출": "已清退",
     "page.safety.title": "安全现况",
-    "page.safety.desc": "汇总查看安全/环境工种的检测、NCR及现场人力现况",
+    "page.safety.desc": "汇总查看安全/环境工种的检测、NCR及待批准的机械设备",
 
     "dashboard.totalRequests": "全部检测申请",
     "dashboard.pending": "待处理",

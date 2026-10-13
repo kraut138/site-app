@@ -1,16 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Layout from "./components/Layout.jsx";
 import OperationsHub from "./components/OperationsHub.jsx";
-import Workers from "./components/Workers.jsx";
-import WorkerRoster from "./components/WorkerRoster.jsx";
-import Documents from "./components/Documents.jsx";
-import QrCodes from "./components/QrCodes.jsx";
 import VoiceInspection from "./components/VoiceInspection.jsx";
 import QrBoardScreen from "./components/QrBoardScreen.jsx";
-import Equipment from "./components/Equipment.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
-import Site3DView from "./components/Site3DView.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
 import LoginScreen from "./components/LoginScreen.jsx";
 import SafetyOverview from "./components/SafetyOverview.jsx";
@@ -39,7 +33,6 @@ export default function App() {
   const [userProfile, setUserProfile] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [viewAsRole, setViewAsRole] = useState(null);
-  const [docSignatures, setDocSignatures] = useState({}); // 서류 탭 전자서명(확인용, 새로고침/로그아웃하면 사라짐)
   const trueRole = userProfile ? normalizeRole(userProfile.role) : null;
   const role = trueRole === ROLES.SUPER && viewAsRole ? viewAsRole : trueRole;
   const lang = userProfile?.language || DEFAULT_LANGUAGE;
@@ -61,7 +54,6 @@ export default function App() {
   const [ncrs, setNcrs] = useState([]);
   const [unitNotes, setUnitNotes] = useState([]);
   const [checklistItems, setChecklistItems] = useState([]);
-  const [workers, setWorkers] = useState([]);
   const [equipment, setEquipment] = useState([]);
   const [unitFloorPlans, setUnitFloorPlans] = useState([]);
   const [siteSettings, setSiteSettings] = useState({});
@@ -109,7 +101,6 @@ export default function App() {
   async function handleLogout() {
     await logOut();
     setViewAsRole(null);
-    setDocSignatures({});
   }
 
   useEffect(() => {
@@ -134,7 +125,6 @@ export default function App() {
         setNcrs(data.ncrs || []);
         setUnitNotes(data.unitNotes || []);
         setChecklistItems(data.checklistItems || []);
-        setWorkers(data.workers || []);
         setEquipment(data.equipment || []);
         setUnitFloorPlans(data.unitFloorPlans || []);
         setSiteSettings(data.siteSettings || {});
@@ -225,30 +215,6 @@ export default function App() {
     }
   }
 
-  async function handleCreateWorkers(data) {
-    const created = await api.createWorkers(data);
-    setWorkers((prev) => [...prev, ...created]);
-    return created;
-  }
-
-  async function handleUpdateWorkerStatus(id, data) {
-    const updated = await api.updateWorkerStatus(id, data);
-    setWorkers((prev) => prev.map((w) => (w.id === id ? updated : w)));
-    return updated;
-  }
-
-  async function handleAddWorkerWarning(id, data) {
-    const updated = await api.addWorkerWarning(id, data);
-    setWorkers((prev) => prev.map((w) => (w.id === id ? updated : w)));
-    return updated;
-  }
-
-  async function handleCreateEquipment(data) {
-    const created = await api.createEquipment(data);
-    setEquipment((prev) => [...prev, created]);
-    return created;
-  }
-
   async function handleUpdateEquipmentStatus(id, data) {
     const updated = await api.updateEquipmentStatus(id, data);
     setEquipment((prev) => prev.map((eq) => (eq.id === id ? updated : eq)));
@@ -291,11 +257,11 @@ export default function App() {
     pending: inspections.filter((i) => i.status === "대기").length,
     ncr: ncrs.filter((n) => n.status !== "완료").length,
     safetyNcr: ncrs.filter((n) => n.categoryId === "safety" && n.status !== "완료").length,
-    workersPending: workers.filter((w) => w.status === "대기").length,
     equipmentPending: equipment.filter((eq) => eq.status === "대기").length,
   };
   badges.operations = badges.pending + badges.ncr;
-  badges.safetyTotal = badges.safetyNcr + badges.workersPending + badges.equipmentPending;
+  // 안전 현황 탭에서 처리할 수 있는 것만 센다: 안전 NCR + 승인 대기 건설기계(인력 승인 화면은 메뉴에서 없앴다)
+  badges.safetyTotal = badges.safetyNcr + badges.equipmentPending;
 
   let content;
   if (initialQrBoardId) {
@@ -372,30 +338,9 @@ export default function App() {
               notify={notify}
             />
           )}
-          {view === "workers" && <Workers workers={workers} onCreateWorkers={handleCreateWorkers} notify={notify} />}
           {view === "voice" && (
             <VoiceInspection buildings={buildings} userName={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />
           )}
-          {view === "documents" && (
-            <Documents
-              signatures={docSignatures}
-              signerName={(userProfile && userProfile.name) || ""}
-              signerAccount={(authUser && authUser.email) || (userProfile && userProfile.email) || ""}
-              onSign={(slot, sig) => setDocSignatures((prev) => ({ ...prev, [slot]: { ...sig, at: new Date().toISOString() } }))}
-              onClear={() => setDocSignatures({})}
-              notify={notify}
-            />
-          )}
-          {view === "qrcodes" && <QrCodes createdBy={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />}
-          {view === "workerRoster" && (
-            <WorkerRoster
-              workers={workers}
-              onUpdateWorkerStatus={handleUpdateWorkerStatus}
-              onAddWorkerWarning={handleAddWorkerWarning}
-              notify={notify}
-            />
-          )}
-          {view === "equipment" && <Equipment equipment={equipment} onCreateEquipment={handleCreateEquipment} notify={notify} />}
           {view === "safety" && (
             <SafetyOverview
               role={role}
@@ -442,7 +387,6 @@ export default function App() {
           {view === "sitelayout" && (
             <SiteLayout buildings={buildings} checklistItems={checklistItems} inspections={inspections} onNavigateToUnit={handleNavigateToUnit} />
           )}
-          {view === "site3d" && <Site3DView buildings={buildings} unitFloorPlans={unitFloorPlans} siteSettings={siteSettings} />}
         </Layout>
         <Toast message={toast} onDone={() => setToast("")} />
       </>

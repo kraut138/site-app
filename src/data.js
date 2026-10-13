@@ -164,16 +164,21 @@ export function isAdminRole(role) {
 
 // 뷰(탭)별 접근 가능한 역할. 값을 생략하면 모든 역할이 접근 가능.
 // (대시보드는 "현장관리" 탭 내부의 서브탭이며, OperationsHub.jsx에서 role로 별도 제한됨)
+// 빈 목록([])은 "어느 역할도 열 수 없음"이다 - 메뉴에서 없앤 탭이라 혹시 그 값이 남아 있어도 공사현황으로 돌려보낸다
+// (화면 코드 파일은 지우지 않고 남겨 두었으니, 다시 쓰려면 메뉴(Layout.jsx)와 App.jsx 연결을 되살리고 여기 목록을 지우면 된다).
 export const VIEW_ROLES = {
-  workers: [ROLES.SUB],
-  equipment: [ROLES.SUB],
   voice: [ROLES.SUB],
   buildings: [ROLES.SUPER],
   sitelayout: [ROLES.SUPER],
   unitinfo: [ROLES.SUPER],
   safety: [ROLES.SUPER],
-  workerRoster: [ROLES.SUPER],
-  qrcodes: [ROLES.SUPER],
+  // 메뉴에서 없앤 탭: 인력 등록(workers), 건설기계 등록(equipment), 인력 현황(workerRoster), QR코드(qrcodes), 현장 3D(site3d), 서류(documents)
+  workers: [],
+  equipment: [],
+  workerRoster: [],
+  qrcodes: [],
+  site3d: [],
+  documents: [],
 };
 
 export function isViewAllowed(viewId, role) {

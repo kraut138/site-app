@@ -15,15 +15,9 @@ const NAV_GROUPS = [
     items: [
       { id: "operations", labelKey: "nav.operations", Icon: Icon.Dashboard, badgeKey: "operations" },
       { id: "voice", labelKey: "nav.voice", Icon: Icon.Mic },
-      { id: "workers", labelKey: "nav.workers", Icon: Icon.Worker, badgeKey: "workersPending" },
-      { id: "equipment", labelKey: "nav.equipment", Icon: Icon.Excavator, badgeKey: "equipmentPending" },
       { id: "unitinfo", labelKey: "nav.unitinfo", Icon: Icon.Door },
       { id: "buildings", labelKey: "nav.buildings", Icon: Icon.Building },
       { id: "sitelayout", labelKey: "nav.sitelayout", Icon: Icon.Cube },
-      { id: "site3d", labelKey: "nav.site3d", Icon: Icon.CitySkyline },
-      { id: "workerRoster", labelKey: "nav.workerRoster", Icon: Icon.IdCard },
-      { id: "documents", labelKey: "nav.documents", Icon: Icon.Inspection },
-      { id: "qrcodes", labelKey: "nav.qrcodes", Icon: Icon.Qr },
     ],
   },
   {
@@ -35,15 +29,9 @@ const NAV_GROUPS = [
 const PAGE_META = {
   operations: { titleKey: "page.operations.title", descKey: "page.operations.desc" },
   voice: { titleKey: "page.voice.title", descKey: "page.voice.desc" },
-  workers: { titleKey: "page.workers.title", descKey: "page.workers.desc" },
-  equipment: { titleKey: "page.equipment.title", descKey: "page.equipment.desc" },
   unitinfo: { titleKey: "page.unitinfo.title", descKey: "page.unitinfo.desc" },
   buildings: { titleKey: "page.buildings.title", descKey: "page.buildings.desc" },
   sitelayout: { titleKey: "page.sitelayout.title", descKey: "page.sitelayout.desc" },
-  site3d: { titleKey: "page.site3d.title", descKey: "page.site3d.desc" },
-  workerRoster: { titleKey: "page.workerRoster.title", descKey: "page.workerRoster.desc" },
-  documents: { titleKey: "page.documents.title", descKey: "page.documents.desc" },
-  qrcodes: { titleKey: "page.qrcodes.title", descKey: "page.qrcodes.desc" },
   safety: { titleKey: "page.safety.title", descKey: "page.safety.desc" },
 };
 
