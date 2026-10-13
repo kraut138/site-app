@@ -1,22 +1,52 @@
 // 음성 검측(VOICE-LOCK): 공종 정보, 현장 은어 → 표준 용어 변환, 요약 문장 만들기, 위치(동·층) 도우미, 음성 인식 객체.
 // 화면에 보이는 문구는 i18n.js(voice.*)에 있고, 여기에는 저장되는 데이터(한국어 표준 용어)와 계산 로직만 둔다.
+import { CATEGORIES, getCategory } from "./data.js";
 
-// 공종 4가지. color는 화면 테마색, badge는 영문 표시. (철근·설비·형틀은 작업 보고, 품질 승인은 타설 허가 보고)
-export const VOICE_TRADES = [
-  { id: "rebar", color: "#1D4ED8", badge: "REBAR" },
-  { id: "mep", color: "#D97706", badge: "MEP" },
-  { id: "formwork", color: "#EA580C", badge: "FORMWORK" },
-  { id: "qc", color: "#15803D", badge: "QC" },
+// 공종: 관리자 "표준 공종" 탭(공사현황 > 표준 공종)에 나오는 분류와 똑같이 골조공사·마감공사·설비/전기다.
+// (안전/환경은 그 탭에서도, 골구도·진행도 화면에서도 빠져 있어 여기서도 뺀다)
+// id는 그 분류의 id(frame·finish·mep), color는 그 분류의 색, badge는 id의 영문 대문자("TEMPLATE · FRAME"과 같은 표기)다.
+// 이름은 번역 사전(category.<id>.name)에서 가져온다. 그 분류 아래의 세부 공종(표준 항목)은 관리자가 고치는 목록이라
+// 여기에 고정해 두지 않고, 화면이 받은 checklistItems에서 읽는다(data.js itemsForCategory).
+export const VOICE_TRADES = CATEGORIES.filter((c) => c.id !== "safety").map((c) => ({ id: c.id, color: c.color, badge: c.id.toUpperCase() }));
+
+// 예전에 쓰던 공종(철근·형틀·품질 승인). 새로 고를 수는 없고, 이미 저장된 기록의 이름과 색을 보여 줄 때만 쓴다.
+// (예전의 "설비"(mep)는 지금의 "설비/전기"와 id가 같아서 따로 두지 않는다)
+const LEGACY_TRADES = [
+  { id: "rebar", name: "철근", color: "#1D4ED8" },
+  { id: "formwork", name: "형틀", color: "#EA580C" },
+  { id: "qc", name: "품질 승인", color: "#15803D" },
 ];
 
+// 지금 고를 수 있는 공종. 모르는 id면 첫 번째(골조공사).
 export function getTrade(id) {
   return VOICE_TRADES.find((t) => t.id === id) || VOICE_TRADES[0];
+}
+
+// 저장된 기록에 적힌 공종 id로 공종을 찾는다(예전 공종 포함). 어느 쪽도 아니면 null.
+export function findTrade(id) {
+  return VOICE_TRADES.find((t) => t.id === id) || LEGACY_TRADES.find((t) => t.id === id) || null;
+}
+
+// 저장된 기록의 공종 이름(한국어) - 관리자 화면처럼 번역하지 않는 곳에서 쓴다. 모르는 id면 빈 글자.
+export function tradeName(id) {
+  const cat = VOICE_TRADES.some((t) => t.id === id) ? getCategory(id) : null;
+  if (cat) return cat.name;
+  const legacy = LEGACY_TRADES.find((t) => t.id === id);
+  return legacy ? legacy.name : "";
+}
+
+// 저장된 기록의 공종 이름을 번역 사전에서 찾을 때 쓰는 키. 모르는 id면 "".
+export function tradeLabelKey(id) {
+  if (VOICE_TRADES.some((t) => t.id === id)) return `category.${id}.name`;
+  if (LEGACY_TRADES.some((t) => t.id === id)) return `voice.trade.${id}`;
+  return "";
 }
 
 export const VOICE_LIMITS = {
   rawText: 1000, // 저장하는 발화 원문 최대 글자 수
   elem: 40, // 부재 이름 최대 글자 수
   typedText: 500, // 직접 입력할 때 입력창에 넣을 수 있는 최대 글자 수
+  tradeItem: 80, // 세부 공종(표준 항목 글) 최대 글자 수
 };
 
 // 부재 이름 입력 칸에 제안으로 보여줄 예시들(직접 입력도 자유롭게 가능).
@@ -259,17 +289,24 @@ export function normalizeSlang(text, terms = DEFAULT_TERMS) {
   return applyGlossary(text, terms).text;
 }
 
-// 공종별 요약 문장 틀. 은어를 바꾼 발화 내용이 괄호 안에 그대로 붙는다.
-const SUMMARY_TEMPLATES = {
+// 예전 공종(철근·설비·형틀·품질 승인) 시절에 저장된 기록의 요약 문장 틀. 그 기록의 요약을 다시 만들 때도(용어 표 다시 적용)
+// 같은 문장이 나오도록 그대로 둔다. 은어를 바꾼 발화 내용이 괄호 안에 그대로 붙는다.
+const LEGACY_SUMMARY_TEMPLATES = {
   rebar: (n) => `주근 규격 및 띠철근 결속 상태 적합, 배근 검측 접수 (${n})`,
   mep: (n) => `슬리브 및 매설 드레인 배관 설계 위치 고정 확인 (${n})`,
   formwork: (n) => `거푸집 조립 및 연직도·타이볼트 체결 이상 무 (${n})`,
   qc: (n) => `품질 관리 기준 적합 검측 완료 (${n})`,
 };
 
-export function buildSummary(tradeId, normalized) {
-  const make = SUMMARY_TEMPLATES[tradeId] || SUMMARY_TEMPLATES.qc;
-  return make(normalized);
+// 공종별 요약 문장. 은어를 바꾼 발화 내용이 괄호 안에 그대로 붙는다.
+//  - 지금의 공종: 분류 이름에 고른 세부 공종을 붙여 "마감공사 · 도배 검측 접수 (도배 완료)"처럼 만든다(세부 공종을 안 골랐으면 "마감공사 검측 접수 (…)").
+//  - item이 undefined인 기록은 세부 공종 칸이 없던 예전 기록이다(지금 남기는 보고는 세부 공종을 안 골라도 빈 글자 ""를 함께 저장한다).
+//    그런 기록은 예전 문장 틀을 그대로 쓴다(모르는 공종은 예전처럼 품질 승인 틀).
+export function buildSummary(tradeId, normalized, item) {
+  if (item === undefined) return (LEGACY_SUMMARY_TEMPLATES[tradeId] || LEGACY_SUMMARY_TEMPLATES.qc)(normalized);
+  const cat = VOICE_TRADES.some((t) => t.id === tradeId) ? getCategory(tradeId) : null;
+  const where = [cat ? cat.name : "", cleanTermText(item)].filter(Boolean).join(" · ");
+  return `${where ? `${where} ` : ""}검측 접수 (${normalized})`;
 }
 
 // 브라우저의 음성 인식(Web Speech API). Chrome·Safari는 지원하고, 앱 안의 브라우저나 Firefox 등은 지원하지 않을 수 있다.

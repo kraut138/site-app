@@ -2001,8 +2001,14 @@ textarea.input {
 
 .vl-trades {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+/* 세부 공종 선택(관리자 '표준 공종' 탭의 항목) - 공종 칩 바로 아래 */
+.vl-item {
+  margin: 14px 0 0;
+  max-width: 520px;
 }
 
 .vl-trade {
@@ -2085,6 +2091,8 @@ textarea.input {
   padding: 4px 10px;
   border-radius: 999px;
   background: var(--vl);
+  /* 마감공사처럼 밝은 공종 색에서도 흰 글씨가 또렷하도록 살짝 어둡게(지원하지 않는 브라우저는 위의 원래 색 그대로) */
+  background: color-mix(in srgb, var(--vl) 80%, #000);
   color: #fff;
 }
 
@@ -2157,6 +2165,7 @@ textarea.input {
   background: var(--surface);
   border: 8px solid var(--vl);
   color: var(--vl);
+  color: color-mix(in srgb, var(--vl) 72%, #000);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2493,6 +2502,14 @@ textarea.input {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.vl-page--unit .vl-trade:nth-child(odd):last-child {
+  grid-column: 1 / -1;
+}
+
+.vl-page--unit .vl-item {
+  max-width: none;
+}
+
 .vl-page--unit .vl-rec-head {
   padding: 14px 14px 0;
 }
@@ -2557,6 +2574,12 @@ textarea.input {
 @media (max-width: 720px) {
   .vl-trades {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .vl-trade:nth-child(odd):last-child {
+    grid-column: 1 / -1;
+  }
+  .vl-item {
+    max-width: none;
   }
   .vl-loc-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -595,7 +595,9 @@ export async function deleteQrCode(id) {
 // ---------------- 음성 검측 보고 (하도급사가 공종별로 말로 남기는 작업 보고) ----------------
 // voiceReports/{id}: 시안(dashboard.html)이 쓰던 필드 이름(trade, author, zone, elem, time, rawText, summary, timestamp)을 그대로 따른다.
 // 그래서 나중에 관리자 화면(대시보드)을 만들 때 이 컬렉션을 그대로 읽어 쓰면 된다.
-//   trade: "rebar" | "mep" | "formwork" | "qc"   zone: "101동 3층"   elem: "C1 기둥"   via: "voice"(음성) | "text"(직접 입력)
+//   trade: "frame" | "finish" | "mep"(관리자 '표준 공종' 탭의 분류: 골조공사·마감공사·설비/전기)   tradeItem: 고른 세부 공종("도배" 등 표준 항목 글, 안 골랐으면 "")
+//   zone: "101동 3층"   elem: "C1 기둥"   via: "voice"(음성) | "text"(직접 입력)
+//   (공종을 철근·설비·형틀·품질 승인 중에서 고르던 때 저장된 기록은 trade가 "rebar"·"formwork"·"qc"(설비는 "mep")이고 tradeItem 항목이 없다 - 읽을 때 그대로 보여 준다)
 const VOICE_SAVE_TIMEOUT_MS = 12000;
 
 // 연결이 불안한 현장(지하 등)에서는 Firestore 쓰기가 에러 없이 한참 대기 상태로 남을 수 있다.
@@ -624,6 +626,7 @@ export async function createVoiceReport(data) {
   const floor = Number(data.floor);
   const payload = {
     trade,
+    tradeItem: String(data.tradeItem || "").trim().slice(0, VOICE_LIMITS.tradeItem),
     author: String(data.author || "").trim().slice(0, 60),
     buildingId: String(data.buildingId || ""),
     buildingName: String(data.buildingName || ""),
@@ -774,7 +777,8 @@ export async function planGlossaryReapply() {
       return;
     }
     const normalized = applyGlossary(rawText, current.terms).text;
-    const summary = buildSummary(String(data.trade || ""), normalized);
+    // tradeItem이 없는 기록은 세부 공종 칸이 없던 예전 기록이다 - buildSummary가 예전 문장 틀로 같은 요약을 만든다.
+    const summary = buildSummary(String(data.trade || ""), normalized, typeof data.tradeItem === "string" ? data.tradeItem : undefined);
     const before = typeof data.normalized === "string" ? data.normalized : "";
     if (normalized === before && summary === (typeof data.summary === "string" ? data.summary : "")) return;
     changes.push({

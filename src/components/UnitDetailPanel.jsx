@@ -3,7 +3,7 @@ import { CATEGORIES, getCategory, formatDateTime, categoryProgress, itemsForCate
 import { Icon, EmptyState, CategoryTag, StatusBadge } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 import * as api from "../api.js";
-import { VOICE_TRADES } from "../voice.js";
+import { findTrade, tradeName } from "../voice.js";
 import { analyzeProgress } from "../progressText.js";
 import { progressForUnit, resolveUnit, relatedUnits, hasEffect, canonUnit, unitKeyOf } from "../unitProgress.js";
 
@@ -47,7 +47,6 @@ function ItemStatusIcon({ status }) {
 
 const VOICE_CACHE_MS = 60 * 1000;
 const REC_PAGE = 10;
-const TRADE_NAME = { rebar: "철근", mep: "설비", formwork: "형틀", qc: "품질 승인" };
 // 진행도에 반영하지 못한 이유(resolveUnit의 reason)를 관리자에게 알려 주는 말
 const NO_UNIT_REASON = {
   none: "어느 호실 이야기인지 알 수 없어서",
@@ -126,7 +125,7 @@ function RecordRow({ report, related, view }) {
   const analysis = useMemo(() => analyzeProgress(text, checklistItems), [text, checklistItems]);
   const effect = hasEffect(analysis);
   const off = !!r.progressOff;
-  const trade = VOICE_TRADES.find((x) => x.id === r.trade);
+  const trade = findTrade(r.trade); // 표준 공종 분류(골조공사·마감공사·설비/전기) 또는 예전 공종(철근·형틀·품질 승인)
   const mine = resolved.ok && resolved.key === unitKey;
   const showUnits = floorTab || related.length > 1;
 
@@ -170,7 +169,7 @@ function RecordRow({ report, related, view }) {
   return (
     <article className="vl-card up-rec" style={{ "--vl": trade ? trade.color : "var(--line-strong)" }} data-testid="up-rec">
       <header className="vl-card-head">
-        {trade && <span className="vl-card-trade">{TRADE_NAME[trade.id] || trade.id}</span>}
+        {trade && <span className="vl-card-trade">{tradeName(trade.id) || trade.id}</span>}
         <strong>{r.author || "이름 없음"}</strong>
         {r.via === "text" && <span className="vl-card-via">직접 입력</span>}
         <time className="vl-card-time">{formatDateTime(r.createdAt)}</time>

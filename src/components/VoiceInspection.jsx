@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, EmptyState } from "./UI.jsx";
 import { useLanguage } from "../LanguageContext.jsx";
-import { formatDateTime, getCategory } from "../data.js";
+import { formatDateTime, getCategory, itemsForCategory } from "../data.js";
 import { QR_LIMITS } from "../qr.js";
 import * as api from "../api.js";
 import {
@@ -9,6 +9,8 @@ import {
   VOICE_LIMITS,
   ELEM_SUGGESTIONS,
   getTrade,
+  findTrade,
+  tradeLabelKey,
   applyGlossary,
   buildSummary,
   getSpeechRecognition,
@@ -19,14 +21,14 @@ import { getGlossaryTerms, getGlossaryPending, refreshGlossary } from "../glossa
 import { analyzeReport, hasEffect } from "../unitProgress.js";
 
 // "음성 검측" (시안 index.html의 기능). 두 곳에서 쓴다.
-//  1) 하도급사 전용 "음성 검측" 탭: 공종을 고르고 위치(동·층·부재)를 정한 뒤 마이크로 말한다.
+//  1) 하도급사 전용 "음성 검측" 탭: 공종(관리자 '표준 공종' 탭의 분류 + 그 아래 세부 공종)을 고르고 위치(동·층·부재)를 정한 뒤 마이크로 말한다.
 //  2) 호실 QR 스캔 화면(unit 속성을 줄 때): 위치(동·층·호)는 QR이 이미 정해 주므로 고르지 않고, 로그인이 없으니 이름은 직접 적는다(선택).
 // 말하면 → 음성 인식 → 인식된 글자를 바로 화면에 보여 주고 → 현장 은어를 표준 용어로 바꿔(관리자 "용어 DB" 탭의 표대로) → 공종별 요약 문장을 만들어 → 저장한다.
 // 음성 인식이 안 되는 기기(앱 안의 브라우저 등)를 위해 직접 입력으로도 같은 과정을 거치게 했다.
 // 화면 문구는 하도급사가 외국인 근로자일 수 있어 번역 사전(voice.*)을 쓴다. 저장되는 발화 원문·요약은 말한 그대로(한국어)다.
 
 const STORAGE_KEY = "voiceInspectionSelection";
-const UNIT_STORAGE_KEY = "voiceUnitSelection"; // 호실 QR 화면에서는 공종만 기억한다(탭의 위치 선택과 섞이지 않게 따로 둔다)
+const UNIT_STORAGE_KEY = "voiceUnitSelection"; // 호실 QR 화면에서는 공종(과 세부 공종)만 기억한다(탭의 위치 선택과 섞이지 않게 따로 둔다)
 const AUTHOR_KEY = "qrBoardAuthor"; // QR 기록판과 같은 키 - 한 번 적은 이름을 두 화면에서 함께 쓴다
 const PAGE_SIZE = 20;
 const UNIT_PAGE_SIZE = 3; // 호실 화면은 길어지지 않도록 처음에는 최근 3건만 보여 준다
@@ -149,7 +151,7 @@ function ProgressNote({ progress, unitLabel, t }) {
 
 // props: buildings, userName(로그인한 계정 이름), notify,
 //        unit: { buildingId, floor, unit } - 호실 QR 화면에서만 준다. 주면 위치가 이 호실로 고정되고 이름을 직접 입력받는다.
-//        checklistItems: 공종 세부 항목 목록 - 말한 내용에서 "도배 완료" 같은 진행 상황을 읽어 호실 진행도에 반영할 때 쓴다(없으면 읽지 않는다).
+//        checklistItems: 표준 공종의 세부 항목 목록 - ① 세부 공종 선택 칸의 선택지, ② 말한 내용에서 "도배 완료" 같은 진행 상황을 읽어 호실 진행도에 반영할 때 쓴다(없으면 둘 다 하지 않는다).
 export default function VoiceInspection({ buildings, userName, notify, unit = null, checklistItems = [] }) {
   const { t } = useLanguage();
   const unitMode = !!unit;
@@ -158,6 +160,7 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
   const unitLabel = unitName ? `${unitName}호` : ""; // 부재 칸에 저장되는 값(저장 내용은 한국어 고정). 호수가 비어 있으면 위치를 정할 수 없어 녹음이 잠긴다.
   const [initial] = useState(() => readSaved(unitMode ? UNIT_STORAGE_KEY : STORAGE_KEY));
   const [tradeId, setTradeId] = useState(() => (VOICE_TRADES.some((x) => x.id === initial.tradeId) ? initial.tradeId : VOICE_TRADES[0].id));
+  const [tradeItem, setTradeItem] = useState(() => (typeof initial.tradeItem === "string" ? initial.tradeItem.slice(0, VOICE_LIMITS.tradeItem) : ""));
   const [buildingId, setBuildingId] = useState(() => (buildings.some((b) => b.id === initial.buildingId) ? initial.buildingId : ""));
   const [floor, setFloor] = useState(() => (Number.isInteger(initial.floor) && initial.floor !== 0 ? initial.floor : 1));
   const [elem, setElem] = useState(() => (typeof initial.elem === "string" ? initial.elem.slice(0, VOICE_LIMITS.elem) : ""));
@@ -177,6 +180,9 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
   // 선택한 값들로 위치를 계산한다. 저장해 둔 동이 없어졌거나 층이 그 동에 없으면 안전한 값으로 대체한다.
   // 호실 QR 화면에서는 QR이 정한 동·층·호를 그대로 쓴다(층 값이 이상하면 위치를 만들지 않아 녹음이 잠긴다).
   const trade = getTrade(tradeId);
+  // 세부 공종 선택지: 관리자 '표준 공종' 탭의 이 분류 항목을 그 탭의 순서 그대로. 기억해 둔 항목이 지금 목록에 없으면(관리자가 지웠거나 목록을 못 읽었으면) 고르지 않은 것으로 본다.
+  const tradeItems = itemsForCategory(checklistItems, trade.id);
+  const itemValue = tradeItems.some((i) => i.text === tradeItem) ? tradeItem : "";
   const building = unitMode ? buildings.find((b) => b.id === unit.buildingId) || null : buildings.find((b) => b.id === buildingId) || buildings[0] || null;
   const floors = building ? floorChoices(building.floors) : [];
   const unitFloorOk = Number.isInteger(unitFloor) && unitFloor !== 0;
@@ -192,6 +198,7 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
   const latest = useRef({});
   latest.current = {
     tradeId,
+    tradeItem: itemValue,
     building,
     floor: activeFloor,
     elem: elemValue,
@@ -237,9 +244,9 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
   }, []);
 
   useEffect(() => {
-    if (unitMode) writeSaved(UNIT_STORAGE_KEY, { tradeId });
-    else writeSaved(STORAGE_KEY, { tradeId, buildingId: building ? building.id : "", floor: activeFloor, elem });
-  }, [unitMode, tradeId, building, activeFloor, elem]);
+    if (unitMode) writeSaved(UNIT_STORAGE_KEY, { tradeId, tradeItem });
+    else writeSaved(STORAGE_KEY, { tradeId, tradeItem, buildingId: building ? building.id : "", floor: activeFloor, elem });
+  }, [unitMode, tradeId, tradeItem, building, activeFloor, elem]);
 
   useEffect(() => {
     if (unitMode) writeAuthor(authorName.trim());
@@ -370,6 +377,7 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
     sendReport({
       id: api.newVoiceReportId(),
       trade: cur.tradeId,
+      tradeItem: cur.tradeItem,
       author: cur.userName,
       buildingId: cur.building.id,
       buildingName: cur.building.name,
@@ -380,7 +388,7 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
       normalized: fixed.text,
       parts: fixed.parts, // 화면에서 바뀐 부분을 강조하는 데만 쓴다(저장하지 않는다)
       replacedCount: fixed.hits.reduce((sum, h) => sum + h.count, 0),
-      summary: buildSummary(cur.tradeId, fixed.text),
+      summary: buildSummary(cur.tradeId, fixed.text, cur.tradeItem),
       progress, // 호실 진행도에 반영된 내용(저장하지 않는다)
       via,
     });
@@ -509,6 +517,7 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
               aria-pressed={tr.id === tradeId}
               disabled={busy}
               onClick={() => {
+                if (tr.id !== tradeId) setTradeItem(""); // 다른 분류의 세부 공종은 이어 가지 않는다
                 setTradeId(tr.id);
                 setResult(null);
                 setMessage(null);
@@ -516,16 +525,40 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
               data-testid={`vl-trade-${tr.id}`}
             >
               <span className="vl-trade-dot" />
-              <span>{t(`voice.trade.${tr.id}`)}</span>
+              <span>{t(tradeLabelKey(tr.id))}</span>
             </button>
           ))}
         </div>
+        {tradeItems.length > 0 && (
+          <div className="field vl-item">
+            <label htmlFor="vl-item">{t("voice.trade.item")}</label>
+            <select
+              id="vl-item"
+              className="input"
+              value={itemValue}
+              disabled={busy}
+              onChange={(e) => {
+                setTradeItem(e.target.value);
+                setResult(null);
+                setMessage(null);
+              }}
+              data-testid="vl-item"
+            >
+              <option value="">{t("voice.trade.itemAll", { name: t(tradeLabelKey(trade.id)) })}</option>
+              {tradeItems.map((it) => (
+                <option key={it.id} value={it.text}>
+                  {it.text}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </section>
 
       <div className="vl-grid">
         <section className="card vl-recorder" style={themeStyle} data-testid="vl-recorder" data-trade={trade.id}>
           <header className="vl-rec-head">
-            <h2 data-testid="vl-title">{t(`voice.title.${trade.id}`)}</h2>
+            <h2 data-testid="vl-title">{t("voice.title", { name: t(tradeLabelKey(trade.id)) })}</h2>
             <span className="vl-badge">{trade.badge}</span>
           </header>
 
@@ -611,7 +644,7 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
             </div>
 
             <p className="vl-guide" data-testid="vl-guide">
-              {t(`voice.guide.${trade.id}`)}
+              {itemValue ? t("voice.guide.item", { item: itemValue }) : t(`voice.guide.${trade.id}`)}
             </p>
 
             {!supported && (
@@ -739,11 +772,11 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
           ) : (
             <div className="vl-feed-list">
               {shown.map((r) => {
-                const tr = VOICE_TRADES.find((x) => x.id === r.trade);
+                const tr = findTrade(r.trade);
                 return (
                   <article key={r.id} className="vl-card" style={{ "--vl": (tr || trade).color }} data-testid="vl-card">
                     <header className="vl-card-head">
-                      {tr && <span className="vl-card-trade">{t(`voice.trade.${tr.id}`)}</span>}
+                      {tr && <span className="vl-card-trade">{t(tradeLabelKey(tr.id))}</span>}
                       <strong>{r.author || t("qr.list.anonymous")}</strong>
                       {r.via === "text" && <span className="vl-card-via">{t("voice.card.viaText")}</span>}
                       <time className="vl-card-time">{formatDateTime(r.createdAt)}</time>
