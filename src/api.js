@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase.js";
 import { QR_LIMITS, newQrBoardId, isValidQrBoardId } from "./qr.js";
-import { VOICE_TRADES, VOICE_LIMITS, clockString } from "./voice.js";
+import { VOICE_TRADES, VOICE_LIMITS, clockString, defaultGlossary, sanitizeGlossary, checkTerm, GLOSSARY_MESSAGES } from "./voice.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -645,6 +645,72 @@ export async function createVoiceReport(data) {
 export async function fetchVoiceReports(zone) {
   const snap = await getDocs(query(collection(db, "voiceReports"), where("zone", "==", zone)));
   return snapToArray(snap).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+}
+
+// ---------------- 용어 DB (현장 은어 → 표준 용어) ----------------
+// meta/glossary: { terms: [{ id, slang, standard }], updatedAt, updatedBy }
+// 관리자 화면의 "용어 DB" 탭이 고치는 표이고, 음성 검측이 말한 내용을 표준 용어로 바꿀 때 이 표를 쓴다.
+// 표 전체를 문서 1개에 넣어 둔다: 음성 검측 화면이 열릴 때마다 읽어도 1건만 읽으면 되고(무료 요금제의 읽기 한도 절약), 저장도 한 번에 끝난다.
+// 이 문서가 아직 없으면(관리자가 표를 한 번도 고치지 않았으면) 코드에 들어 있는 기본 용어(voice.js의 SLANG_RULES)를 그대로 쓴다.
+// 표를 고칠 때는 먼저 최신 표를 읽은 뒤 그 위에 한 줄만 바꿔서 저장한다(다른 관리자가 그 사이에 넣은 용어를 덮어쓰지 않도록).
+const GLOSSARY_READ_TIMEOUT_MS = 6000;
+const GLOSSARY_WRITE_TIMEOUT_MS = 12000;
+
+function glossaryError(code) {
+  return Object.assign(new Error(GLOSSARY_MESSAGES[code] || "용어를 저장하지 못했습니다."), { code: `glossary/${code}` });
+}
+
+function newGlossaryId() {
+  return `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+// 반환: { saved: 표가 한 번이라도 저장돼 있는지, terms: 표(저장된 적이 없으면 기본 용어) }
+export async function fetchGlossary() {
+  const snap = await withTimeout(getDoc(doc(db, "meta", "glossary")), GLOSSARY_READ_TIMEOUT_MS, "glossary/timeout");
+  if (!snap.exists()) return { saved: false, terms: defaultGlossary() };
+  return { saved: true, terms: sanitizeGlossary(snap.data().terms) };
+}
+
+async function saveGlossary(terms, by) {
+  await withTimeout(
+    setDoc(doc(db, "meta", "glossary"), { terms, updatedAt: nowIso(), updatedBy: String(by || "").trim().slice(0, 60) }),
+    GLOSSARY_WRITE_TIMEOUT_MS,
+    "glossary/timeout"
+  );
+  return terms;
+}
+
+// 새 용어 한 줄 추가. 반환: { terms(저장된 최신 표), term(추가된 줄) }
+export async function addGlossaryTerm({ slang, standard }, by) {
+  const current = await fetchGlossary();
+  const res = checkTerm({ slang, standard }, current.terms);
+  if (res.code !== "ok") throw glossaryError(res.code);
+  const term = { id: newGlossaryId(), slang: res.slang, standard: res.standard };
+  const terms = await saveGlossary([...current.terms, term], by);
+  return { terms, term };
+}
+
+// 한 줄 고치기. 그 사이 다른 관리자가 지운 줄이면 not-found를 던진다(화면은 목록을 새로 불러온다).
+export async function updateGlossaryTerm(id, { slang, standard }, by) {
+  const current = await fetchGlossary();
+  if (!current.terms.some((t) => t.id === id)) throw glossaryError("not-found");
+  const res = checkTerm({ slang, standard }, current.terms, id);
+  if (res.code !== "ok") throw glossaryError(res.code);
+  const terms = await saveGlossary(
+    current.terms.map((t) => (t.id === id ? { id, slang: res.slang, standard: res.standard } : t)),
+    by
+  );
+  return { terms };
+}
+
+export async function deleteGlossaryTerm(id, by) {
+  const current = await fetchGlossary();
+  if (!current.terms.some((t) => t.id === id)) throw glossaryError("not-found");
+  const terms = await saveGlossary(
+    current.terms.filter((t) => t.id !== id),
+    by
+  );
+  return { terms };
 }
 
 // ---------------- image helper (변경 없음, 순수 클라이언트 로직) ----------------

@@ -18,6 +18,7 @@ const NAV_GROUPS = [
       { id: "unitinfo", labelKey: "nav.unitinfo", Icon: Icon.Door },
       { id: "buildings", labelKey: "nav.buildings", Icon: Icon.Building },
       { id: "sitelayout", labelKey: "nav.sitelayout", Icon: Icon.Cube },
+      { id: "glossary", labelKey: "nav.glossary", Icon: Icon.Book },
     ],
   },
   {
@@ -32,6 +33,7 @@ const PAGE_META = {
   unitinfo: { titleKey: "page.unitinfo.title", descKey: "page.unitinfo.desc" },
   buildings: { titleKey: "page.buildings.title", descKey: "page.buildings.desc" },
   sitelayout: { titleKey: "page.sitelayout.title", descKey: "page.sitelayout.desc" },
+  glossary: { titleKey: "page.glossary.title", descKey: "page.glossary.desc" },
   safety: { titleKey: "page.safety.title", descKey: "page.safety.desc" },
 };
 

@@ -9,17 +9,18 @@ import {
   VOICE_LIMITS,
   ELEM_SUGGESTIONS,
   getTrade,
-  normalizeSlang,
+  applyGlossary,
   buildSummary,
   getSpeechRecognition,
   floorChoices,
   buildZone,
 } from "../voice.js";
+import { getGlossaryTerms, getGlossaryPending, refreshGlossary } from "../glossaryStore.js";
 
 // "음성 검측" (시안 index.html의 기능). 두 곳에서 쓴다.
 //  1) 하도급사 전용 "음성 검측" 탭: 공종을 고르고 위치(동·층·부재)를 정한 뒤 마이크로 말한다.
 //  2) 호실 QR 스캔 화면(unit 속성을 줄 때): 위치(동·층·호)는 QR이 이미 정해 주므로 고르지 않고, 로그인이 없으니 이름은 직접 적는다(선택).
-// 말하면 → 음성 인식 → 인식된 글자를 바로 화면에 보여 주고 → 현장 은어를 표준 용어로 바꿔 → 공종별 요약 문장을 만들어 → 저장한다.
+// 말하면 → 음성 인식 → 인식된 글자를 바로 화면에 보여 주고 → 현장 은어를 표준 용어로 바꿔(관리자 "용어 DB" 탭의 표대로) → 공종별 요약 문장을 만들어 → 저장한다.
 // 음성 인식이 안 되는 기기(앱 안의 브라우저 등)를 위해 직접 입력으로도 같은 과정을 거치게 했다.
 // 화면 문구는 하도급사가 외국인 근로자일 수 있어 번역 사전(voice.*)을 쓴다. 저장되는 발화 원문·요약은 말한 그대로(한국어)다.
 
@@ -29,6 +30,7 @@ const AUTHOR_KEY = "qrBoardAuthor"; // QR 기록판과 같은 키 - 한 번 적�
 const PAGE_SIZE = 20;
 const UNIT_PAGE_SIZE = 3; // 호실 화면은 길어지지 않도록 처음에는 최근 3건만 보여 준다
 const UNIT_PAGE_STEP = 10;
+const GLOSSARY_WAIT_MS = 2000; // 용어 표를 새로 읽는 중에 말이 끝났을 때, 최신 표를 위해 기다려 주는 최대 시간
 
 function readSaved(key) {
   try {
@@ -71,6 +73,19 @@ function errorKey(code) {
   if (code === "network") return "voice.err.network";
   if (code === "aborted") return null;
   return "voice.err.generic";
+}
+
+// 은어가 표준 용어로 바뀐 문장을 보여 준다: 바뀐 부분은 강조하고, 마우스를 올리면(title) 원래 말한 낱말이 보인다.
+function NormalizedText({ parts }) {
+  return parts.map((p, i) =>
+    p.from !== undefined ? (
+      <mark key={i} className="vl-mark" title={p.from}>
+        {p.text}
+      </mark>
+    ) : (
+      <React.Fragment key={i}>{p.text}</React.Fragment>
+    )
+  );
 }
 
 // props: buildings, userName(로그인한 계정 이름), notify,
@@ -146,6 +161,17 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
         }
       }
     };
+  }, []);
+
+  // 용어 표(관리자가 "용어 DB" 탭에서 고치는 표)는 화면이 열릴 때, 그리고 꺼 둔 화면이 다시 켜질 때 최신으로 읽어 둔다.
+  // (녹음을 시작할 때와 직접 입력칸을 누를 때도 다시 읽는다 - 표를 막 고친 뒤에도 바로 그 표로 바뀌게 하려는 것)
+  useEffect(() => {
+    refreshGlossary();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshGlossary();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
   useEffect(() => {
@@ -234,7 +260,8 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
     }
   }
 
-  // 말한(또는 입력한) 내용 하나를 보고로 만든다: 은어 변환 → 공종별 요약 → 저장.
+  // 말한(또는 입력한) 내용 하나를 보고로 만든다: 은어 변환(용어 DB 표대로) → 공종별 요약 → 저장.
+  // 용어 표를 새로 읽는 중이면(녹음을 시작할 때 읽기 시작한다) 최대 2초까지 기다렸다가 최신 표로 바꾼다. 읽는 중이 아니면 기다림 없이 바로 진행한다.
   function handleTranscript(raw, via) {
     const cur = latest.current;
     if (!cur.building) return;
@@ -244,7 +271,25 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
       setMessage({ kind: "error", key: "voice.err.noSpeech" });
       return;
     }
-    const normalized = normalizeSlang(rawText);
+    const pending = getGlossaryPending();
+    if (!pending) {
+      makeReport(cur, rawText, via);
+      return;
+    }
+    setStatus("saving");
+    setMessage(null);
+    let timer;
+    const limit = new Promise((resolve) => {
+      timer = setTimeout(resolve, GLOSSARY_WAIT_MS);
+    });
+    Promise.race([pending, limit]).then(() => {
+      clearTimeout(timer);
+      if (mounted.current) makeReport(cur, rawText, via);
+    });
+  }
+
+  function makeReport(cur, rawText, via) {
+    const fixed = applyGlossary(rawText, getGlossaryTerms());
     sendReport({
       id: api.newVoiceReportId(),
       trade: cur.tradeId,
@@ -255,8 +300,10 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
       zone: cur.zone,
       elem: cur.elem.trim(),
       rawText,
-      normalized,
-      summary: buildSummary(cur.tradeId, normalized),
+      normalized: fixed.text,
+      parts: fixed.parts, // 화면에서 바뀐 부분을 강조하는 데만 쓴다(저장하지 않는다)
+      replacedCount: fixed.hits.reduce((sum, h) => sum + h.count, 0),
+      summary: buildSummary(cur.tradeId, fixed.text),
       via,
     });
   }
@@ -306,6 +353,7 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
     if (status !== "idle") return;
     const rec = ensureRecognition();
     if (!rec) return;
+    refreshGlossary(); // 말하는 동안 최신 용어 표를 읽어 둔다
     gotResult.current = false;
     gotError.current = false;
     setMessage(null);
@@ -523,6 +571,20 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
                 <div className="vl-result-raw" data-testid="vl-raw">
                   "{result.rawText}"
                 </div>
+                {result.replacedCount > 0 && (
+                  <>
+                    <div className="vl-result-sep" />
+                    <h3>
+                      {t("voice.result.normalized")}
+                      <span className="vl-result-count" data-testid="vl-replaced">
+                        {t("voice.result.replaced", { n: result.replacedCount })}
+                      </span>
+                    </h3>
+                    <div className="vl-result-norm" data-testid="vl-norm">
+                      <NormalizedText parts={result.parts} />
+                    </div>
+                  </>
+                )}
                 <div className="vl-result-sep" />
                 <h3>{t("voice.result.summary")}</h3>
                 <div className="vl-result-summary" data-testid="vl-summary">
@@ -557,6 +619,7 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
                     value={textValue}
                     disabled={!canRecord || busy}
                     onChange={(e) => setTextValue(e.target.value)}
+                    onFocus={() => refreshGlossary()}
                     data-testid="vl-text"
                   />
                   <button className="btn btn-primary" disabled={!canRecord || busy || !textValue.trim()} data-testid="vl-text-send">
@@ -604,6 +667,12 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
                       <Icon.Pin width="13" height="13" /> {locationLabel(r)} · {r.elem}
                     </div>
                     <div className="vl-card-raw">"{r.rawText}"</div>
+                    {r.normalized && r.normalized !== r.rawText && (
+                      <div className="vl-card-norm" data-testid="vl-card-norm" aria-label={t("voice.result.normalized")}>
+                        <span aria-hidden="true">→ </span>
+                        {r.normalized}
+                      </div>
+                    )}
                     <div className="vl-card-summary">{r.summary}</div>
                   </article>
                 );

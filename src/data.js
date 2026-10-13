@@ -170,6 +170,7 @@ export const VIEW_ROLES = {
   voice: [ROLES.SUB],
   buildings: [ROLES.SUPER],
   sitelayout: [ROLES.SUPER],
+  glossary: [ROLES.SUPER],
   unitinfo: [ROLES.SUPER],
   safety: [ROLES.SUPER],
   // 메뉴에서 없앤 탭: 인력 등록(workers), 건설기계 등록(equipment), 인력 현황(workerRoster), QR코드(qrcodes), 현장 3D(site3d), 서류(documents)

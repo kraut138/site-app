@@ -177,6 +177,13 @@ export const Icon = {
       <path d="M12 18v3" />
     </svg>
   ),
+  Book: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15.5H6.5A1.5 1.5 0 0 0 5 20Z" />
+      <path d="M5 20a1.5 1.5 0 0 0 1.5 1.5H19v-3" />
+      <path d="M9 8h6M9 11.5h4" />
+    </svg>
+  ),
   Empty: (p) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="34" height="34" {...p}>
       <path d="M4 19V7.5L12 3l8 4.5V19" />
