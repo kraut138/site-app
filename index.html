@@ -1,18 +1,1296 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
-    <title>현장검측 · 공종 체크 및 NCR 관리</title>
-    <meta name="description" content="아파트 건설현장 공종별 체크리스트, 검측 승인 워크플로우, 부적합(NCR) 관리 도구" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2218%22 fill=%22%2317456F%22/><path d=%22M28 58 L45 72 L74 32%22 stroke=%22%23F4F6F5%22 stroke-width=%229%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>" />
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" as="style" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>현장통 (SiteTong) - 음성인식 & QR 스마트 시공관리 플랫폼</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        site: {
+                            blue: '#1d4ed8',
+                            orange: '#ea580c',
+                            slate: '#475569',
+                            emerald: '#059669',
+                            amber: '#d97706',
+                            purple: '#9333ea',
+                            dark: '#0f172a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- QRCode Generator CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800;900&display=swap');
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .recording-pulse {
+            animation: pulse-ring 1.8s infinite cubic-bezier(0.45, 0, 0.55, 1);
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .tab-btn.active {
+            color: #1d4ed8;
+            border-bottom: 2.5px solid #1d4ed8;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <header class="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center space-x-3 cursor-pointer select-none" onclick="switchAppMode('contractor')">
+                <div class="bg-amber-500 text-slate-950 p-2 rounded-xl font-black tracking-tight flex items-center shadow-md">
+                    <i data-lucide="hard-hat" class="w-6 h-6 mr-1.5"></i>
+                    <span class="text-xl">현장통</span>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold tracking-wide flex items-center gap-2">
+                        스마트 음성인식 시공관리 플랫폼
+                        <span class="bg-blue-600/90 text-[10px] font-mono px-1.5 py-0.5 rounded text-blue-100">v1.2 Live</span>
+                    </h1>
+                    <p class="text-[11px] text-slate-400">래미안 센트럴 현장 1공구 (시공사-하도급 실시간 연동)</p>
+                </div>
+            </div>
+
+            <!-- Global Mode Switcher Pill -->
+            <div class="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700">
+                <button id="modeBtnContractor" onclick="switchAppMode('contractor')" class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all bg-blue-600 text-white shadow">
+                    <i data-lucide="building" class="w-4 h-4"></i>
+                    <span>시공사 관리자 포털</span>
+                </button>
+                <button id="modeBtnSubcontractor" onclick="switchAppMode('subcontractor')" class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
+                    <i data-lucide="mic" class="w-4 h-4"></i>
+                    <span>하도급 반장 모바일 모드</span>
+                    <span class="bg-amber-500 text-slate-950 text-[9px] px-1.5 py-0.2 rounded font-extrabold ml-1">QR 모드</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main id="viewSubcontractor" class="flex-1 hidden max-w-lg mx-auto w-full p-4 flex flex-col justify-between">
+        <!-- Mock Location Banner with QR Metatag -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-4">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <span class="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full text-white shadow-sm" id="subconBadge" style="background-color: #2563EB;">
+                    <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
+                    <span id="subconTradeName">철근 공종 (Blue Tag)</span>
+                </span>
+                <span class="text-xs text-slate-400 flex items-center gap-1 font-medium">
+                    <i data-lucide="map-pin" class="w-3.5 h-3.5 text-rose-500"></i>
+                    현장 QR 인식됨
+                </span>
+            </div>
+            <div class="mt-3 flex items-baseline justify-between">
+                <div>
+                    <h2 class="text-2xl font-black text-slate-900 tracking-tight" id="subconLocationText">101동 1403호</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">반장님, 마이크를 누르고 작업 완료 내용을 편하게 말씀해주세요.</p>
+                </div>
+                <button onclick="simulateQrScan()" class="text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 hover:bg-blue-100 flex items-center gap-1 font-medium transition active:scale-95">
+                    <i data-lucide="refresh-cw" class="w-3 h-3"></i> 위치 변경
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col items-center text-center my-auto">
+            <div class="relative my-4">
+                <div id="micRing" class="w-28 h-28 rounded-full bg-blue-50 flex items-center justify-center transition-all">
+                    <button id="recordBtn" onclick="toggleSpeechRecording()" class="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white flex flex-col items-center justify-center shadow-lg active:scale-95 transition">
+                        <i data-lucide="mic" id="micIcon" class="w-8 h-8"></i>
+                        <span id="recordBtnLabel" class="text-[11px] font-bold mt-1">말하기</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Voice Status & Instructions -->
+            <p id="recordStatus" class="text-sm font-semibold text-slate-600 mb-1">마이크 버튼을 누르고 말씀하세요</p>
+            <p class="text-xs text-slate-400 mb-4">예: "1403호 슬래브 폼바리 다 짰고 바닥 배근 완료했어"</p>
+
+            <div class="w-full bg-slate-50 rounded-xl p-3 border border-slate-200 text-left mb-4">
+                <span class="text-[11px] font-bold text-slate-600 block mb-2 flex items-center gap-1">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-500"></i> 현장 음성 시나리오 원클릭 테스트:
+                </span>
+                <div class="flex flex-wrap gap-1.5">
+                    <button onclick="injectVoicePrompt('1403호 안방 가베 다 쳤고 덴조 뼈대 잡았습니다')" class="text-[11px] bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-700 hover:bg-slate-100 active:scale-95 transition">"가베 다 쳤고 덴조 잡았음"</button>
+                    <button onclick="injectVoicePrompt('1403호 바닥 배근 마쳤고 폼바리 끝났습니다. 하리 쪽 확인 바랍니다')" class="text-[11px] bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-700 hover:bg-slate-100 active:scale-95 transition">"폼바리 짜고 배근 완료"</button>
+                    <button onclick="injectVoicePrompt('주방 쪽 하리 밑에 나라시 다 보고 공구리 칠 준비 끝남')" class="text-[11px] bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-700 hover:bg-slate-100 active:scale-95 transition">"나라시 후 공구리 타설 준비"</button>
+                </div>
+            </div>
+
+            <div class="w-full space-y-3 text-left">
+                <!-- Raw Transcript -->
+                <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div class="flex items-center justify-between text-xs text-slate-500 font-medium mb-1">
+                        <span class="flex items-center gap-1"><i data-lucide="volume-2" class="w-3.5 h-3.5 text-blue-500"></i> 녹음된 음성 (원문)</span>
+                        <span class="text-[10px] text-slate-400 font-mono" id="voiceTimestamp">대기중</span>
+                    </div>
+                    <div id="rawTranscriptText" class="text-sm font-medium text-slate-800 min-h-[38px] italic">
+                        아직 녹음된 내용이 없습니다. 버튼을 눌러 말을 시작하세요.
+                    </div>
+                </div>
+
+                <!-- AI Standardized Preview -->
+                <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                    <div class="flex items-center justify-between text-xs text-emerald-800 font-bold mb-1">
+                        <span class="flex items-center gap-1"><i data-lucide="check-check" class="w-3.5 h-3.5 text-emerald-600"></i> 은어 DB 자동 정제본 (시공사용 표준어)</span>
+                        <span class="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.2 rounded font-mono">AI 매핑</span>
+                    </div>
+                    <div id="refinedTranscriptText" class="text-sm font-semibold text-emerald-950 min-h-[38px]">
+                        음성 입력 시 표준 건축 용어로 자동 변환되어 시공사 호실 정보 및 골구도에 등록됩니다.
+                    </div>
+                </div>
+            </div>
+
+            <button id="subconSubmitBtn" onclick="submitVoiceLog()" disabled class="w-full mt-5 py-3.5 rounded-xl bg-slate-300 text-slate-500 font-bold text-base flex items-center justify-center gap-2 transition shadow-sm cursor-not-allowed">
+                <i data-lucide="send" class="w-4 h-4"></i>
+                <span>작업완료 보고 전송하기</span>
+            </button>
+        </div>
+
+        <p class="text-center text-[11px] text-slate-400 my-2 flex items-center justify-center gap-1 font-medium">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-500"></i>
+            안전모 및 개인보호구 필수 착용 | 긴급상황 시 사무실 직통 (내선 101)
+        </p>
+    </main>
+
+    <main id="viewContractor" class="flex-1 max-w-7xl mx-auto w-full p-4 lg:p-6 flex flex-col space-y-6">
+
+        <!-- Top Navigation Sub-Tabs -->
+        <nav class="bg-white rounded-2xl shadow-sm border border-slate-200 p-1.5 flex overflow-x-auto gap-1">
+            <button onclick="switchContractorTab('tabDashboard')" id="nav-tabDashboard" class="tab-btn active px-4 py-2.5 rounded-xl text-xs md:text-sm font-medium flex items-center gap-2 whitespace-nowrap transition">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                <span>공사현황 대시보드</span>
+            </button>
+            <button onclick="switchContractorTab('tabQrGenerator')" id="nav-tabQrGenerator" class="tab-btn px-4 py-2.5 rounded-xl text-xs md:text-sm font-medium text-slate-600 hover:text-blue-600 flex items-center gap-2 whitespace-nowrap transition">
+                <i data-lucide="qr-code" class="w-4 h-4"></i>
+                <span>1. 공종별 QR 생성소</span>
+            </button>
+            <button onclick="switchContractorTab('tabRoomDetail')" id="nav-tabRoomDetail" class="tab-btn px-4 py-2.5 rounded-xl text-xs md:text-sm font-medium text-slate-600 hover:text-blue-600 flex items-center gap-2 whitespace-nowrap transition">
+                <i data-lucide="door-open" class="w-4 h-4"></i>
+                <span>3. 각 호실 정보 & 평면도</span>
+            </button>
+            <button onclick="switchContractorTab('tabFraming')" id="nav-tabFraming" class="tab-btn px-4 py-2.5 rounded-xl text-xs md:text-sm font-medium text-slate-600 hover:text-blue-600 flex items-center gap-2 whitespace-nowrap transition">
+                <i data-lucide="grid" class="w-4 h-4"></i>
+                <span>4. 건물 골구도 뷰어</span>
+            </button>
+            <button onclick="switchContractorTab('tabDictionary')" id="nav-tabDictionary" class="tab-btn px-4 py-2.5 rounded-xl text-xs md:text-sm font-medium text-slate-600 hover:text-blue-600 flex items-center gap-2 whitespace-nowrap transition">
+                <i data-lucide="book-open" class="w-4 h-4"></i>
+                <span>5. 현장용어/은어 DB</span>
+            </button>
+        </nav>
+
+        <section id="tabDashboard" class="contractor-tab-content space-y-6">
+            <!-- KPI Summary Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400">금일 음성 보고</p>
+                        <h3 class="text-2xl font-black text-slate-900 mt-1" id="kpiTodayReports">18건</h3>
+                        <p class="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                            <i data-lucide="trending-up" class="w-3 h-3"></i> 전일 대비 +25%
+                        </p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <i data-lucide="mic" class="w-6 h-6"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400">전체 공정률</p>
+                        <h3 class="text-2xl font-black text-blue-600 mt-1">68.4%</h3>
+                        <p class="text-[11px] text-slate-500 font-semibold mt-1">계획(65.0%) 대비 양호</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <i data-lucide="activity" class="w-6 h-6"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400">검측 대기 호실</p>
+                        <h3 class="text-2xl font-black text-amber-600 mt-1" id="kpiPendingInspections">5개소</h3>
+                        <p class="text-[11px] text-amber-600 font-semibold mt-1">기사 확인 필요</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <i data-lucide="clipboard-check" class="w-6 h-6"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400">등록 은어 딕셔너리</p>
+                        <h3 class="text-2xl font-black text-purple-600 mt-1" id="kpiJargonCount">12개</h3>
+                        <p class="text-[11px] text-purple-600 font-semibold mt-1">AI 매핑 실시간 가동</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                        <i data-lucide="book-a" class="w-6 h-6"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Voice Feed & Trade Progress Breakdown -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <h3 class="font-bold text-slate-900 text-sm">실시간 현장 음성 보고 피드 (Live Feed)</h3>
+                        </div>
+                        <span class="text-xs text-slate-400 font-medium">자동 갱신 중</span>
+                    </div>
+                    <div id="dashboardFeedList" class="space-y-3 overflow-y-auto max-h-[460px] pr-1"></div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-sm mb-4 flex items-center gap-2">
+                            <i data-lucide="pie-chart" class="w-4 h-4 text-blue-600"></i>
+                            공종별 진행 현황 (101동 기준)
+                        </h3>
+                        <div class="space-y-4 text-xs">
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="font-semibold text-slate-700 flex items-center gap-1.5">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>철근 공종 (Blue)
+                                    </span>
+                                    <span class="font-bold text-blue-600">85%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2">
+                                    <div class="bg-blue-600 h-2 rounded-full" style="width: 85%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="font-semibold text-slate-700 flex items-center gap-1.5">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-orange-600"></span>형틀/거푸집 (Orange)
+                                    </span>
+                                    <span class="font-bold text-orange-600">72%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2">
+                                    <div class="bg-orange-600 h-2 rounded-full" style="width: 72%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="font-semibold text-slate-700 flex items-center gap-1.5">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-slate-600"></span>콘크리트/타설 (Slate)
+                                    </span>
+                                    <span class="font-bold text-slate-600">65%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2">
+                                    <div class="bg-slate-600 h-2 rounded-full" style="width: 65%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="font-semibold text-slate-700 flex items-center gap-1.5">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>설비/배관 (Emerald)
+                                    </span>
+                                    <span class="font-bold text-emerald-600">55%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2">
+                                    <div class="bg-emerald-600 h-2 rounded-full" style="width: 55%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="font-semibold text-slate-700 flex items-center gap-1.5">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span>미장/가벽 (Purple)
+                                    </span>
+                                    <span class="font-bold text-purple-600">40%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2">
+                                    <div class="bg-purple-600 h-2 rounded-full" style="width: 40%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-slate-100 bg-slate-50 p-3 rounded-xl">
+                        <span class="text-[11px] font-bold text-slate-700 block mb-1">공정 지연 경보</span>
+                        <p class="text-xs text-slate-500">14층 설비 입상관 배관 작업이 당초 계획 대비 2일 지연 중입니다. 반장님 음성 확인 요망.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tabQrGenerator" class="contractor-tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- QR Configuration Form -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2 pb-2 border-b">
+                        <i data-lucide="tag" class="w-4 h-4 text-blue-600"></i> 현장 부착용 QR 라벨 생성기
+                    </h3>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">동 선택</label>
+                        <select id="qrGenDong" class="w-full text-xs border border-slate-200 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500">
+                            <option value="101동">101동</option>
+                            <option value="102동">102동</option>
+                            <option value="103동">103동</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">층수</label>
+                            <select id="qrGenFloor" class="w-full text-xs border border-slate-200 rounded-lg p-2.5 bg-slate-50 focus:bg-white">
+                                <option value="12층">12층</option>
+                                <option value="13층">13층</option>
+                                <option value="14층" selected>14층</option>
+                                <option value="15층">15층</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">호수</label>
+                            <select id="qrGenRoom" class="w-full text-xs border border-slate-200 rounded-lg p-2.5 bg-slate-50 focus:bg-white">
+                                <option value="1401호">01호</option>
+                                <option value="1402호">02호</option>
+                                <option value="1403호" selected>03호</option>
+                                <option value="1404호">04호</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">공종 (전용 컬러 매핑)</label>
+                        <select id="qrGenTrade" onchange="updateQrPreviewColor()" class="w-full text-xs border border-slate-200 rounded-lg p-2.5 bg-slate-50 font-semibold focus:ring-2 focus:ring-blue-500">
+                            <option value="rebar" data-color="#2563EB" data-label="철근 공종" selected>철근 공종 (Blue #2563EB)</option>
+                            <option value="formwork" data-color="#EA580C" data-label="형틀/거푸집">형틀/거푸집 (Orange #EA580C)</option>
+                            <option value="concrete" data-color="#475569" data-label="콘크리트/타설">콘크리트/타설 (Slate #475569)</option>
+                            <option value="plumbing" data-color="#059669" data-label="설비/배관">설비/배관 (Emerald #059669)</option>
+                            <option value="electric" data-color="#D97706" data-label="전기 배선">전기 배선 (Amber #D97706)</option>
+                            <option value="masonry" data-color="#9333EA" data-label="미장/가벽">미장/가벽 (Purple #9333EA)</option>
+                        </select>
+                    </div>
+
+                    <button onclick="generateQrBadge()" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition active:scale-95">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> QR 코드 생성 및 반영
+                    </button>
+                </div>
+
+                <!-- Printable Color QR Badge Preview -->
+                <div class="md:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                    <p class="text-xs text-slate-400 font-semibold mb-4">현장 벽체 부착용 규격 스티커 미리보기</p>
+
+                    <div id="printableQrSticker" class="w-72 bg-white border-4 border-blue-600 rounded-2xl p-4 shadow-xl text-center transition-all">
+                        <div id="stickerHeader" class="bg-blue-600 text-white py-1.5 px-3 rounded-lg font-bold text-sm flex items-center justify-between shadow-sm">
+                            <span id="stickerTradeText">철근 공종</span>
+                            <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-mono">래미안현장</span>
+                        </div>
+
+                        <div class="my-4 flex items-center justify-center p-2 bg-white rounded-lg min-h-[140px]">
+                            <div id="qrcodeCanvas"></div>
+                        </div>
+
+                        <div class="border-t border-slate-200 pt-2">
+                            <h4 id="stickerRoomText" class="text-xl font-black text-slate-900 tracking-tight">101동 1403호</h4>
+                            <p class="text-[10px] text-slate-500 mt-0.5">스마트폰 카메라로 스캔 시 즉시 음성기록</p>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex gap-2 mt-6">
+                        <button onclick="printQrBadge()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow transition">
+                            <i data-lucide="printer" class="w-4 h-4"></i> 라벨지 인쇄
+                        </button>
+                        <button onclick="testInSubcontractorMode()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow transition">
+                            <i data-lucide="smartphone" class="w-4 h-4"></i> 반장님 모드로 바로 테스트
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tabRoomDetail" class="contractor-tab-content hidden space-y-6">
+            <!-- Room Selection Bar -->
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-bold text-slate-500">호실 탐색:</span>
+                    <select id="roomFilterDong" onchange="renderRoomDetailView()" class="text-xs font-semibold border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50">
+                        <option value="101">101동</option>
+                        <option value="102">102동</option>
+                    </select>
+                    <select id="roomFilterFloor" onchange="renderRoomDetailView()" class="text-xs font-semibold border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50">
+                        <option value="12">12층</option>
+                        <option value="13">13층</option>
+                        <option value="14" selected>14층</option>
+                        <option value="15">15층</option>
+                    </select>
+                    <select id="roomFilterHo" onchange="renderRoomDetailView()" class="text-xs font-semibold border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50">
+                        <option value="01">01호</option>
+                        <option value="02">02호</option>
+                        <option value="03" selected>03호 (84㎡ A-Type)</option>
+                        <option value="04">04호</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-500">통합 호실 공정률:</span>
+                    <span class="text-sm font-black text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200" id="roomTotalGauge">78%</span>
+                </div>
+            </div>
+
+            <!-- Two Column: Interactive Floor Plan (SVG) & Voice Log History -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Architectural 2D SVG Plan -->
+                <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                            <i data-lucide="map" class="w-4 h-4 text-blue-600"></i>
+                            <span id="floorPlanTitle">101동 1403호 인터랙티브 평면도 (A타입 84A)</span>
+                        </h4>
+                        <span class="text-[11px] text-slate-400 font-medium">핀 클릭 시 검측 음성 확인</span>
+                    </div>
+
+                    <div class="relative w-full aspect-[4/3] bg-slate-50 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-4">
+                        <svg viewBox="0 0 500 380" class="w-full h-full select-none" id="architecturalSvg">
+                            <rect x="20" y="20" width="460" height="340" fill="#ffffff" stroke="#334155" stroke-width="4" rx="4"/>
+                            
+                            <!-- Master Bedroom -->
+                            <rect x="30" y="30" width="160" height="170" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+                            <text x="110" y="115" font-size="12" font-weight="bold" fill="#64748b" text-anchor="middle">안방 (침실 1)</text>
+                            
+                            <!-- Bathroom -->
+                            <rect x="30" y="200" width="100" height="80" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+                            <text x="80" y="245" font-size="10" font-weight="bold" fill="#64748b" text-anchor="middle">부부욕실</text>
+                            
+                            <!-- Balcony -->
+                            <rect x="30" y="280" width="160" height="70" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+                            <text x="110" y="320" font-size="10" font-weight="bold" fill="#94a3b8" text-anchor="middle">발코니/실외기실</text>
+
+                            <!-- Living Room -->
+                            <rect x="190" y="30" width="180" height="240" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+                            <text x="280" y="150" font-size="14" font-weight="800" fill="#475569" text-anchor="middle">거실 (Living Room)</text>
+
+                            <!-- Kitchen / Dining -->
+                            <rect x="190" y="270" width="180" height="80" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+                            <text x="280" y="315" font-size="11" font-weight="bold" fill="#64748b" text-anchor="middle">주방 / 식당</text>
+
+                            <!-- Bedroom 2 & 3 -->
+                            <rect x="370" y="30" width="100" height="150" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+                            <text x="420" y="105" font-size="11" font-weight="bold" fill="#64748b" text-anchor="middle">침실 2</text>
+
+                            <rect x="370" y="180" width="100" height="100" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+                            <text x="420" y="235" font-size="11" font-weight="bold" fill="#64748b" text-anchor="middle">침실 3</text>
+
+                            <!-- Entrance -->
+                            <rect x="370" y="280" width="100" height="70" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2"/>
+                            <text x="420" y="320" font-size="11" font-weight="bold" fill="#64748b" text-anchor="middle">현관 (Entrance)</text>
+
+                            <!-- Interactive Pins -->
+                            <!-- Pin 1: Rebar Living Room (Blue) -->
+                            <g class="cursor-pointer transform hover:scale-125 transition-transform" onclick="selectPinLog('living_room_slab')">
+                                <circle cx="280" cy="110" r="14" fill="#2563EB" opacity="0.3" class="animate-ping"/>
+                                <circle cx="280" cy="110" r="12" fill="#2563EB" stroke="#ffffff" stroke-width="2"/>
+                                <text x="280" y="114" font-size="9" font-weight="bold" fill="#ffffff" text-anchor="middle">철근</text>
+                            </g>
+
+                            <!-- Pin 2: Plumbing Kitchen (Emerald) -->
+                            <g class="cursor-pointer transform hover:scale-125 transition-transform" onclick="selectPinLog('kitchen_pipe')">
+                                <circle cx="240" cy="310" r="11" fill="#059669" stroke="#ffffff" stroke-width="2"/>
+                                <text x="240" y="314" font-size="8.5" font-weight="bold" fill="#ffffff" text-anchor="middle">설비</text>
+                            </g>
+
+                            <!-- Pin 3: Wall Bedroom (Purple) -->
+                            <g class="cursor-pointer transform hover:scale-125 transition-transform" onclick="selectPinLog('bedroom_wall')">
+                                <circle cx="110" cy="80" r="11" fill="#9333EA" stroke="#ffffff" stroke-width="2"/>
+                                <text x="110" y="84" font-size="8.5" font-weight="bold" fill="#ffffff" text-anchor="middle">가벽</text>
+                            </g>
+                        </svg>
+                    </div>
+
+                    <!-- Progress by Trade -->
+                    <div class="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-xs">
+                        <div class="bg-blue-50 p-2 rounded-lg">
+                            <span class="text-blue-700 font-bold block">철근 배근</span>
+                            <span class="text-blue-900 font-extrabold text-sm">100% 완료</span>
+                        </div>
+                        <div class="bg-orange-50 p-2 rounded-lg">
+                            <span class="text-orange-700 font-bold block">거푸집 조립</span>
+                            <span class="text-orange-900 font-extrabold text-sm">80% 진행</span>
+                        </div>
+                        <div class="bg-emerald-50 p-2 rounded-lg">
+                            <span class="text-emerald-700 font-bold block">배관 설비</span>
+                            <span class="text-emerald-900 font-extrabold text-sm">60% 진행</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                            <h4 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                                <i data-lucide="history" class="w-4 h-4 text-blue-600"></i>
+                                해당 호실 음성기록 이력
+                            </h4>
+                            <span class="text-[11px] text-slate-400 font-medium" id="roomLogCountBadge">누적 기록</span>
+                        </div>
+                        <div id="roomVoiceLogList" class="space-y-3 overflow-y-auto max-h-[420px] pr-1"></div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <span class="text-xs text-slate-500 font-medium">기사 현장 확인 승인</span>
+                        <button onclick="approveCurrentRoomInspection()" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow transition active:scale-95">
+                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                            검측 완료 승인
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tabFraming" class="contractor-tab-content hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="flex flex-wrap items-center justify-between pb-4 border-b border-slate-100 gap-3">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                            <i data-lucide="grid" class="w-4 h-4 text-blue-600"></i>
+                            101동 골구도 및 공정 히트맵 (Structural Framing Grid)
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">건물 층·호수별 공정 단계를 바둑판 입면으로 실시간 시각화합니다. 호실 클릭 시 호실 평면도로 즉시 이동합니다.</p>
+                    </div>
+
+                    <!-- Legend -->
+                    <div class="flex flex-wrap items-center gap-2 text-[11px] font-medium">
+                        <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-slate-200"></span> 미착공</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-amber-400"></span> 골조진행</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-blue-600"></span> 검측요청</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-emerald-600"></span> 완료</span>
+                    </div>
+                </div>
+
+                <div class="mt-6 overflow-x-auto">
+                    <div class="min-w-[550px] space-y-2" id="framingGridContainer"></div>
+                </div>
+
+                <div class="mt-5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center gap-2">
+                    <i data-lucide="info" class="w-4 h-4 text-blue-600 shrink-0"></i>
+                    <span><strong>1403호</strong>는 현재 철근 반장님의 음성 보고가 완료되어 <span class="text-blue-600 font-bold">검측요청(파란색)</span> 상태입니다. 블록을 클릭하면 호실 상세 평면도에서 도면과 발화 원문을 확인할 수 있습니다.</span>
+                </div>
+            </div>
+        </section>
+
+        <section id="tabDictionary" class="contractor-tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Dictionary Table -->
+                <div class="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between pb-4 border-b border-slate-100 gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                <i data-lucide="book-marked" class="w-4 h-4 text-purple-600"></i>
+                                건설현장 은어/사투리 표준어 매핑 딕셔너리
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-0.5">반장님들의 구두 음성을 시공사 표준 용어로 실시간 치환하는 지식 데이터베이스입니다.</p>
+                        </div>
+                        <div class="relative">
+                            <input type="text" id="jargonSearchInput" oninput="filterJargonTable()" placeholder="은어 또는 표준어 검색..." class="text-xs border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-500 w-48">
+                            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-200 bg-slate-50 text-slate-600">
+                                    <th class="p-2.5 font-bold">현장 은어 / 방언</th>
+                                    <th class="p-2.5 font-bold text-purple-700">표준 기술 용어</th>
+                                    <th class="p-2.5 font-bold">공종</th>
+                                    <th class="p-2.5 font-bold">의미 및 실제 예문</th>
+                                </tr>
+                            </thead>
+                            <tbody id="jargonTableBody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2 pb-3 border-b border-slate-100 mb-4">
+                            <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-600"></i>
+                            새 현장 은어 / 사투리 등록
+                        </h3>
+
+                        <form id="newJargonForm" onsubmit="handleAddNewJargon(event)" class="space-y-3 text-xs">
+                            <div>
+                                <label class="block font-semibold text-slate-600 mb-1">현장 은어 / 사투리</label>
+                                <input type="text" id="inputJargonWord" required placeholder="예: 메지, 단도리, 기리바리" class="w-full border border-slate-200 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-purple-500">
+                            </div>
+
+                            <div>
+                                <label class="block font-semibold text-slate-600 mb-1">표준 건축 기술 용어</label>
+                                <input type="text" id="inputStandardWord" required placeholder="예: 줄눈, 준비작업, 버팀보" class="w-full border border-slate-200 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-purple-500">
+                            </div>
+
+                            <div>
+                                <label class="block font-semibold text-slate-600 mb-1">관련 공종</label>
+                                <select id="inputJargonTrade" class="w-full border border-slate-200 rounded-lg p-2.5 bg-slate-50 font-medium">
+                                    <option value="공통">공통 가설</option>
+                                    <option value="철근">철근 공종</option>
+                                    <option value="형틀">형틀/거푸집</option>
+                                    <option value="타설">콘크리트 타설</option>
+                                    <option value="설비">설비/배관</option>
+                                    <option value="미장">미장/조적</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block font-semibold text-slate-600 mb-1">설명 및 예문</label>
+                                <textarea id="inputJargonNote" rows="3" placeholder="예: 타일 줄눈 메지 넣었습니다" class="w-full border border-slate-200 rounded-lg p-2 bg-slate-50 focus:bg-white resize-none"></textarea>
+                            </div>
+
+                            <button type="submit" class="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold flex items-center justify-center gap-1.5 shadow transition mt-2 active:scale-95">
+                                <i data-lucide="check" class="w-4 h-4"></i> 은어 사전에 추가하기
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="mt-6 pt-3 border-t border-slate-100 bg-purple-50 p-3 rounded-xl text-[11px] text-purple-900 font-medium">
+                        <strong>지속적 AI 학습 기능:</strong> 기사가 등록한 은어는 즉시 하도급사 음성 인식 엔진의 텍스트 치환 필터에 반영됩니다.
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="toastMessage" class="fixed bottom-6 right-6 z-50 transform translate-y-24 opacity-0 transition-all duration-300 bg-slate-900 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 border border-slate-700">
+        <i data-lucide="bell" class="w-4 h-4 text-amber-400"></i>
+        <span id="toastText">알림 내용</span>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 1. DATA STATE & PRESET DICTIONARIES
+        // =========================================================================
+        let currentAppMode = 'contractor'; // 'contractor' | 'subcontractor'
+        let currentSubconLocation = { dong: '101동', floor: '14층', room: '1403호', trade: '철근 공종', color: '#2563EB' };
+
+        // Site Jargon Database (일본어 잔재 및 현장 은어 매핑)
+        let siteJargonDb = [
+            { id: 1, jargon: "폼바리", standard: "거푸집 조립", trade: "형틀", note: "거푸집 널을 조립하는 작업" },
+            { id: 2, jargon: "가베", standard: "경량벽체 / 석고보드 가벽", trade: "미장", note: "실내 석고보드 칸막이 벽체" },
+            { id: 3, jargon: "덴조", standard: "천장 틀 / 반자", trade: "마감", note: "천장 마감재를 받치는 골조" },
+            { id: 4, jargon: "나라시", standard: "평탄화 / 고르기", trade: "타설", note: "바닥 표면을 고르게 펴는 작업" },
+            { id: 5, jargon: "바라시", standard: "탈형 / 거푸집 해체", trade: "형틀", note: "콘크리트 양생 후 거푸집 뜯어내기" },
+            { id: 6, jargon: "야기리", standard: "외부 벽체 대형 거푸집(갱폼)", trade: "형틀", note: "외벽용 대형 거푸집 거치" },
+            { id: 7, jargon: "공구리", standard: "콘크리트", trade: "타설", note: "레미콘 콘크리트 재료 및 타설" },
+            { id: 8, jargon: "하리", standard: "보 / 대들보", trade: "철근", note: "기둥과 기둥 사이를 연결하는 수평 보" },
+            { id: 9, jargon: "하바키", standard: "걸레받이", trade: "마감", note: "바닥과 벽체가 만나는 하단 마감재" },
+            { id: 10, jargon: "오도리바", standard: "계단참", trade: "골조", note: "계단 중간의 평평한 휴식 구역" },
+            { id: 11, jargon: "메지", standard: "줄눈", trade: "조적", note: "타일이나 벽돌 사이 모르타르 틈" },
+            { id: 12, jargon: "단도리", standard: "작업 준비 및 정리", trade: "공통", note: "시공 전 사전 정돈 작업" }
+        ];
+
+        // Central Voice Logs Feed
+        let voiceLogs = [
+            {
+                id: 101,
+                room: "101동 1403호",
+                trade: "철근 공종",
+                tradeColor: "#2563EB",
+                author: "김철근 반장",
+                timestamp: "10:24 AM",
+                rawText: "1403호 바닥 배근 마쳤고 폼바리 다 끝났습니다. 하리 쪽만 보면 됩니다.",
+                refinedText: "1403호 바닥 배근 완료 및 거푸집 조립 완료. 수평 보 구간 검측 요청.",
+                status: "검측대기",
+                statusColor: "bg-blue-100 text-blue-800"
+            },
+            {
+                id: 102,
+                room: "101동 1302호",
+                trade: "미장/가벽",
+                tradeColor: "#9333EA",
+                author: "박가벽 반장",
+                timestamp: "09:40 AM",
+                rawText: "1302호 안방 가베 다 쳤고 내일 덴조 뼈대 잡을게요.",
+                refinedText: "1302호 안방 경량벽체(석고보드) 시공 완료, 명일 천장 틀 작업 예정.",
+                status: "승인완료",
+                statusColor: "bg-emerald-100 text-emerald-800"
+            },
+            {
+                id: 103,
+                room: "101동 1401호",
+                trade: "설비/배관",
+                tradeColor: "#059669",
+                author: "이배관 반장",
+                timestamp: "09:15 AM",
+                rawText: "1401호 주방 배수관 하리 밑으로 슬리브 다 묻어놨음.",
+                refinedText: "1401호 주방 배수관 수평보 하부 슬리브 매립 완료.",
+                status: "승인완료",
+                statusColor: "bg-emerald-100 text-emerald-800"
+            }
+        ];
+
+        // Structural Framing Grid State (11F to 15F, 4 rooms per floor)
+        let framingData = {
+            "15": { "1501": "done", "1502": "progress", "1503": "ready", "1504": "ready" },
+            "14": { "1401": "done", "1402": "done", "1403": "pending", "1404": "progress" },
+            "13": { "1301": "done", "1302": "done", "1303": "done", "1304": "done" },
+            "12": { "1201": "done", "1202": "done", "1203": "done", "1204": "done" },
+            "11": { "1101": "done", "1102": "done", "1103": "done", "1104": "done" }
+        };
+
+        let isRecording = false;
+        let speechRecognition = null;
+        let currentRecordedRaw = "";
+        let audioCtx = null;
+
+        function playBeep(freq = 600, duration = 0.15) {
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch(e) {}
+        }
+
+        function initSpeechRecognition() {
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (SpeechRec) {
+                speechRecognition = new SpeechRec();
+                speechRecognition.lang = 'ko-KR';
+                speechRecognition.continuous = false;
+                speechRecognition.interimResults = true;
+
+                speechRecognition.onstart = () => {
+                    isRecording = true;
+                    updateRecordingUi(true);
+                    playBeep(880, 0.1);
+                };
+
+                speechRecognition.onresult = (event) => {
+                    let transcript = "";
+                    for (let i = 0; i < event.results.length; i++) {
+                        transcript += event.results[i][0].transcript;
+                    }
+                    currentRecordedRaw = transcript;
+                    processVoiceTranscript(transcript);
+                };
+
+                speechRecognition.onerror = () => {
+                    stopSpeechRecording();
+                };
+
+                speechRecognition.onend = () => {
+                    stopSpeechRecording();
+                };
+            }
+        }
+
+        function toggleSpeechRecording() {
+            if (isRecording) {
+                stopSpeechRecording();
+            } else {
+                startSpeechRecording();
+            }
+        }
+
+        function startSpeechRecording() {
+            if (!speechRecognition) initSpeechRecognition();
+            if (speechRecognition) {
+                try {
+                    speechRecognition.start();
+                } catch(err) {
+                    isRecording = true;
+                    updateRecordingUi(true);
+                }
+            } else {
+                isRecording = true;
+                updateRecordingUi(true);
+                simulateVoiceFallback();
+            }
+        }
+
+        function stopSpeechRecording() {
+            isRecording = false;
+            updateRecordingUi(false);
+            playBeep(440, 0.15);
+            if (speechRecognition) {
+                try { speechRecognition.stop(); } catch(e){}
+            }
+        }
+
+        function updateRecordingUi(recording) {
+            const btn = document.getElementById('recordBtn');
+            const ring = document.getElementById('micRing');
+            const status = document.getElementById('recordStatus');
+            const label = document.getElementById('recordBtnLabel');
+
+            if (recording) {
+                ring.classList.add('recording-pulse');
+                btn.classList.remove('from-blue-600', 'to-indigo-600');
+                btn.classList.add('from-rose-600', 'to-red-600');
+                status.innerText = "반장님 말씀 중... (경청 중)";
+                status.className = "text-sm font-bold text-rose-600 animate-pulse";
+                label.innerText = "녹음중";
+            } else {
+                ring.classList.remove('recording-pulse');
+                btn.classList.remove('from-rose-600', 'to-red-600');
+                btn.classList.add('from-blue-600', 'to-indigo-600');
+                status.innerText = "녹음 완료! 변환 결과를 확인하고 전송하세요";
+                status.className = "text-sm font-semibold text-emerald-600";
+                label.innerText = "다시 말하기";
+            }
+        }
+
+        function simulateVoiceFallback() {
+            setTimeout(() => {
+                const sample = "1403호 슬래브 폼바리 다 짜고 바닥 철근 배근 완료했어";
+                injectVoicePrompt(sample);
+                stopSpeechRecording();
+            }, 2500);
+        }
+
+        function processVoiceTranscript(rawText) {
+            const rawEl = document.getElementById('rawTranscriptText');
+            const refEl = document.getElementById('refinedTranscriptText');
+            const timeEl = document.getElementById('voiceTimestamp');
+            const submitBtn = document.getElementById('subconSubmitBtn');
+
+            currentRecordedRaw = rawText;
+            rawEl.innerText = `"${rawText}"`;
+            rawEl.classList.remove('italic');
+
+            let standardized = rawText;
+            siteJargonDb.forEach(item => {
+                const regex = new RegExp(item.jargon, "gi");
+                standardized = standardized.replace(regex, `<span class="bg-amber-200 text-amber-900 px-1 rounded font-bold">${item.standard}</span>`);
+            });
+
+            refEl.innerHTML = standardized;
+            timeEl.innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            submitBtn.disabled = false;
+            submitBtn.className = "w-full mt-5 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-base flex items-center justify-center gap-2 transition shadow-md active:scale-95 cursor-pointer";
+        }
+
+        function injectVoicePrompt(text) {
+            playBeep(700, 0.08);
+            processVoiceTranscript(text);
+        }
+
+        function submitVoiceLog() {
+            if (!currentRecordedRaw) return;
+
+            let plainStandardized = currentRecordedRaw;
+            siteJargonDb.forEach(item => {
+                const regex = new RegExp(item.jargon, "gi");
+                plainStandardized = plainStandardized.replace(regex, item.standard);
+            });
+
+            const newLog = {
+                id: Date.now(),
+                room: `${currentSubconLocation.dong} ${currentSubconLocation.room}`,
+                trade: currentSubconLocation.trade,
+                tradeColor: currentSubconLocation.color,
+                author: "김철근 반장 (모바일)",
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                rawText: currentRecordedRaw,
+                refinedText: plainStandardized,
+                status: "검측대기",
+                statusColor: "bg-blue-100 text-blue-800"
+            };
+
+            voiceLogs.unshift(newLog);
+
+            const floorKey = currentSubconLocation.room.substring(0, 2);
+            if (framingData[floorKey]) {
+                framingData[floorKey][currentSubconLocation.room] = "pending";
+            }
+
+            playBeep(523, 0.1);
+            setTimeout(() => playBeep(659, 0.15), 120);
+
+            showToast(`[성공] ${newLog.room} ${newLog.trade} 보고가 시공사로 전송되었습니다!`);
+
+            document.getElementById('rawTranscriptText').innerText = "보고가 완료되었습니다. 추가 작업 시 다시 말씀하세요.";
+            document.getElementById('refinedTranscriptText').innerText = "시공사 관리자 포털 골구도 및 호실 정보에 즉각 동기화되었습니다.";
+            document.getElementById('subconSubmitBtn').disabled = true;
+            document.getElementById('subconSubmitBtn').className = "w-full mt-5 py-3.5 rounded-xl bg-slate-300 text-slate-500 font-bold text-base flex items-center justify-center gap-2 cursor-not-allowed";
+
+            renderDashboardLogs();
+            renderFramingGrid();
+            renderRoomDetailView();
+        }
+
+        function renderDashboardLogs() {
+            const container = document.getElementById('dashboardFeedList');
+            container.innerHTML = "";
+
+            document.getElementById('kpiTodayReports').innerText = `${voiceLogs.length + 15}건`;
+
+            voiceLogs.forEach(log => {
+                const card = document.createElement('div');
+                card.className = "p-3.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white transition space-y-2";
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${log.tradeColor}"></span>
+                            <span class="font-bold text-slate-900 text-xs">${log.room}</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded font-semibold text-white" style="background-color: ${log.tradeColor}">${log.trade}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-slate-400 font-mono">${log.timestamp}</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${log.statusColor}">${log.status}</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-2.5 border border-slate-100 text-xs space-y-1">
+                        <div class="text-slate-500 flex items-start gap-1.5">
+                            <i data-lucide="mic" class="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5"></i>
+                            <span class="italic">"${log.rawText}"</span>
+                        </div>
+                        <div class="text-emerald-900 font-medium flex items-start gap-1.5 pt-1 border-t border-slate-200">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5"></i>
+                            <span>${log.refinedText}</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            if (window.lucide) lucide.createIcons();
+        }
+
+        let currentQrCodeObj = null;
+
+        function updateQrPreviewColor() {
+            const select = document.getElementById('qrGenTrade');
+            const selectedOpt = select.options[select.selectedIndex];
+            const color = selectedOpt.getAttribute('data-color');
+            const label = selectedOpt.getAttribute('data-label');
+
+            const sticker = document.getElementById('printableQrSticker');
+            const header = document.getElementById('stickerHeader');
+            const tradeText = document.getElementById('stickerTradeText');
+
+            sticker.style.borderColor = color;
+            header.style.backgroundColor = color;
+            tradeText.innerText = label;
+        }
+
+        function generateQrBadge() {
+            const dong = document.getElementById('qrGenDong').value;
+            const floor = document.getElementById('qrGenFloor').value;
+            const room = document.getElementById('qrGenRoom').value;
+            const tradeSelect = document.getElementById('qrGenTrade');
+            const selectedOpt = tradeSelect.options[tradeSelect.selectedIndex];
+            const color = selectedOpt.getAttribute('data-color');
+            const tradeLabel = selectedOpt.getAttribute('data-label');
+
+            document.getElementById('stickerRoomText').innerText = `${dong} ${room}`;
+            updateQrPreviewColor();
+
+            const dongNum = dong.replace(/[^0-9]/g, '');
+            const roomNum = room.replace(/[^0-9]/g, '');
+            const qrPayload = `https://sitetong.app/qr?dong=${dongNum}&room=${roomNum}&trade=${encodeURIComponent(tradeSelect.value)}`;
+
+            const qrContainer = document.getElementById('qrcodeCanvas');
+            if (qrContainer) {
+                qrContainer.innerHTML = "";
+                try {
+                    currentQrCodeObj = new QRCode(qrContainer, {
+                        text: qrPayload,
+                        width: 140,
+                        height: 140,
+                        colorDark: "#0f172a",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.L
+                    });
+                } catch (qrErr) {
+                    qrContainer.innerHTML = `
+                        <div class="w-[140px] h-[140px] flex flex-col items-center justify-center bg-slate-100 text-slate-700 rounded-lg p-2 text-center border border-slate-300">
+                            <i data-lucide="qr-code" class="w-8 h-8 text-blue-600 mb-1"></i>
+                            <span class="text-[10px] font-bold font-mono">${dongNum}동 ${roomNum}호</span>
+                            <span class="text-[9px] text-slate-500">${tradeLabel}</span>
+                        </div>
+                    `;
+                    if (window.lucide) lucide.createIcons();
+                }
+            }
+
+            showToast(`${dong} ${room} [${tradeLabel}] QR 코드가 생성되었습니다.`);
+        }
+
+        function printQrBadge() {
+            window.print();
+        }
+
+        function testInSubcontractorMode() {
+            const dong = document.getElementById('qrGenDong').value;
+            const floor = document.getElementById('qrGenFloor').value;
+            const room = document.getElementById('qrGenRoom').value;
+            const tradeSelect = document.getElementById('qrGenTrade');
+            const selectedOpt = tradeSelect.options[tradeSelect.selectedIndex];
+
+            currentSubconLocation = {
+                dong: dong,
+                floor: floor,
+                room: room,
+                trade: selectedOpt.getAttribute('data-label'),
+                color: selectedOpt.getAttribute('data-color')
+            };
+
+            switchAppMode('subcontractor');
+            updateSubconHeader();
+            showToast(`${dong} ${room} QR 코드가 모바일에서 스캔 인식되었습니다.`);
+        }
+
+        function simulateQrScan() {
+            const rooms = ['1401호', '1402호', '1403호', '1404호'];
+            const randomRoom = rooms[Math.floor(Math.random() * rooms.length)];
+            currentSubconLocation.room = randomRoom;
+            updateSubconHeader();
+            showToast(`QR 스캔 완료: [101동 ${randomRoom}]으로 진입했습니다.`);
+        }
+
+        function updateSubconHeader() {
+            document.getElementById('subconLocationText').innerText = `${currentSubconLocation.dong} ${currentSubconLocation.room}`;
+            document.getElementById('subconTradeName').innerText = `${currentSubconLocation.trade}`;
+            document.getElementById('subconBadge').style.backgroundColor = currentSubconLocation.color;
+        }
+
+        function renderRoomDetailView() {
+            const dong = document.getElementById('roomFilterDong').value + "동";
+            const ho = document.getElementById('roomFilterHo').value;
+            const fullRoom = `${dong} 14${ho}호`;
+
+            document.getElementById('floorPlanTitle').innerText = `${fullRoom} 인터랙티브 평면도 (A타입 84A)`;
+
+            const logContainer = document.getElementById('roomVoiceLogList');
+            logContainer.innerHTML = "";
+
+            const matchedLogs = voiceLogs.filter(l => l.room.includes(`14${ho}`));
+            document.getElementById('roomLogCountBadge').innerText = `누적 ${matchedLogs.length}건`;
+
+            if (matchedLogs.length === 0) {
+                logContainer.innerHTML = `
+                    <div class="text-center py-8 text-slate-400 text-xs">
+                        <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+                        해당 호실에 등록된 음성 작업 보고가 없습니다.
+                    </div>
+                `;
+            } else {
+                matchedLogs.forEach(log => {
+                    const el = document.createElement('div');
+                    el.className = "p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5";
+                    el.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-800">${log.author} (${log.trade})</span>
+                            <span class="text-[10px] text-slate-400 font-mono">${log.timestamp}</span>
+                        </div>
+                        <p class="text-slate-600 italic">"${log.rawText}"</p>
+                        <p class="text-emerald-800 font-semibold bg-white p-1.5 rounded border border-emerald-100 flex items-center gap-1">
+                            <i data-lucide="check" class="w-3 h-3 text-emerald-600"></i>
+                            ${log.refinedText}
+                        </p>
+                    `;
+                    logContainer.appendChild(el);
+                });
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function selectPinLog(spot) {
+            playBeep(650, 0.08);
+            if (spot === 'living_room_slab') {
+                showToast("거실 슬래브 배근: 김철근 반장 음성 확인됨 (100% 완료)");
+            } else if (spot === 'kitchen_pipe') {
+                showToast("주방 배관: 슬리브 매립 완료 (검측 진행 중)");
+            } else {
+                showToast("안방 경량가벽: 석고보드 가벽 시공 완료");
+            }
+        }
+
+        function approveCurrentRoomInspection() {
+            playBeep(880, 0.2);
+            showToast("101동 1403호 검측 승인이 완료되어 완료(Green) 처리되었습니다.");
+            framingData["14"]["1403"] = "done";
+            renderFramingGrid();
+        }
+
+        function renderFramingGrid() {
+            const container = document.getElementById('framingGridContainer');
+            container.innerHTML = "";
+
+            const floors = ["15", "14", "13", "12", "11"];
+            floors.forEach(fl => {
+                const row = document.createElement('div');
+                row.className = "flex items-center gap-2";
+
+                const floorLabel = document.createElement('div');
+                floorLabel.className = "w-10 text-xs font-bold text-slate-500 text-right";
+                floorLabel.innerText = `${fl}F`;
+                row.appendChild(floorLabel);
+
+                const rooms = [`${fl}01`, `${fl}02`, `${fl}03`, `${fl}04`];
+                rooms.forEach(rm => {
+                    const status = framingData[fl][rm] || "ready";
+                    let bg = "bg-slate-200 text-slate-700 hover:bg-slate-300";
+                    let label = "대기";
+
+                    if (status === "done") {
+                        bg = "bg-emerald-600 text-white hover:bg-emerald-700";
+                        label = "완료";
+                    } else if (status === "pending") {
+                        bg = "bg-blue-600 text-white font-bold animate-pulse hover:bg-blue-700 ring-2 ring-blue-300";
+                        label = "검측대기";
+                    } else if (status === "progress") {
+                        bg = "bg-amber-400 text-slate-900 font-semibold hover:bg-amber-500";
+                        label = "시공중";
+                    }
+
+                    const cell = document.createElement('button');
+                    cell.className = `flex-1 py-3 px-2 rounded-lg text-xs font-medium text-center transition flex flex-col items-center justify-center shadow-sm ${bg}`;
+                    cell.innerHTML = `
+                        <span class="font-extrabold text-[12px]">${rm}호</span>
+                        <span class="text-[9px] opacity-90">${label}</span>
+                    `;
+                    cell.onclick = () => jumpToRoomDetail(rm);
+                    row.appendChild(cell);
+                });
+
+                container.appendChild(row);
+            });
+        }
+
+        function jumpToRoomDetail(roomNumber) {
+            switchContractorTab('tabRoomDetail');
+            const ho = roomNumber.substring(2);
+            document.getElementById('roomFilterHo').value = ho;
+            renderRoomDetailView();
+            showToast(`${roomNumber}호 상세 평면도 화면으로 이동했습니다.`);
+        }
+
+        function renderJargonTable(filter = "") {
+            const tbody = document.getElementById('jargonTableBody');
+            tbody.innerHTML = "";
+
+            const filtered = siteJargonDb.filter(item => 
+                item.jargon.includes(filter) || item.standard.includes(filter) || item.note.includes(filter)
+            );
+
+            document.getElementById('kpiJargonCount').innerText = `${siteJargonDb.length}개`;
+
+            filtered.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition";
+                tr.innerHTML = `
+                    <td class="p-2.5 font-bold text-slate-900">${item.jargon}</td>
+                    <td class="p-2.5 font-bold text-purple-700 bg-purple-50/50">${item.standard}</td>
+                    <td class="p-2.5 text-slate-500"><span class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-semibold">${item.trade}</span></td>
+                    <td class="p-2.5 text-slate-600">${item.note}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterJargonTable() {
+            const query = document.getElementById('jargonSearchInput').value.trim();
+            renderJargonTable(query);
+        }
+
+        function handleAddNewJargon(e) {
+            e.preventDefault();
+            const jargon = document.getElementById('inputJargonWord').value.trim();
+            const standard = document.getElementById('inputStandardWord').value.trim();
+            const trade = document.getElementById('inputJargonTrade').value;
+            const note = document.getElementById('inputJargonNote').value.trim();
+
+            if (!jargon || !standard) return;
+
+            siteJargonDb.unshift({
+                id: Date.now(),
+                jargon,
+                standard,
+                trade,
+                note: note || "현장 기사 등록 용어"
+            });
+
+            document.getElementById('newJargonForm').reset();
+            renderJargonTable();
+            playBeep(700, 0.1);
+            showToast(`신규 은어 '${jargon} ➔ ${standard}' 등록 완료!`);
+        }
+
+        function switchAppMode(mode) {
+            currentAppMode = mode;
+            const contractorView = document.getElementById('viewContractor');
+            const subconView = document.getElementById('viewSubcontractor');
+            const btnContractor = document.getElementById('modeBtnContractor');
+            const btnSubcon = document.getElementById('modeBtnSubcontractor');
+
+            if (mode === 'contractor') {
+                contractorView.classList.remove('hidden');
+                subconView.classList.add('hidden');
+                btnContractor.className = "flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all bg-blue-600 text-white shadow";
+                btnSubcon.className = "flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white";
+            } else {
+                contractorView.classList.add('hidden');
+                subconView.classList.remove('hidden');
+                btnSubcon.className = "flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all bg-amber-500 text-slate-950 font-bold shadow";
+                btnContractor.className = "flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white";
+                updateSubconHeader();
+            }
+        }
+
+        function switchContractorTab(tabId) {
+            document.querySelectorAll('.contractor-tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+
+            document.getElementById(tabId).classList.remove('hidden');
+            const activeNav = document.getElementById(`nav-${tabId}`);
+            if (activeNav) activeNav.classList.add('active');
+
+            if (tabId === 'tabQrGenerator' && !currentQrCodeObj) {
+                generateQrBadge();
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toastMessage');
+            document.getElementById('toastText').innerText = message;
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-24', 'opacity-0');
+                toast.classList.remove('translate-y-0', 'opacity-100');
+            }, 3200);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) lucide.createIcons();
+            renderDashboardLogs();
+            renderFramingGrid();
+            renderRoomDetailView();
+            renderJargonTable();
+            generateQrBadge();
+            initSpeechRecognition();
+        });
+    </script>
+</body>
 </html>
