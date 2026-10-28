@@ -16,6 +16,7 @@ import { db } from "./firebase.js";
 import { QR_LIMITS, newQrBoardId, isValidQrBoardId } from "./qr.js";
 import { VOICE_TRADES, VOICE_LIMITS, clockString, defaultGlossary, sanitizeGlossary, checkTerm, applyGlossary, buildSummary, glossaryHash, GLOSSARY_MESSAGES } from "./voice.js";
 import { cleanImportEntries, planGlossaryImport, applyGlossaryImport } from "./glossaryImport.js";
+import { SAMPLE_LIMITS, SAMPLE_MESSAGES, cleanSampleName, newSampleId, sanitizeSamples, sanitizeSegments, splitIntoChunks, joinChunks } from "./audioSamples.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -748,6 +749,129 @@ export async function importGlossaryTerms(entries, mode, by) {
   if (plan.changes === 0) return { terms: current.terms, plan, changed: false };
   const terms = await saveGlossary(applyGlossaryImport(plan, current.terms, newGlossaryId), by);
   return { terms, plan, changed: true };
+}
+
+// ---------------- 음성 샘플 (용어 DB의 '음성 샘플로 인식 점검하기') ----------------
+// 현장 은어·사투리를 녹음한 파일을 최대 5개까지 올려 두고, 관리자가 크롬이 그 녹음을 어떻게 듣는지 점검한다.
+// meta/glossarySamples: { samples: [{ id, name, mime, size, duration, chunks, segments: [{ id, start, end, label }], by, at }], updatedAt, updatedBy }
+//   - 녹음마다 말 구간(start~end 초)과, 관리자가 적은 정답(label = 그 구간에서 말한 표준 용어)을 함께 둔다.
+// glossarySampleAudio/{녹음id}_{번호}: { sampleId, n, data } - 녹음 파일 내용을 문서 1개(최대 1MiB)에 들어갈 크기로 나눈 조각(data는 base64 글자)
+// Storage 없이(무료 Spark 요금제 유지) Firestore만 쓰려고 파일을 조각으로 나눠 넣는다. 목록 문서에는 조각 수만 들어 있어서 목록을 읽을 때는 문서 1건만 읽고,
+// 녹음을 열 때만 그 녹음의 조각들(파일당 최대 7건)을 읽는다.
+const SAMPLE_READ_TIMEOUT_MS = 8000;
+const SAMPLE_LIST_WRITE_TIMEOUT_MS = 12000;
+const SAMPLE_CHUNK_TIMEOUT_MS = 30000;
+
+function sampleError(code) {
+  return Object.assign(new Error(SAMPLE_MESSAGES[code] || "녹음을 저장하지 못했습니다."), { code: `sample/${code}` });
+}
+
+function sampleChunkRef(sampleId, n) {
+  return doc(db, "glossarySampleAudio", `${sampleId}_${n}`);
+}
+
+export async function fetchGlossarySamples() {
+  const snap = await withTimeout(getDoc(doc(db, "meta", "glossarySamples")), SAMPLE_READ_TIMEOUT_MS, "sample/timeout");
+  return { samples: snap.exists() ? sanitizeSamples(snap.data().samples) : [] };
+}
+
+async function saveSampleList(samples, by) {
+  await withTimeout(
+    setDoc(doc(db, "meta", "glossarySamples"), { samples, updatedAt: nowIso(), updatedBy: String(by || "").trim().slice(0, 60) }),
+    SAMPLE_LIST_WRITE_TIMEOUT_MS,
+    "sample/timeout"
+  );
+  return samples;
+}
+
+// 조각 문서를 지운다. 목록에 없는 조각은 어디에서도 쓰이지 않으므로, 지우지 못해도 화면에는 영향이 없다.
+async function removeSampleChunks(sampleId, count) {
+  try {
+    const batch = writeBatch(db);
+    for (let n = 0; n < count; n += 1) batch.delete(sampleChunkRef(sampleId, n));
+    await withTimeout(batch.commit(), SAMPLE_CHUNK_TIMEOUT_MS, "sample/timeout");
+  } catch {
+    // 남은 조각은 그대로 둔다.
+  }
+}
+
+// 녹음 하나를 저장한다. data: 파일 내용(ArrayBuffer 또는 Uint8Array), segments: 나눠 둔 말 구간.
+// 조각을 먼저 모두 쓰고 마지막에 목록에 올리므로, 도중에 실패해도 목록에는 반쯤 올라간 녹음이 보이지 않는다(쓴 조각은 되도록 지운다).
+// 반환: { samples(저장된 최신 목록), sample(올린 녹음) }
+export async function addGlossarySample({ name, mime, data, duration, segments }, by) {
+  const current = await fetchGlossarySamples();
+  if (current.samples.length >= SAMPLE_LIMITS.maxFiles) throw sampleError("full");
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  if (bytes.length === 0) throw sampleError("empty");
+  if (bytes.length > SAMPLE_LIMITS.maxBytes) throw sampleError("too-big");
+  const id = newSampleId();
+  const parts = splitIntoChunks(bytes);
+  try {
+    for (let n = 0; n < parts.length; n += 1) {
+      await withTimeout(setDoc(sampleChunkRef(id, n), { sampleId: id, n, data: parts[n] }), SAMPLE_CHUNK_TIMEOUT_MS, "sample/timeout");
+    }
+  } catch (err) {
+    await removeSampleChunks(id, parts.length);
+    throw err;
+  }
+  const sample = {
+    id,
+    name: cleanSampleName(name),
+    mime: String(mime || "audio/mpeg"),
+    size: bytes.length,
+    duration: Math.round((Number(duration) || 0) * 10) / 10,
+    chunks: parts.length,
+    segments: sanitizeSegments(segments),
+    by: String(by || "").trim().slice(0, 60),
+    at: nowIso(),
+  };
+  try {
+    // 조각을 쓰는 사이 다른 관리자가 목록을 바꿨을 수 있어 목록을 다시 읽고 그 위에 더한다
+    const latest = await fetchGlossarySamples();
+    if (latest.samples.length >= SAMPLE_LIMITS.maxFiles) throw sampleError("full");
+    const samples = await saveSampleList([...latest.samples, sample], by);
+    return { samples, sample };
+  } catch (err) {
+    // 저장이 느려 멈춘 경우는 실제로는 저장됐을 수 있어 조각을 남겨 둔다
+    if (!(err && err.code === "sample/timeout")) await removeSampleChunks(id, parts.length);
+    throw err;
+  }
+}
+
+// 한 녹음의 말 구간(시작·끝·정답)을 저장한다. 그 사이 다른 관리자가 지운 녹음이면 sample/not-found를 던진다.
+export async function saveGlossarySampleSegments(id, segments, by) {
+  const current = await fetchGlossarySamples();
+  if (!current.samples.some((s) => s.id === id)) throw sampleError("not-found");
+  const cleaned = sanitizeSegments(segments);
+  const samples = await saveSampleList(
+    current.samples.map((s) => (s.id === id ? { ...s, segments: cleaned } : s)),
+    by
+  );
+  return { samples };
+}
+
+export async function deleteGlossarySample(id, by) {
+  const current = await fetchGlossarySamples();
+  const target = current.samples.find((s) => s.id === id);
+  if (!target) throw sampleError("not-found");
+  const samples = await saveSampleList(
+    current.samples.filter((s) => s.id !== id),
+    by
+  );
+  await removeSampleChunks(id, target.chunks);
+  return { samples };
+}
+
+// 녹음 파일 내용을 조각들에서 이어 붙여 읽어 온다(Uint8Array). 조각이 빠졌거나 크기가 맞지 않으면 sample/audio-missing.
+export async function fetchGlossarySampleAudio(sample) {
+  const reads = [];
+  for (let n = 0; n < sample.chunks; n += 1) reads.push(withTimeout(getDoc(sampleChunkRef(sample.id, n)), SAMPLE_CHUNK_TIMEOUT_MS, "sample/timeout"));
+  const snaps = await Promise.all(reads);
+  const parts = snaps.map((s) => (s.exists() && typeof s.data().data === "string" ? s.data().data : null));
+  if (parts.some((p) => p === null)) throw sampleError("audio-missing");
+  const bytes = joinChunks(parts, sample.size);
+  if (!bytes) throw sampleError("audio-missing");
+  return bytes;
 }
 
 // ---------------- 저장된 음성 기록에 용어 표 다시 적용 ----------------

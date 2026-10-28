@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { EmptyState } from "./UI.jsx";
 import GlossaryImport from "./GlossaryImport.jsx";
 import GlossaryReapply from "./GlossaryReapply.jsx";
+import GlossarySamples from "./GlossarySamples.jsx";
 import * as api from "../api.js";
 import { setGlossaryTerms, adoptGlossary } from "../glossaryStore.js";
 import { GLOSSARY_LIMITS, GLOSSARY_MESSAGES, applyGlossary, checkTerm, slangKey } from "../voice.js";
@@ -48,7 +49,7 @@ function Marked({ parts }) {
 export default function Glossary({ adminName, notify }) {
   const [terms, setTerms] = useState([]);
   const [load, setLoad] = useState("loading"); // loading | ready | error
-  const [busy, setBusy] = useState(""); // "" | "add" | "edit" | "delete" | "import" - 저장하는 동안 다른 조작을 막는다
+  const [busy, setBusy] = useState(""); // "" | "add" | "edit" | "delete" | "import" | "sample" - 저장하는 동안 다른 조작을 막는다
 
   const [newSlang, setNewSlang] = useState("");
   const [newStandard, setNewStandard] = useState("");
@@ -328,6 +329,8 @@ export default function Glossary({ adminName, notify }) {
           </section>
 
           <GlossaryImport terms={terms} adminName={adminName} busy={busy} setBusy={setBusy} onApplied={applyImported} onReload={() => loadTerms(true)} notify={notify} />
+
+          <GlossarySamples terms={terms} adminName={adminName} busy={busy} setBusy={setBusy} onTermAdded={(nextTerms) => commit(nextTerms)} notify={notify} />
 
           <GlossaryReapply terms={terms} adminName={adminName} busy={busy} setBusy={setBusy} notify={notify} />
 
