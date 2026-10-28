@@ -1,5 +1,4 @@
 import React, { useEffect } from "react";
-import { useLanguage } from "../LanguageContext.jsx";
 
 /* ---------------- Icons (inline SVG, stroke-based) ---------------- */
 const iconProps = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round", strokeLinejoin: "round" };
@@ -21,13 +20,6 @@ export const Icon = {
       <path d="M4 6l1.3 1.3L7.5 5" />
       <path d="M4 12l1.3 1.3L7.5 11" />
       <path d="M4 18l1.3 1.3L7.5 16" />
-    </svg>
-  ),
-  Progress: (p) => (
-    <svg className="icon" {...iconProps} {...p}>
-      <path d="M4 20V10" />
-      <path d="M12 20V4" />
-      <path d="M20 20v-6" />
     </svg>
   ),
   Inspection: (p) => (
@@ -57,15 +49,6 @@ export const Icon = {
       <path d="M12 12.5V21" />
     </svg>
   ),
-  CitySkyline: (p) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <path d="M3 21h18" />
-      <path d="M5 21V9l4-3v15" />
-      <path d="M13 21V5l4-2v18" />
-      <path d="M9 21v-4h2v4" />
-      <path d="M17 21v-5h2v5" />
-    </svg>
-  ),
   Door: (p) => (
     <svg className="icon" {...iconProps} {...p}>
       <rect x="6" y="3" width="12" height="18" rx="1" />
@@ -77,30 +60,6 @@ export const Icon = {
     <svg className="icon" {...iconProps} {...p}>
       <path d="M12 3.5 19 6.5v5.2c0 4.4-3 7.6-7 8.8-4-1.2-7-4.4-7-8.8V6.5L12 3.5Z" />
       <path d="M9 12l2 2 4-4" />
-    </svg>
-  ),
-  Worker: (p) => (
-    <svg className="icon" {...iconProps} {...p}>
-      <path d="M4 14.5a8 8 0 0 1 16 0Z" />
-      <path d="M3 14.5h18" />
-      <path d="M9.5 5.5a2.5 2.5 0 0 1 5 0" />
-    </svg>
-  ),
-  IdCard: (p) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <circle cx="9" cy="11" r="2" />
-      <path d="M6 16c0-1.7 1.3-2.5 3-2.5s3 0.8 3 2.5" />
-      <path d="M14.5 9.5h4M14.5 13h4" />
-    </svg>
-  ),
-  Excavator: (p) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <path d="M3 19h13" />
-      <circle cx="6" cy="19" r="1.6" />
-      <circle cx="14" cy="19" r="1.6" />
-      <path d="M4 16h11v-4H8Z" />
-      <path d="M11 12 17 6h2l-1.5 4.5L20 9" />
     </svg>
   ),
   Close: (p) => (
@@ -146,44 +105,6 @@ export const Icon = {
       <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-9 0 1 12.5A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5L19 7" />
     </svg>
   ),
-  Download: (p) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5" />
-      <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-    </svg>
-  ),
-  Drag: (p) => (
-    <svg viewBox="0 0 24 24" fill="currentColor" {...p}>
-      <circle cx="9" cy="6" r="1.6" />
-      <circle cx="15" cy="6" r="1.6" />
-      <circle cx="9" cy="12" r="1.6" />
-      <circle cx="15" cy="12" r="1.6" />
-      <circle cx="9" cy="18" r="1.6" />
-      <circle cx="15" cy="18" r="1.6" />
-    </svg>
-  ),
-  Qr: (p) => (
-    <svg className="icon" {...iconProps} {...p}>
-      <rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1" />
-      <rect x="14" y="3.5" width="6.5" height="6.5" rx="1" />
-      <rect x="3.5" y="14" width="6.5" height="6.5" rx="1" />
-      <path d="M14 14h2.6v2.6H14zM18.4 14h2.1M14 18.4v2.1M17.6 17.6h2.9v2.9" />
-    </svg>
-  ),
-  Mic: (p) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <rect x="9" y="3" width="6" height="11" rx="3" />
-      <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0" />
-      <path d="M12 18v3" />
-    </svg>
-  ),
-  Book: (p) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15.5H6.5A1.5 1.5 0 0 0 5 20Z" />
-      <path d="M5 20a1.5 1.5 0 0 0 1.5 1.5H19v-3" />
-      <path d="M9 8h6M9 11.5h4" />
-    </svg>
-  ),
   Empty: (p) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="34" height="34" {...p}>
       <path d="M4 19V7.5L12 3l8 4.5V19" />
@@ -194,18 +115,16 @@ export const Icon = {
 
 /* ---------------- Status badge ---------------- */
 export function StatusBadge({ status }) {
-  const { t } = useLanguage();
-  return <span className={`badge badge-${status}`}>{t(`status.${status}`)}</span>;
+  return <span className={`badge badge-${status}`}>{status}</span>;
 }
 
 /* ---------------- Category tag ---------------- */
 export function CategoryTag({ category }) {
-  const { t } = useLanguage();
   if (!category) return null;
   return (
     <span className="cat-tag" style={{ background: category.color + "1c", color: category.color }}>
       <span className="cat-dot" style={{ background: category.color }} />
-      {t(`category.${category.id}.shortName`)}
+      {category.shortName}
     </span>
   );
 }

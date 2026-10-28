@@ -1,4 +1,4 @@
-// 공종 카테고리 메타 정보 (세부 항목 자체는 백엔드에서 동적으로 관리됨)
+// 공종 카테고리 메타 정보 (체크리스트 항목 자체는 백엔드에서 동적으로 관리됨)
 export const CATEGORIES = [
   {
     id: "frame",
@@ -36,9 +36,7 @@ export function getCategory(categoryId) {
 
 // checklistItems(bootstrap에서 받아온 동적 목록)에서 특정 공종의 항목만 추출
 export function itemsForCategory(checklistItems, categoryId) {
-  return (checklistItems || [])
-    .filter((i) => i.categoryId === categoryId)
-    .sort((a, b) => (a.order ?? 999999) - (b.order ?? 999999));
+  return (checklistItems || []).filter((i) => i.categoryId === categoryId);
 }
 
 // 항목 id로 텍스트 조회. 감리단이 삭제한 항목이면 안내 문구로 대체(과거 기록이 깨지지 않도록)
@@ -47,145 +45,16 @@ export function findItemText(checklistItems, itemId) {
   return item ? item.text : "(삭제된 항목)";
 }
 
-// 층당 세대수로 "01","02"... 형태의 호수 목록 생성
-export function unitOptions(unitsPerFloor) {
-  const n = Math.max(1, Number(unitsPerFloor) || 1);
-  return Array.from({ length: n }, (_, i) => String(i + 1).padStart(2, "0"));
-}
-
-// 특정 동/층/호/공종의 최신 검측 상태와 진행률(%) 계산
-export function categoryProgress(inspections, checklistItems, buildingId, floor, unit, categoryId) {
-  const relevant = inspections.filter(
-    (i) => i.buildingId === buildingId && String(i.floor) === String(floor) && i.unit === unit && i.categoryId === categoryId
-  );
-  const total = itemsForCategory(checklistItems, categoryId).length;
-  if (relevant.length === 0) return { status: "미시작", percent: 0 };
-  const latest = [...relevant].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-  const percent = total ? Math.round((latest.checkedItemIds.length / total) * 100) : 0;
-  return { status: latest.status, percent: latest.status === "반려" ? 0 : percent };
-}
-
-// 세부 공종 항목 하나가 이 호실에서 지금 어떤 상태인지 판정.
-// 한 번이라도 승인된 이력이 있으면 이후 다른 요청과 무관하게 항상 "승인"(영구 반영, 골구도와 동일 기준).
-// 승인 이력이 없으면 가장 최근 요청의 상태(대기/반려)를, 요청 이력 자체가 없으면 null(미시작)을 반환.
-export function itemStatusForUnit(inspections, buildingId, floor, unit, itemId) {
-  const relevant = inspections.filter(
-    (i) => i.buildingId === buildingId && String(i.floor) === String(floor) && i.unit === unit && Array.isArray(i.checkedItemIds) && i.checkedItemIds.includes(itemId)
-  );
-  if (relevant.some((i) => i.status === "승인")) return "승인";
-  if (relevant.length === 0) return null;
-  const latest = [...relevant].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-  return latest.status;
-}
-
-// 이 호실에서 특정 공종(카테고리) 전체 - 등록된 세부 항목 모두 - 가 승인 완료됐는지 여부.
-// 골조공사가 다 끝나야 마감/설비 공종을 진행할 수 있다는 규칙 등에 사용된다.
-export function isCategoryCompleteForUnit(inspections, checklistItems, buildingId, floor, unit, categoryId) {
-  const catItems = itemsForCategory(checklistItems, categoryId);
-  if (catItems.length === 0) return true; // 등록된 항목이 없으면 막을 대상 자체가 없으므로 완료로 간주
-  return catItems.every((item) => itemStatusForUnit(inspections, buildingId, floor, unit, item.id) === "승인");
-}
-
-// 카테고리별 "기본값" 목록 - 표준 공종 탭의 "기본값으로 초기화" 버튼에서 사용
-export const DEFAULT_ITEMS_BY_CATEGORY = {
-  frame: [
-    "철근 배근 간격 및 규격 적정성",
-    "철근 이음 위치 및 정착 길이",
-    "거푸집 치수 및 수직·수평도",
-    "거푸집 조립 상태 및 지지대(동바리) 고정",
-    "콘크리트 타설 전 이물질 제거 상태",
-    "콘크리트 타설 및 다짐 상태",
-    "콘크리트 양생 관리(양생포·살수)",
-  ],
-  finish: [
-    "PL창호",
-    "단열재",
-    "견출",
-    "조적",
-    "경량틀",
-    "목창호",
-    "석고판",
-    "차음재",
-    "기포 콘크리트 타설",
-    "바닥 난방 코일",
-    "방통 타설",
-    "천정",
-    "가구",
-    "도배",
-    "바닥마감",
-  ],
-  mep: [
-    "급수·배수 배관 누수 압력 테스트",
-    "배관 구배 및 고정 상태",
-    "전기 간선 포설 경로 및 결속 상태",
-    "절연 저항 측정값 기준 충족 여부",
-    "분전반 결선 및 접지 상태",
-  ],
-  safety: [
-    "추락 방지시설(안전난간·개구부 덮개) 설치",
-    "가설 구조물(비계·동바리) 안전성",
-    "개인 보호구(안전모·안전대) 착용 여부",
-    "현장 정리정돈 및 자재 적치 상태",
-    "화기 작업 관리 및 소화기 비치 여부",
-  ],
-};
-
 export const INSPECTION_STATUSES = ["대기", "승인", "반려"];
-
-// 동 id + 호수로 등록된 여러 평면도 중 맞는 것을 찾는다. 없으면 null(호출부에서 기본 예시 평면도로 대체)
-export function findUnitFloorPlan(unitFloorPlans, buildingId, unit) {
-  if (!unitFloorPlans || !buildingId || !unit) return null;
-  return unitFloorPlans.find((p) => p.buildingId === buildingId && Array.isArray(p.units) && p.units.includes(unit)) || null;
-}
 export const NCR_STATUSES = ["발생", "조치중", "재검측요청", "완료"];
 
-// 내부 값(SUB/SUPER)은 기존에 가입된 계정의 Firestore 데이터와 호환되어야 하므로 그대로 둔다.
-// 화면에 실제로 보이는 이름("관리자" 등)은 i18n.js의 role.sub/role.super에서 따로 관리한다.
 export const ROLES = {
   SUB: "하도급사",
   SUPER: "감리단",
 };
 
-// 예전에 있던 "감리자" 역할의 저장값. 지금은 없는 역할이지만, 그 역할로 가입해 둔 계정이 Firestore에 남아 있을 수 있어
-// 이름만 알아둔다. normalizeRole()이 이런 계정을 "관리자"로 보여준다(예전에도 관리자와 권한이 완전히 같았다).
-const LEGACY_INSPECTOR_ROLE = "감리자";
-
-// 계정에 저장된 역할 값을 지금 있는 두 역할(하도급사/관리자) 중 하나로 바꿔준다.
-// 알 수 없는 값이나 빈 값은 가장 낮은 권한인 하도급사로 본다.
-export function normalizeRole(role) {
-  if (role === ROLES.SUPER || role === LEGACY_INSPECTOR_ROLE) return ROLES.SUPER;
-  return ROLES.SUB;
-}
-
-// 승인·편집처럼 관리자만 할 수 있는 기능은 모두 이 함수로 판단한다.
-export function isAdminRole(role) {
-  return role === ROLES.SUPER;
-}
-
-// 뷰(탭)별 접근 가능한 역할. 값을 생략하면 모든 역할이 접근 가능.
-// (대시보드는 "현장관리" 탭 내부의 서브탭이며, OperationsHub.jsx에서 role로 별도 제한됨)
-// 빈 목록([])은 "어느 역할도 열 수 없음"이다 - 메뉴에서 없앤 탭이라 혹시 그 값이 남아 있어도 공사현황으로 돌려보낸다
-// (화면 코드 파일은 지우지 않고 남겨 두었으니, 다시 쓰려면 메뉴(Layout.jsx)와 App.jsx 연결을 되살리고 여기 목록을 지우면 된다).
-export const VIEW_ROLES = {
-  voice: [ROLES.SUB],
-  buildings: [ROLES.SUPER],
-  sitelayout: [ROLES.SUPER],
-  glossary: [ROLES.SUPER],
-  unitinfo: [ROLES.SUPER],
-  safety: [ROLES.SUPER],
-  // 메뉴에서 없앤 탭: 인력 등록(workers), 건설기계 등록(equipment), 인력 현황(workerRoster), QR코드(qrcodes), 현장 3D(site3d), 서류(documents)
-  workers: [],
-  equipment: [],
-  workerRoster: [],
-  qrcodes: [],
-  site3d: [],
-  documents: [],
-};
-
-export function isViewAllowed(viewId, role) {
-  const allowed = VIEW_ROLES[viewId];
-  return !allowed || allowed.includes(role);
-}
+// 하도급사 역할에게는 숨기는 탭(대시보드/동 관리/배치도/호실 정보/안전 현황) - 감리단/소장은 전체 열람 가능
+export const RESTRICTED_VIEWS_FOR_SUB = ["dashboard", "buildings", "sitelayout", "unitinfo", "safety"];
 
 export const SHAPE_OPTIONS = [
   { id: "slab", label: "판상형" },
