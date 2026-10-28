@@ -131,10 +131,11 @@ export function checkTerm(input, terms, selfId = "") {
 
 // 표의 내용으로 만든 짧은 지문(문자열). 저장된 음성 기록에 표를 다시 적용할 때 "마지막으로 적용한 표와 지금 표가 같은가"를 견주는 데 쓴다.
 // 줄의 id와 저장 시각은 문장을 바꾸는 결과에 영향이 없으므로 넣지 않고, 은어·표준 용어와 줄의 순서(같은 길이의 은어끼리는 순서가 결과를 정한다)만 본다.
+// onlyDb(용어 DB에 있는 단어만 남기는 변환 방식)도 결과를 바꾸므로 켜져 있으면 지문에 함께 넣는다. 꺼져 있으면(기본값) 예전 계산과 똑같은 값이 나온다.
 // 같은 내용이면 어느 기기에서 계산해도 같은 값이 나온다. (cyrb53 - 외부 라이브러리 없이 정수 연산만 쓴다)
-export function glossaryHash(terms) {
+export function glossaryHash(terms, onlyDb = false) {
   const rows = sanitizeGlossary(terms);
-  let s = String(rows.length);
+  let s = String(rows.length) + (onlyDb ? "\u0003only-db" : "");
   for (const t of rows) s += `\u0001${t.slang}\u0002${t.standard}`;
   let h1 = 0xdeadbeef ^ s.length;
   let h2 = 0x41c6ce57 ^ s.length;
@@ -160,7 +161,7 @@ export const GLOSSARY_MESSAGES = {
   full: `표에는 용어를 ${GLOSSARY_LIMITS.max}개까지 넣을 수 있어요.`,
   "not-found": "이미 지워졌거나 바뀐 용어예요. 목록을 새로 불러왔어요.",
   "no-rows": "올릴 수 있는 용어가 없어요. 파일의 내용을 확인해 주세요.",
-  "table-changed": "그 사이 용어 표가 바뀌었어요. 미리보기를 다시 해 주세요.",
+  "table-changed": "그 사이 용어 표나 변환 방식이 바뀌었어요. 미리보기를 다시 해 주세요.",
 };
 
 // ---- 문장 속에서 은어 찾기 ----
@@ -206,12 +207,12 @@ function matchEnd(src, i, cand) {
 }
 
 // 표(배열) 하나마다 한 번만 만들어 두는 찾기 도구. 같은 표로 여러 번 바꿀 때(미리보기 입력 등) 다시 만들지 않는다.
-const matcherCache = new WeakMap();
+const matcherCache = new WeakMap(); // 은어만 찾는 도구(applyGlossary)
+const onlyMatcherCache = new WeakMap(); // 은어와 표준 용어를 함께 찾는 도구(applyGlossaryOnly)
 
-function matcherFor(terms) {
-  if (!Array.isArray(terms)) return null;
-  if (matcherCache.has(terms)) return matcherCache.get(terms);
-  const seen = new Set();
+// 표의 줄마다 은어 하나를 "찾을 말"로 만든다. 같은 은어가 두 번 있으면 먼저 나온 줄만 쓴다. seen에는 쓴 은어의 키가 쌓인다.
+// 찾을 말: { codes(키의 글자들), gap(글자 사이 띄어쓰기 허용), term(표의 줄), kind: "slang", out(찾으면 내보낼 말) }
+function slangCands(terms, seen) {
   const cands = [];
   for (const t of terms) {
     if (!t || typeof t.slang !== "string" || typeof t.standard !== "string" || !t.standard) continue;
@@ -219,22 +220,103 @@ function matcherFor(terms) {
     if (!key || seen.has(key)) continue; // 같은 은어가 두 번 있으면 먼저 나온 줄만 쓴다
     seen.add(key);
     const codes = Array.from(key, (ch) => ch.codePointAt(0));
-    cands.push({ codes, gap: codes.length >= 3, term: t });
+    cands.push({ codes, gap: codes.length >= 3, term: t, kind: "slang", out: t.standard });
   }
-  let matcher = null;
-  if (cands.length > 0) {
-    // 긴 은어를 먼저 찾아야 "시로바리"가 "바리"보다 먼저 걸린다. (같은 길이면 표의 순서대로)
-    cands.sort((a, b) => b.codes.length - a.codes.length);
-    const starts = new Map(); // 첫 글자(소문자) -> 그 글자로 시작하는 은어들(긴 것부터)
-    for (const cand of cands) {
-      const list = starts.get(cand.codes[0]);
-      if (list) list.push(cand);
-      else starts.set(cand.codes[0], [cand]);
-    }
-    matcher = { starts };
+  return cands;
+}
+
+// 찾을 말들을 첫 글자별로 묶는다. 긴 말을 먼저 찾아야 "시로바리"가 "바리"보다 먼저 걸린다. (같은 길이면 넣은 순서대로 - 정렬은 순서를 유지한다)
+function startsOf(cands) {
+  cands.sort((a, b) => b.codes.length - a.codes.length);
+  const starts = new Map(); // 첫 글자(소문자) -> 그 글자로 시작하는 말들(긴 것부터)
+  for (const cand of cands) {
+    const list = starts.get(cand.codes[0]);
+    if (list) list.push(cand);
+    else starts.set(cand.codes[0], [cand]);
   }
+  return { starts };
+}
+
+function matcherFor(terms) {
+  if (!Array.isArray(terms)) return null;
+  if (matcherCache.has(terms)) return matcherCache.get(terms);
+  const cands = slangCands(terms, new Set());
+  const matcher = cands.length > 0 ? startsOf(cands) : null;
   matcherCache.set(terms, matcher);
   return matcher;
+}
+
+// 표준 용어에서 "직접 말했을 때 그대로 남겨 둘 낱말"을 뽑는다: 표준 용어 전체, 괄호 밖의 말과 괄호 안의 말, "/"(또는 쉼표·가운뎃점)로 나뉜 각 낱말.
+//  "고르기/다짐" → 고르기/다짐, 고르기, 다짐   "콘크리트(레미콘)" → 콘크리트(레미콘), 콘크리트, 레미콘   "보(Beam)" → 보(Beam), Beam
+// 한 글자짜리는 다른 낱말 속에서도 걸려 버리므로 뺀다("보(Beam)"의 "보"). 글자나 숫자가 없는 조각도 뺀다.
+export function standardForms(standard) {
+  const full = cleanTermText(standard);
+  const out = [];
+  const add = (value) => {
+    const form = cleanTermText(value);
+    if (!form || out.includes(form)) return;
+    const key = slangKey(form);
+    if (Array.from(key).length < 2 || !/[\p{L}\p{N}]/u.test(key)) return;
+    out.push(form);
+  };
+  add(full);
+  const inner = [];
+  const outer = full.replace(/[(（[]([^)）\]]*)[)）\]]/g, (_, group) => {
+    inner.push(group);
+    return " ";
+  });
+  for (const chunk of [outer, ...inner]) for (const part of chunk.split(/[\/／,，、·]/)) add(part);
+  return out;
+}
+
+// 은어에 더해 표준 용어(와 그 낱말들)도 "표의 단어"로 찾는 도구. 은어와 같은 말이면 은어가 먼저(= 바꾸는 쪽이 먼저)이고, 표준 용어끼리는 먼저 나온 줄이 먼저다.
+function onlyMatcherFor(terms) {
+  if (!Array.isArray(terms)) return null;
+  if (onlyMatcherCache.has(terms)) return onlyMatcherCache.get(terms);
+  const seen = new Set();
+  const cands = slangCands(terms, seen);
+  const rows = cands.map((c) => c.term); // 은어가 쓰이는 줄만(은어가 비었거나 겹쳐서 빠진 줄의 표준 용어는 단어로 치지 않는다)
+  for (const term of rows) {
+    for (const form of standardForms(term.standard)) {
+      const key = slangKey(form);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const codes = Array.from(key, (ch) => ch.codePointAt(0));
+      cands.push({ codes, gap: codes.length >= 3, term, kind: "standard", out: form });
+    }
+  }
+  const matcher = cands.length > 0 ? startsOf(cands) : null;
+  onlyMatcherCache.set(terms, matcher);
+  return matcher;
+}
+
+// 문장 src를 왼쪽부터 한 번 훑어, 찾을 말이 나온 자리를 차례로 모은다: [{ start, end, cand }]
+// 같은 자리에서는 가장 긴 말 먼저이고, 찾은 부분은 다시 훑지 않는다.
+function findMatches(src, starts) {
+  const found = [];
+  let i = 0;
+  while (i < src.length) {
+    const cp = src.codePointAt(i);
+    const list = starts.get(lowerCp(cp));
+    let cand = null;
+    let end = -1;
+    if (list) {
+      for (const c of list) {
+        end = matchEnd(src, i, c);
+        if (end > i) {
+          cand = c;
+          break;
+        }
+      }
+    }
+    if (!cand) {
+      i += cp > 0xffff ? 2 : 1;
+      continue;
+    }
+    found.push({ start: i, end, cand });
+    i = end;
+  }
+  return found;
 }
 
 // 문장 속의 현장 은어를 표(terms)의 표준 용어로 한 번에 바꾼다. 문장을 왼쪽부터 한 번만 훑으므로
@@ -245,36 +327,17 @@ export function applyGlossary(text, terms) {
   const src = String(text == null ? "" : text);
   const matcher = src ? matcherFor(terms) : null;
   if (!matcher) return { text: src, parts: src ? [{ text: src }] : [], hits: [] };
-  const { starts } = matcher;
   const parts = [];
   const hits = new Map();
   let out = "";
   let last = 0;
-  let i = 0;
-  while (i < src.length) {
-    const cp = src.codePointAt(i);
-    const list = starts.get(lowerCp(cp));
-    let term = null;
-    let end = -1;
-    if (list) {
-      for (const cand of list) {
-        end = matchEnd(src, i, cand);
-        if (end > i) {
-          term = cand.term;
-          break;
-        }
-      }
-    }
-    if (!term) {
-      i += cp > 0xffff ? 2 : 1;
-      continue;
-    }
-    const before = src.slice(last, i);
+  for (const m of findMatches(src, matcher.starts)) {
+    const term = m.cand.term;
+    const before = src.slice(last, m.start);
     if (before) parts.push({ text: before });
-    parts.push({ text: term.standard, from: src.slice(i, end) });
+    parts.push({ text: term.standard, from: src.slice(m.start, m.end) });
     out += before + term.standard;
-    last = end;
-    i = end;
+    last = m.end;
     const hit = hits.get(term.id) || { id: term.id, slang: term.slang, standard: term.standard, count: 0 };
     hit.count += 1;
     hits.set(term.id, hit);
@@ -284,29 +347,116 @@ export function applyGlossary(text, terms) {
   return { text: out + rest, parts, hits: [...hits.values()] };
 }
 
+// "용어 DB에 있는 단어만 남기기": 문장 속에서 표에 있는 단어만 골라 낸다.
+//  - 현장 은어 → 표준 용어로 바꿔서 넣는다 ("나라시" → 표에 적힌 표준 용어)
+//  - 표준 용어를 직접 말했으면 그 말을 그대로 넣는다 (standardForms: 전체·괄호 안팎·"/"로 나뉜 낱말, 두 글자 이상)
+//  - 표에 없는 말("했어요", 숫자, 조사 등)은 모두 뺀다
+// 고른 단어들은 말한 순서대로 띄어쓰기 한 칸으로 잇는다. 표에 있는 단어가 하나도 없으면 text는 "".
+// 돌려주는 값: text, parts(화면에 강조해 보여 줄 조각들: 은어에서 바뀐 조각에는 from=원래 말, 단어 사이의 띄어쓰기 조각 포함),
+//   hits(바뀐 은어와 횟수: applyGlossary와 같은 모양 - 표준 용어를 그대로 둔 것은 넣지 않는다), kept(그대로 둔 표준 용어들), dropped(뺀 말 덩어리들: 글자나 숫자가 있는 것만)
+export function applyGlossaryOnly(text, terms) {
+  const src = String(text == null ? "" : text);
+  const empty = { text: "", parts: [], hits: [], kept: [], dropped: [] };
+  const matcher = src ? onlyMatcherFor(terms) : null;
+  const dropOf = (chunk) => {
+    const value = cleanTermText(chunk);
+    return /[\p{L}\p{N}]/u.test(value) ? value : "";
+  };
+  if (!matcher) return src ? { ...empty, dropped: [dropOf(src)].filter(Boolean) } : empty;
+  const parts = [];
+  const hits = new Map();
+  const words = [];
+  const kept = [];
+  const dropped = [];
+  let last = 0;
+  for (const m of findMatches(src, matcher.starts)) {
+    const gap = dropOf(src.slice(last, m.start));
+    if (gap) dropped.push(gap);
+    const { term, kind, out } = m.cand;
+    const spoken = src.slice(m.start, m.end);
+    if (words.length > 0) parts.push({ text: " " });
+    if (kind === "slang" || spoken !== out) parts.push({ text: out, from: spoken });
+    else parts.push({ text: out });
+    words.push(out);
+    if (kind === "slang") {
+      const hit = hits.get(term.id) || { id: term.id, slang: term.slang, standard: term.standard, count: 0 };
+      hit.count += 1;
+      hits.set(term.id, hit);
+    } else {
+      kept.push(out);
+    }
+    last = m.end;
+  }
+  const tail = dropOf(src.slice(last));
+  if (tail) dropped.push(tail);
+  return { text: words.join(" "), parts, hits: [...hits.values()], kept, dropped };
+}
+
+// 말한(또는 입력한) 글 하나를 보고에 쓸 글들로 바꾼다. onlyDb는 관리자 "용어 DB" 탭의 '용어 DB에 있는 단어만 남기기' 설정이다.
+//  - normalized: 은어만 표준 용어로 바꾼 전체 문장(다른 말은 그대로). 호실·공종 진행도를 읽어 내는 계산이 이 글을 읽으므로 늘 만들어 저장한다.
+//  - dbText: onlyDb가 켜져 있을 때만 문자열(표에 있는 단어로만 이룬 문장, 없으면 ""), 꺼져 있으면 null
+//  - shown: 화면에 '순화한 내용'으로 보여 주고 요약에 넣는 글 (dbText가 있으면 dbText, 없으면 normalized)
+//  - parts, replacedCount: shown에서 강조해 보여 줄 조각들과 은어가 바뀐 곳의 수
+//  - dropped: 표에 없어서 뺀 말들 (onlyDb일 때만)
+export function convertVoiceText(raw, terms, onlyDb) {
+  const full = applyGlossary(raw, terms);
+  if (!onlyDb) {
+    return {
+      normalized: full.text,
+      dbText: null,
+      shown: full.text,
+      parts: full.parts,
+      replacedCount: full.hits.reduce((sum, h) => sum + h.count, 0),
+      dropped: [],
+    };
+  }
+  const only = applyGlossaryOnly(raw, terms);
+  return {
+    normalized: full.text,
+    dbText: only.text,
+    shown: only.text,
+    parts: only.parts,
+    replacedCount: only.hits.reduce((sum, h) => sum + h.count, 0),
+    dropped: only.dropped,
+  };
+}
+
+// 저장된 보고 하나에서 화면에 '순화한 내용'으로 보여 줄 글. dbText(용어 DB 단어만 남긴 글)가 있는 기록은 그 글(비어 있을 수도 있다),
+// 없는 기록(그 방식을 쓰기 전에 저장했거나 꺼 둔 채 저장한 기록)은 은어만 바꾼 글(normalized)이다.
+export function convertedText(report) {
+  if (report && typeof report.dbText === "string") return report.dbText;
+  return report && typeof report.normalized === "string" ? report.normalized : "";
+}
+
 // 바뀐 문장만 필요할 때. terms를 주지 않으면 기본 용어(SLANG_RULES)를 쓴다.
 export function normalizeSlang(text, terms = DEFAULT_TERMS) {
   return applyGlossary(text, terms).text;
 }
 
 // 예전 공종(철근·설비·형틀·품질 승인) 시절에 저장된 기록의 요약 문장 틀. 그 기록의 요약을 다시 만들 때도(용어 표 다시 적용)
-// 같은 문장이 나오도록 그대로 둔다. 은어를 바꾼 발화 내용이 괄호 안에 그대로 붙는다.
-const LEGACY_SUMMARY_TEMPLATES = {
-  rebar: (n) => `주근 규격 및 띠철근 결속 상태 적합, 배근 검측 접수 (${n})`,
-  mep: (n) => `슬리브 및 매설 드레인 배관 설계 위치 고정 확인 (${n})`,
-  formwork: (n) => `거푸집 조립 및 연직도·타이볼트 체결 이상 무 (${n})`,
-  qc: (n) => `품질 관리 기준 적합 검측 완료 (${n})`,
+// 같은 문장이 나오도록 그대로 둔다. 발화 내용(은어를 바꾼 글)이 괄호 안에 그대로 붙는다.
+const LEGACY_SUMMARY_BASES = {
+  rebar: "주근 규격 및 띠철근 결속 상태 적합, 배근 검측 접수",
+  mep: "슬리브 및 매설 드레인 배관 설계 위치 고정 확인",
+  formwork: "거푸집 조립 및 연직도·타이볼트 체결 이상 무",
+  qc: "품질 관리 기준 적합 검측 완료",
 };
 
-// 공종별 요약 문장. 은어를 바꾼 발화 내용이 괄호 안에 그대로 붙는다.
+// 요약 문장 끝에 발화 내용을 괄호로 붙인다. 붙일 내용이 없으면(용어 DB에 있는 단어가 하나도 없는 경우) 빈 괄호 "()"를 남기지 않고 문장만 둔다.
+function withContent(base, content) {
+  const text = String(content == null ? "" : content);
+  return text.trim() ? `${base} (${text})` : base;
+}
+
+// 공종별 요약 문장. 발화 내용(화면에 '순화한 내용'으로 보여 주는 글 - 용어 DB 단어만 남기는 방식이면 그 글)이 괄호 안에 그대로 붙는다.
 //  - 지금의 공종: 분류 이름에 고른 세부 공종을 붙여 "마감공사 · 도배 검측 접수 (도배 완료)"처럼 만든다(세부 공종을 안 골랐으면 "마감공사 검측 접수 (…)").
 //  - item이 undefined인 기록은 세부 공종 칸이 없던 예전 기록이다(지금 남기는 보고는 세부 공종을 안 골라도 빈 글자 ""를 함께 저장한다).
 //    그런 기록은 예전 문장 틀을 그대로 쓴다(모르는 공종은 예전처럼 품질 승인 틀).
 export function buildSummary(tradeId, normalized, item) {
-  if (item === undefined) return (LEGACY_SUMMARY_TEMPLATES[tradeId] || LEGACY_SUMMARY_TEMPLATES.qc)(normalized);
+  if (item === undefined) return withContent(LEGACY_SUMMARY_BASES[tradeId] || LEGACY_SUMMARY_BASES.qc, normalized);
   const cat = VOICE_TRADES.some((t) => t.id === tradeId) ? getCategory(tradeId) : null;
   const where = [cat ? cat.name : "", cleanTermText(item)].filter(Boolean).join(" · ");
-  return `${where ? `${where} ` : ""}검측 접수 (${normalized})`;
+  return withContent(`${where ? `${where} ` : ""}검측 접수`, normalized);
 }
 
 // 브라우저의 음성 인식(Web Speech API). Chrome·Safari는 지원하고, 앱 안의 브라우저나 Firefox 등은 지원하지 않을 수 있다.

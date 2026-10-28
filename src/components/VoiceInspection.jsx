@@ -11,19 +11,22 @@ import {
   getTrade,
   findTrade,
   tradeLabelKey,
-  applyGlossary,
+  convertVoiceText,
+  convertedText,
   buildSummary,
   getSpeechRecognition,
   floorChoices,
   buildZone,
 } from "../voice.js";
-import { getGlossaryTerms, getGlossaryPending, refreshGlossary } from "../glossaryStore.js";
+import { getGlossaryTerms, getGlossaryOnlyDb, getGlossaryPending, refreshGlossary } from "../glossaryStore.js";
 import { analyzeReport, hasEffect } from "../unitProgress.js";
 
 // "음성 검측" (시안 index.html의 기능). 두 곳에서 쓴다.
 //  1) 하도급사 전용 "음성 검측" 탭: 공종(관리자 '표준 공종' 탭의 분류 + 그 아래 세부 공종)을 고르고 위치(동·층·부재)를 정한 뒤 마이크로 말한다.
 //  2) 호실 QR 스캔 화면(unit 속성을 줄 때): 위치(동·층·호)는 QR이 이미 정해 주므로 고르지 않고, 로그인이 없으니 이름은 직접 적는다(선택).
 // 말하면 → 음성 인식 → 인식된 글자를 바로 화면에 보여 주고 → 현장 은어를 표준 용어로 바꿔(관리자 "용어 DB" 탭의 표대로) → 공종별 요약 문장을 만들어 → 저장한다.
+// 관리자가 '용어 DB에 있는 단어만 남기기'를 켜 두었으면(기본) 바꾼 문장에는 표에 있는 단어만 남고 나머지 말은 빠진다("나라시 시마이 했어요" → "고르기 마무리").
+// 호실·공종 진행도를 읽는 계산은 빠진 말("301호", "도배 완료" 등)이 필요하므로 은어만 바꾼 전체 문장(normalized)을 따로 저장해 그 글을 읽는다.
 // 음성 인식이 안 되는 기기(앱 안의 브라우저 등)를 위해 직접 입력으로도 같은 과정을 거치게 했다.
 // 화면 문구는 하도급사가 외국인 근로자일 수 있어 번역 사전(voice.*)을 쓴다. 저장되는 발화 원문·요약은 말한 그대로(한국어)다.
 
@@ -358,7 +361,7 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
   }
 
   function makeReport(cur, rawText, via) {
-    const fixed = applyGlossary(rawText, getGlossaryTerms());
+    const fixed = convertVoiceText(rawText, getGlossaryTerms(), getGlossaryOnlyDb());
     const elem = cur.elem.trim();
     // 바뀐 문장에서 어느 호실의 어느 항목이 완료/진행중인지 읽는다(화면에 알려 주는 용도 - 저장하는 값이 아니다).
     // 호실 정보 화면은 저장된 글에서 같은 방법으로 다시 계산하므로, 여기서 보여 주는 내용과 그쪽 결과가 같다.
@@ -366,7 +369,7 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
     try {
       if (Array.isArray(cur.checklistItems) && cur.checklistItems.length > 0) {
         progress = analyzeReport(
-          { buildingId: cur.building.id, buildingName: cur.building.name, floor: cur.floor, elem, normalized: fixed.text, rawText },
+          { buildingId: cur.building.id, buildingName: cur.building.name, floor: cur.floor, elem, normalized: fixed.normalized, rawText },
           cur.checklistItems,
           { fixedUnit: cur.fixedUnit, unitsPerFloor: cur.building.unitsPerFloor }
         );
@@ -385,10 +388,11 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
       zone: cur.zone,
       elem,
       rawText,
-      normalized: fixed.text,
+      normalized: fixed.normalized, // 은어만 바꾼 전체 문장 - 진행도 계산이 읽는다
+      dbText: fixed.dbText, // 용어 DB 단어만 남긴 글(그 방식이 꺼져 있으면 null이라 저장하지 않는다)
       parts: fixed.parts, // 화면에서 바뀐 부분을 강조하는 데만 쓴다(저장하지 않는다)
-      replacedCount: fixed.hits.reduce((sum, h) => sum + h.count, 0),
-      summary: buildSummary(cur.tradeId, fixed.text, cur.tradeItem),
+      replacedCount: fixed.replacedCount,
+      summary: buildSummary(cur.tradeId, fixed.shown, cur.tradeItem),
       progress, // 호실 진행도에 반영된 내용(저장하지 않는다)
       via,
     });
@@ -682,14 +686,16 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
                 <div className="vl-result-raw" data-testid="vl-raw">
                   "{result.rawText}"
                 </div>
-                {result.replacedCount > 0 && (
+                {(result.replacedCount > 0 || (typeof result.dbText === "string" && result.dbText !== "" && result.dbText !== result.rawText)) && (
                   <>
                     <div className="vl-result-sep" />
                     <h3>
                       {t("voice.result.normalized")}
-                      <span className="vl-result-count" data-testid="vl-replaced">
-                        {t("voice.result.replaced", { n: result.replacedCount })}
-                      </span>
+                      {result.replacedCount > 0 && (
+                        <span className="vl-result-count" data-testid="vl-replaced">
+                          {t("voice.result.replaced", { n: result.replacedCount })}
+                        </span>
+                      )}
                     </h3>
                     <div className="vl-result-norm" data-testid="vl-norm">
                       <NormalizedText parts={result.parts} />
@@ -785,10 +791,10 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
                       <Icon.Pin width="13" height="13" /> {locationLabel(r)} · {r.elem}
                     </div>
                     <div className="vl-card-raw">"{r.rawText}"</div>
-                    {r.normalized && r.normalized !== r.rawText && (
+                    {convertedText(r) && convertedText(r) !== r.rawText && (
                       <div className="vl-card-norm" data-testid="vl-card-norm" aria-label={t("voice.result.normalized")}>
                         <span aria-hidden="true">→ </span>
-                        {r.normalized}
+                        {convertedText(r)}
                       </div>
                     )}
                     <div className="vl-card-summary">{r.summary}</div>

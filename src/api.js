@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase.js";
 import { QR_LIMITS, newQrBoardId, isValidQrBoardId } from "./qr.js";
-import { VOICE_TRADES, VOICE_LIMITS, clockString, defaultGlossary, sanitizeGlossary, checkTerm, applyGlossary, buildSummary, glossaryHash, GLOSSARY_MESSAGES } from "./voice.js";
+import { VOICE_TRADES, VOICE_LIMITS, clockString, defaultGlossary, sanitizeGlossary, checkTerm, convertVoiceText, buildSummary, glossaryHash, GLOSSARY_MESSAGES } from "./voice.js";
 import { cleanImportEntries, planGlossaryImport, applyGlossaryImport } from "./glossaryImport.js";
 import { SAMPLE_LIMITS, SAMPLE_MESSAGES, cleanSampleName, newSampleId, sanitizeSamples, sanitizeSegments, splitIntoChunks, joinChunks } from "./audioSamples.js";
 
@@ -598,6 +598,9 @@ export async function deleteQrCode(id) {
 // 그래서 나중에 관리자 화면(대시보드)을 만들 때 이 컬렉션을 그대로 읽어 쓰면 된다.
 //   trade: "frame" | "finish" | "mep"(관리자 '표준 공종' 탭의 분류: 골조공사·마감공사·설비/전기)   tradeItem: 고른 세부 공종("도배" 등 표준 항목 글, 안 골랐으면 "")
 //   zone: "101동 3층"   elem: "C1 기둥"   via: "voice"(음성) | "text"(직접 입력)
+//   rawText: 말한 그대로   normalized: 은어만 표준 용어로 바꾼 전체 문장(호실·진행도 계산이 읽는다)   summary: 공종별 요약 문장
+//   dbText: '용어 DB에 있는 단어만 남기기'를 켜 둔 채 저장한 기록에만 있는 글(표에 있는 단어로만 이룬 문장, 단어가 없으면 ""). 화면의 '순화한 내용'과 요약은 이 글을 쓴다.
+//           없는 기록(그 방식을 쓰기 전에 저장했거나 꺼 둔 채 저장한 기록)은 normalized를 쓴다.
 //   (공종을 철근·설비·형틀·품질 승인 중에서 고르던 때 저장된 기록은 trade가 "rebar"·"formwork"·"qc"(설비는 "mep")이고 tradeItem 항목이 없다 - 읽을 때 그대로 보여 준다)
 const VOICE_SAVE_TIMEOUT_MS = 12000;
 
@@ -637,6 +640,7 @@ export async function createVoiceReport(data) {
     time: clockString(now),
     rawText,
     normalized: String(data.normalized || ""),
+    ...(typeof data.dbText === "string" ? { dbText: data.dbText } : {}),
     summary: String(data.summary || ""),
     via: data.via === "text" ? "text" : "voice",
     createdAt: now.toISOString(),
@@ -673,8 +677,9 @@ export async function setVoiceReportProgressOff(id, off, by) {
 }
 
 // ---------------- 용어 DB (현장 은어 → 표준 용어) ----------------
-// meta/glossary: { terms: [{ id, slang, standard }], updatedAt, updatedBy }
+// meta/glossary: { terms: [{ id, slang, standard }], onlyDb(용어 DB에 있는 단어만 남기는지 - 문서에 없으면 켜짐), updatedAt, updatedBy }
 // 관리자 화면의 "용어 DB" 탭이 고치는 표이고, 음성 검측이 말한 내용을 표준 용어로 바꿀 때 이 표를 쓴다.
+// onlyDb가 켜져 있으면 바꾼 결과에는 표에 있는 단어(은어는 표준 용어로 바꾼 것, 표준 용어를 직접 말한 것)만 남고 나머지 말은 빠진다(voice.js applyGlossaryOnly).
 // 표 전체를 문서 1개에 넣어 둔다: 음성 검측 화면이 열릴 때마다 읽어도 1건만 읽으면 되고(무료 요금제의 읽기 한도 절약), 저장도 한 번에 끝난다.
 // 이 문서가 아직 없으면(관리자가 표를 한 번도 고치지 않았으면) 코드에 들어 있는 기본 용어(voice.js의 SLANG_RULES)를 그대로 쓴다.
 // 표를 고칠 때는 먼저 최신 표를 읽은 뒤 그 위에 한 줄만 바꿔서 저장한다(다른 관리자가 그 사이에 넣은 용어를 덮어쓰지 않도록).
@@ -689,20 +694,37 @@ function newGlossaryId() {
   return `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-// 반환: { saved: 표가 한 번이라도 저장돼 있는지, terms: 표(저장된 적이 없으면 기본 용어) }
+// 반환: { saved: 표가 한 번이라도 저장돼 있는지, terms: 표(저장된 적이 없으면 기본 용어), onlyDb: 용어 DB에 있는 단어만 남기는지(기본 켜짐) }
+// 문서가 있어도 terms 목록이 없으면(변환 방식만 먼저 저장한 경우) 표는 아직 저장된 적이 없는 것으로 보고 기본 용어를 쓴다.
 export async function fetchGlossary() {
   const snap = await withTimeout(getDoc(doc(db, "meta", "glossary")), GLOSSARY_READ_TIMEOUT_MS, "glossary/timeout");
-  if (!snap.exists()) return { saved: false, terms: defaultGlossary() };
-  return { saved: true, terms: sanitizeGlossary(snap.data().terms) };
+  if (!snap.exists()) return { saved: false, terms: defaultGlossary(), onlyDb: true };
+  const data = snap.data() || {};
+  const onlyDb = data.onlyDb !== false;
+  if (!Array.isArray(data.terms)) return { saved: false, terms: defaultGlossary(), onlyDb };
+  return { saved: true, terms: sanitizeGlossary(data.terms), onlyDb };
 }
 
+// 표만 저장한다. merge로 써서 같은 문서의 변환 방식(onlyDb)은 그대로 둔다(표 목록은 통째로 바뀐다).
 async function saveGlossary(terms, by) {
   await withTimeout(
-    setDoc(doc(db, "meta", "glossary"), { terms, updatedAt: nowIso(), updatedBy: String(by || "").trim().slice(0, 60) }),
+    setDoc(doc(db, "meta", "glossary"), { terms, updatedAt: nowIso(), updatedBy: String(by || "").trim().slice(0, 60) }, { merge: true }),
     GLOSSARY_WRITE_TIMEOUT_MS,
     "glossary/timeout"
   );
   return terms;
+}
+
+// '용어 DB에 있는 단어만 남기기' 켜기/끄기. 표(terms)는 건드리지 않는다. 아직 표를 저장한 적이 없어도 되고(그때는 기본 용어가 계속 쓰인다),
+// 저장하면 앞으로 남기는 보고부터 새 방식이 쓰인다(이미 저장된 기록은 '저장된 음성 기록에 다시 적용'으로 바꾼다). 반환: 저장된 값(true/false)
+export async function setGlossaryOnlyDb(onlyDb, by) {
+  const flag = onlyDb !== false;
+  await withTimeout(
+    setDoc(doc(db, "meta", "glossary"), { onlyDb: flag, updatedAt: nowIso(), updatedBy: String(by || "").trim().slice(0, 60) }, { merge: true }),
+    GLOSSARY_WRITE_TIMEOUT_MS,
+    "glossary/timeout"
+  );
+  return flag;
 }
 
 // 새 용어 한 줄 추가. 반환: { terms(저장된 최신 표), term(추가된 줄) }
@@ -875,12 +897,14 @@ export async function fetchGlossarySampleAudio(sample) {
 }
 
 // ---------------- 저장된 음성 기록에 용어 표 다시 적용 ----------------
-// 용어 표를 고치면 앞으로 남기는 음성 보고만 새 표로 바뀐다. 이미 저장된 기록의 '바뀐 문장(normalized)'과 '요약(summary)'은 저장할 때의 표대로 남아 있다.
-// 그래서 원문(rawText: 말한 그대로, 건드리지 않는다)에 지금의 표를 다시 적용해 두 값만 새로 만든다. 같은 표로 몇 번을 눌러도 결과는 같다.
+// 용어 표를 고치거나 변환 방식(용어 DB에 있는 단어만 남기기)을 바꾸면 앞으로 남기는 음성 보고만 새 표·새 방식으로 바뀐다.
+// 이미 저장된 기록의 '바뀐 문장(normalized)'과 '용어 DB 단어만 남긴 글(dbText)', '요약(summary)'은 저장할 때의 표·방식대로 남아 있다.
+// 그래서 원문(rawText: 말한 그대로, 건드리지 않는다)에 지금의 표와 방식을 다시 적용해 이 값들만 새로 만든다. 같은 표·방식으로 몇 번을 눌러도 결과는 같다.
 // 두 단계로 나눴다: (1) planGlossaryReapply - 모든 기록을 읽어 무엇이 바뀔지 계산만 한다(쓰기 없음), (2) applyGlossaryReapply - 바뀔 기록만 한 번에 400건씩 묶어 쓴다.
 // 미리보기와 적용 사이에 다른 관리자가 표를 또 고쳤다면 적용하지 않고 미리보기를 다시 하게 한다(보여 준 것과 다른 결과가 저장되지 않도록).
-// meta/glossaryApplied: { at, by, tableHash, total, changed } - 마지막으로 다시 적용한 기록(화면에 '언제, 몇 건'을 보여 주고, tableHash로 그 뒤에 표가 바뀌었는지 알려 준다)
-// tableHash는 표의 내용(은어·표준 용어·순서)으로 만든 지문이다(voice.js glossaryHash). 표를 저장한 시각이 아니라 내용을 견주므로,
+// meta/glossaryApplied: { at, by, tableHash, onlyDb, total, changed } - 마지막으로 다시 적용한 기록(화면에 '언제, 몇 건'을 보여 주고, tableHash로 그 뒤에 표나 변환 방식이 바뀌었는지 알려 준다.
+// onlyDb는 그때의 변환 방식 - 이 값이 없는 기록은 은어만 바꾸던 때(false)에 적용한 것이다)
+// tableHash는 표의 내용(은어·표준 용어·순서)과 변환 방식으로 만든 지문이다(voice.js glossaryHash). 표를 저장한 시각이 아니라 내용을 견주므로,
 // 표를 고쳤다가 같은 내용으로 되돌려 놓았을 때는 '그대로'로 보이고, 화면은 표를 다시 읽지 않고도(이미 불러온 표로) 바뀐 여부를 알 수 있다.
 const REAPPLY_READ_TIMEOUT_MS = 30000;
 const REAPPLY_WRITE_TIMEOUT_MS = 30000;
@@ -900,24 +924,28 @@ export async function planGlossaryReapply() {
       noText += 1;
       return;
     }
-    const normalized = applyGlossary(rawText, current.terms).text;
+    const conv = convertVoiceText(rawText, current.terms, current.onlyDb);
     // tradeItem이 없는 기록은 세부 공종 칸이 없던 예전 기록이다 - buildSummary가 예전 문장 틀로 같은 요약을 만든다.
-    const summary = buildSummary(String(data.trade || ""), normalized, typeof data.tradeItem === "string" ? data.tradeItem : undefined);
-    const before = typeof data.normalized === "string" ? data.normalized : "";
-    if (normalized === before && summary === (typeof data.summary === "string" ? data.summary : "")) return;
+    const summary = buildSummary(String(data.trade || ""), conv.shown, typeof data.tradeItem === "string" ? data.tradeItem : undefined);
+    const beforeFull = typeof data.normalized === "string" ? data.normalized : "";
+    const beforeDb = typeof data.dbText === "string" ? data.dbText : null;
+    if (conv.normalized === beforeFull && conv.dbText === beforeDb && summary === (typeof data.summary === "string" ? data.summary : "")) return;
     changes.push({
       id: d.id,
       timestamp: data.timestamp || 0,
       zone: String(data.zone || ""),
       elem: String(data.elem || ""),
       rawText,
-      before,
-      normalized,
+      before: beforeDb !== null ? beforeDb : beforeFull, // 지금까지 화면에 '순화한 내용'으로 보이던 글
+      after: conv.shown, // 새로 보일 글
+      normalized: conv.normalized,
+      dbText: conv.dbText, // 문자열(켜 둔 방식) 또는 null(끈 방식)
+      hadDbText: beforeDb !== null,
       summary,
     });
   });
   changes.sort((a, b) => b.timestamp - a.timestamp);
-  return { total, noText, changes, termCount: current.terms.length, tableHash: glossaryHash(current.terms), tableSaved: current.saved };
+  return { total, noText, changes, termCount: current.terms.length, onlyDb: current.onlyDb, tableHash: glossaryHash(current.terms, current.onlyDb), tableSaved: current.saved };
 }
 
 export async function fetchGlossaryApplied() {
@@ -928,16 +956,18 @@ export async function fetchGlossaryApplied() {
     at: typeof d.at === "string" ? d.at : "",
     by: typeof d.by === "string" ? d.by : "",
     tableHash: typeof d.tableHash === "string" ? d.tableHash : "",
+    onlyDb: d.onlyDb === true,
     total: Number(d.total) || 0,
     changed: Number(d.changed) || 0,
   };
 }
 
-export async function recordGlossaryApplied({ tableHash, total, changed }, by) {
+export async function recordGlossaryApplied({ tableHash, onlyDb, total, changed }, by) {
   const record = {
     at: nowIso(),
     by: String(by || "").trim().slice(0, 60),
     tableHash: String(tableHash || ""),
+    onlyDb: onlyDb === true,
     total: Number(total) || 0,
     changed: Number(changed) || 0,
   };
@@ -950,11 +980,12 @@ export async function recordGlossaryApplied({ tableHash, total, changed }, by) {
 export async function applyGlossaryReapply(plan, by, opts = {}) {
   const changes = Array.isArray(plan && plan.changes) ? plan.changes : [];
   const now = await fetchGlossary();
-  if (glossaryHash(now.terms) !== ((plan && plan.tableHash) || "")) throw glossaryError("table-changed");
+  if (glossaryHash(now.terms, now.onlyDb) !== ((plan && plan.tableHash) || "")) throw glossaryError("table-changed");
   let updated = 0;
   let missing = 0;
   let stopped = false;
-  const fields = (c) => ({ normalized: c.normalized, summary: c.summary });
+  // dbText는 켜 둔 방식이면 새 글을 쓰고, 끈 방식이면 예전에 있던 글만 지운다(null). 원래 없던 기록에는 필드를 만들지 않는다.
+  const fields = (c) => ({ normalized: c.normalized, summary: c.summary, ...(c.dbText !== null && c.dbText !== undefined ? { dbText: c.dbText } : c.hadDbText ? { dbText: null } : {}) });
   for (let i = 0; i < changes.length; i += REAPPLY_BATCH) {
     if (opts.shouldStop && opts.shouldStop()) {
       stopped = true;
@@ -983,7 +1014,7 @@ export async function applyGlossaryReapply(plan, by, opts = {}) {
   }
   if (!stopped) {
     try {
-      await recordGlossaryApplied({ tableHash: plan.tableHash, total: plan.total, changed: updated }, by);
+      await recordGlossaryApplied({ tableHash: plan.tableHash, onlyDb: plan.onlyDb === true, total: plan.total, changed: updated }, by);
     } catch {
       // 기록을 남기지 못해도 이미 바뀐 내용에는 영향이 없다.
     }

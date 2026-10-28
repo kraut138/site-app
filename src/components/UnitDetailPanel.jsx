@@ -3,7 +3,7 @@ import { CATEGORIES, getCategory, formatDateTime, categoryProgress, itemsForCate
 import { Icon, EmptyState, CategoryTag, StatusBadge } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 import * as api from "../api.js";
-import { findTrade, tradeName } from "../voice.js";
+import { findTrade, tradeName, convertedText } from "../voice.js";
 import { analyzeProgress } from "../progressText.js";
 import { progressForUnit, resolveUnit, relatedUnits, hasEffect, canonUnit, unitKeyOf } from "../unitProgress.js";
 
@@ -116,6 +116,7 @@ function VoiceChip({ value, testId }) {
 }
 
 // 음성 기록 한 건: 말한 글 전체(원문 · 순화한 문장 · 요약)와, 그 말이 진행도에 어떻게 읽혔는지
+// 진행도는 은어만 바꾼 전체 문장(normalized)을 읽는다. '용어 DB에 있는 단어만 남기기'로 저장한 기록의 순화한 문장(dbText)은 표에 없는 말이 빠져 있어서 진행도 계산에는 쓰지 않는다.
 //   view: { unitKey, selfUnit, unitsPerFloor, checklistItems, floorTab(이 층 전체 보기인지), canEdit, busy, onToggle }
 function RecordRow({ report, related, view }) {
   const r = report;
@@ -194,10 +195,10 @@ function RecordRow({ report, related, view }) {
       <div className="vl-card-raw" data-testid="up-rec-raw">
         “{r.rawText}”
       </div>
-      {r.normalized && r.normalized !== r.rawText && (
+      {convertedText(r) && convertedText(r) !== r.rawText && (
         <div className="vl-card-norm" data-testid="up-rec-norm">
           <span aria-hidden="true">→ </span>
-          {r.normalized}
+          {convertedText(r)}
         </div>
       )}
       {r.summary && <div className="vl-card-summary">{r.summary}</div>}

@@ -4,10 +4,10 @@ import { formatDateTime } from "../data.js";
 import { GLOSSARY_MESSAGES, glossaryHash } from "../voice.js";
 
 // 관리자 "용어 DB" 탭의 "저장된 음성 기록에 다시 적용" 카드.
-// 용어 표를 고쳐도 이미 저장된 음성 검측 기록의 '순화한 문장'과 '요약'은 저장할 때의 표대로 남는다.
-// 이 카드는 모든 기록의 원문(말한 그대로)에 지금의 표를 다시 적용해 → 몇 건이 어떻게 바뀌는지 먼저 보여 주고 → 확인하면 바뀔 기록만 저장한다.
+// 용어 표를 고치거나 변환 방식('용어 DB에 있는 단어만 남기기')을 바꿔도 이미 저장된 음성 검측 기록의 '순화한 문장'과 '요약'은 저장할 때의 표·방식대로 남는다.
+// 이 카드는 모든 기록의 원문(말한 그대로)에 지금의 표와 방식을 다시 적용해 → 몇 건이 어떻게 바뀌는지 먼저 보여 주고 → 확인하면 바뀔 기록만 저장한다.
 // 원문은 건드리지 않으므로 표를 또 고친 뒤 다시 눌러도 된다. 관리자 화면은 한국어만 쓰므로 문구를 번역 사전이 아니라 여기에 바로 적었다.
-// props: terms(지금 표 - 마지막으로 적용한 표와 같은지는 이 표의 지문으로 견주므로 표를 다시 읽지 않는다), adminName,
+// props: terms(지금 표)와 onlyDb(지금 변환 방식) - 마지막으로 적용한 때와 같은지는 이 둘의 지문으로 견주므로 표를 다시 읽지 않는다, adminName,
 //        busy/setBusy(다른 저장과 겹치지 않게 부모와 함께 쓰는 표시), notify
 
 const SAMPLE_COUNT = 5;
@@ -27,7 +27,7 @@ function Chip({ kind, label, n }) {
   );
 }
 
-export default function GlossaryReapply({ terms, adminName, busy, setBusy, notify }) {
+export default function GlossaryReapply({ terms, onlyDb = true, adminName, busy, setBusy, notify }) {
   const [phase, setPhase] = useState("idle"); // idle | checking | review | applying | done
   const [error, setError] = useState("");
   const [plan, setPlan] = useState(null); // planGlossaryReapply 결과
@@ -38,7 +38,7 @@ export default function GlossaryReapply({ terms, adminName, busy, setBusy, notif
   const stop = useRef(false);
   const planTableHash = useRef(""); // 미리보기를 만들던 때 이 화면의 표 지문(그 뒤에 이 화면에서 표를 고쳤는지 알아보는 용도)
 
-  const tableHash = useMemo(() => glossaryHash(terms), [terms]);
+  const tableHash = useMemo(() => glossaryHash(terms, onlyDb), [terms, onlyDb]);
 
   useEffect(() => {
     mounted.current = true;
@@ -86,7 +86,7 @@ export default function GlossaryReapply({ terms, adminName, busy, setBusy, notif
       if (next.changes.length === 0) {
         // 바꿀 기록이 없다는 것도 '이 표를 모든 기록에 확인했다'는 뜻이라 기록해 둔다(안내 문구를 최신으로 맞춘다).
         api
-          .recordGlossaryApplied({ tableHash: next.tableHash, total: next.total, changed: 0 }, adminName)
+          .recordGlossaryApplied({ tableHash: next.tableHash, onlyDb: next.onlyDb === true, total: next.total, changed: 0 }, adminName)
           .then(() => mounted.current && loadInfo())
           .catch(() => {});
       }
@@ -135,10 +135,11 @@ export default function GlossaryReapply({ terms, adminName, busy, setBusy, notif
   }
 
   const working = phase === "checking" || phase === "applying";
-  const samples = plan ? plan.changes.filter((c) => c.normalized !== c.before).slice(0, SAMPLE_COUNT) : [];
-  const visibleCount = plan ? plan.changes.filter((c) => c.normalized !== c.before).length : 0;
+  const samples = plan ? plan.changes.filter((c) => c.after !== c.before).slice(0, SAMPLE_COUNT) : [];
+  const visibleCount = plan ? plan.changes.filter((c) => c.after !== c.before).length : 0;
   const applied = info.state === "ready" ? info.applied : null;
   const stale = !!applied && applied.tableHash !== tableHash;
+  const modeChanged = stale && applied.onlyDb !== onlyDb; // 마지막으로 적용한 뒤 바뀐 것이 표가 아니라 변환 방식인지(예전 기록에는 방식이 없다 = 은어만 바꾸던 때)
 
   return (
     <section className="card card-pad gl-reapply" data-testid="gl-reapply">
@@ -150,14 +151,18 @@ export default function GlossaryReapply({ terms, adminName, busy, setBusy, notif
       {(phase === "idle" || phase === "checking") && (
         <>
           <p className="gl-reapply-desc">
-            용어 표를 고쳐도 <strong>이미 저장된 음성 검측 기록</strong>의 ‘순화한 문장’과 ‘요약’은 예전 표대로 남아 있어요. 모든 기록의 원문(말한 그대로)에 지금 표를 다시 적용해 새로 만들어요. 원문은 그대로 두고, 저장하기 전에 몇 건이 어떻게 바뀌는지 먼저 보여 드려요.
+            용어 표를 고치거나 변환 방식을 바꿔도 <strong>이미 저장된 음성 검측 기록</strong>의 ‘순화한 문장’과 ‘요약’은 예전 표·방식대로 남아 있어요. 모든 기록의 원문(말한 그대로)에 지금 표와 방식을 다시 적용해 새로 만들어요. 원문은 그대로 두고, 저장하기 전에 몇 건이 어떻게 바뀌는지 먼저 보여 드려요.
           </p>
           {info.state === "ready" && (
             <div className={`gl-reapply-status${stale ? " is-stale" : ""}`} role="status" data-testid="gl-reapply-status">
               {applied
                 ? `마지막 적용: ${formatDateTime(applied.at)}${applied.by ? ` · ${applied.by}` : ""} · ${applied.changed}건 바뀜`
                 : "아직 한 번도 다시 적용하지 않았어요."}
-              {stale ? <b data-testid="gl-reapply-stale"> — 그 뒤에 표를 고쳤어요. 다시 적용해 주세요.</b> : null}
+              {stale ? (
+                <b data-testid="gl-reapply-stale">
+                  {modeChanged ? ` — 그 뒤에 변환 방식을 바꿨어요(용어 DB에 있는 단어만 남기기 ${onlyDb ? "켜짐" : "꺼짐"}). 다시 적용해 주세요.` : " — 그 뒤에 표를 고쳤어요. 다시 적용해 주세요."}
+                </b>
+              ) : null}
               {applied && !stale ? <b data-testid="gl-reapply-current"> — 지금 표 그대로예요.</b> : null}
             </div>
           )}
@@ -184,7 +189,7 @@ export default function GlossaryReapply({ terms, adminName, busy, setBusy, notif
             {plan.noText > 0 && <Chip kind="skip" label="원문 없음" n={plan.noText} />}
           </div>
           <div className="gl-reapply-note" data-testid="gl-reapply-note">
-            지금 표의 용어 {plan.termCount}개로 계산했어요{plan.tableSaved ? "" : " (아직 고친 적 없는 기본 표예요)"}.
+            지금 표의 용어 {plan.termCount}개로 계산했어요{plan.tableSaved ? "" : " (아직 고친 적 없는 기본 표예요)"}. 변환 방식: {plan.onlyDb ? "용어 DB에 있는 단어만 남기기" : "은어만 바꾸기"}.
           </div>
 
           {plan.changes.length === 0 ? (
@@ -203,7 +208,7 @@ export default function GlossaryReapply({ terms, adminName, busy, setBusy, notif
                       <li key={c.id} className="gl-reapply-sample" data-testid="gl-reapply-sample">
                         <span className="gl-list-row">{[c.zone, c.elem].filter(Boolean).join(" · ")}</span>
                         <span className="gl-reapply-before">{c.before || c.rawText}</span>
-                        <span className="gl-reapply-after">→ {c.normalized}</span>
+                        <span className="gl-reapply-after">→ {c.after || "(표에 있는 단어 없음)"}</span>
                       </li>
                     ))}
                   </ul>

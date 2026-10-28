@@ -2626,6 +2626,112 @@ textarea.input {
   font-size: 13px;
 }
 
+/* 변환 방식 스위치: 용어 DB에 있는 단어만 남기기 */
+/* 용어 DB 탭: 변환 방식 스위치 ('용어 DB에 있는 단어만 남기기') - 엑셀 올리기의 .gl-mode(반영 방식 선택지)와 이름이 겹치지 않게 gl-onlydb로 둔다 */
+.gl-onlydb {
+  margin-top: 14px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.gl-onlydb-switch {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.gl-onlydb-switch input {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 42px;
+  height: 24px;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--line-strong);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.gl-onlydb-switch input::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 21, 26, 0.35);
+  transition: transform 0.15s ease;
+}
+
+.gl-onlydb-switch input:checked {
+  border-color: var(--blueprint);
+  background: var(--blueprint);
+}
+
+.gl-onlydb-switch input:checked::after {
+  transform: translateX(18px);
+}
+
+.gl-onlydb-switch input:focus-visible {
+  outline: 2px solid var(--line-blue);
+  outline-offset: 2px;
+}
+
+.gl-onlydb-switch input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gl-onlydb-label {
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.gl-onlydb-state {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gl-onlydb-state.is-on {
+  background: var(--pass-bg);
+  color: var(--pass);
+}
+
+.gl-onlydb .gl-onlydb-desc {
+  margin: 2px 0 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.gl-onlydb .gl-onlydb-msg {
+  margin-top: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gl-onlydb-switch input,
+  .gl-onlydb-switch input::after {
+    transition: none;
+  }
+}
+
 .gl-state {
   padding: 28px 16px;
   text-align: center;

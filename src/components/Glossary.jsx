@@ -4,11 +4,12 @@ import GlossaryImport from "./GlossaryImport.jsx";
 import GlossaryReapply from "./GlossaryReapply.jsx";
 import GlossarySamples from "./GlossarySamples.jsx";
 import * as api from "../api.js";
-import { setGlossaryTerms, adoptGlossary } from "../glossaryStore.js";
-import { GLOSSARY_LIMITS, GLOSSARY_MESSAGES, applyGlossary, checkTerm, slangKey } from "../voice.js";
+import { setGlossaryTerms, setGlossaryMode, adoptGlossary } from "../glossaryStore.js";
+import { GLOSSARY_LIMITS, GLOSSARY_MESSAGES, applyGlossary, applyGlossaryOnly, checkTerm, slangKey } from "../voice.js";
 
 // 관리자 "용어 DB" 탭: 현장 은어 → 표준 용어 표를 보고 고치는 화면.
 // 하도급사의 "음성 검측"(탭과 호실 QR 화면)은 말한 내용을 이 표대로 바꿔서 저장한다. 표는 Firestore 문서 1개(meta/glossary)에 들어 있다.
+// 같은 문서에 변환 방식도 들어 있다: '용어 DB에 있는 단어만 남기기'(기본 켜짐) - 켜면 은어는 표준 용어로 바꾸고 표에 없는 말은 변환된 문장에서 뺀다.
 // 관리자 화면은 한국어만 쓰므로 문구를 번역 사전(i18n)이 아니라 여기에 바로 적었다.
 
 // 검사 결과(checkTerm)나 저장소 오류를 사람이 읽는 문장으로 바꾼다.
@@ -49,7 +50,9 @@ function Marked({ parts }) {
 export default function Glossary({ adminName, notify }) {
   const [terms, setTerms] = useState([]);
   const [load, setLoad] = useState("loading"); // loading | ready | error
-  const [busy, setBusy] = useState(""); // "" | "add" | "edit" | "delete" | "import" | "sample" - 저장하는 동안 다른 조작을 막는다
+  const [busy, setBusy] = useState(""); // "" | "add" | "edit" | "delete" | "import" | "sample" | "mode" - 저장하는 동안 다른 조작을 막는다
+  const [onlyDb, setOnlyDb] = useState(true); // 용어 DB에 있는 단어만 남기는 변환 방식인지
+  const [modeError, setModeError] = useState("");
 
   const [newSlang, setNewSlang] = useState("");
   const [newStandard, setNewStandard] = useState("");
@@ -108,6 +111,7 @@ export default function Glossary({ adminName, notify }) {
       adoptGlossary(res); // 읽어 온 최신 표를 이 기기의 음성 검측용 복사본에도 맞춰 둔다
       if (!mounted.current) return;
       setTerms(res.terms);
+      setOnlyDb(res.onlyDb !== false);
       setLoad("ready");
     } catch {
       if (!mounted.current) return;
@@ -148,8 +152,29 @@ export default function Glossary({ adminName, notify }) {
   const sorted = useMemo(() => [...terms].sort((a, b) => a.slang.localeCompare(b.slang, "ko")), [terms]);
   const needle = slangKey(query);
   const rows = needle ? sorted.filter((t) => slangKey(t.slang).includes(needle) || slangKey(t.standard).includes(needle)) : sorted;
-  const preview = useMemo(() => applyGlossary(previewText, terms), [previewText, terms]);
+  const preview = useMemo(() => (onlyDb ? applyGlossaryOnly(previewText, terms) : applyGlossary(previewText, terms)), [previewText, terms, onlyDb]);
   const previewHits = preview.hits.reduce((sum, h) => sum + h.count, 0);
+  const previewKept = onlyDb ? preview.kept : [];
+  const previewDropped = onlyDb ? preview.dropped : [];
+
+  // ---------------- 변환 방식 (용어 DB에 있는 단어만 남기기) ----------------
+  async function toggleMode(next) {
+    if (busy || next === onlyDb) return;
+    setBusy("mode");
+    setModeError("");
+    try {
+      const saved = await api.setGlossaryOnlyDb(next, adminName);
+      if (!mounted.current) return;
+      setOnlyDb(saved);
+      setGlossaryMode(saved); // 같은 화면의 음성 검측("하도급사로 보기")에도 바로 쓰이게 한다
+      notify(saved ? "이제 용어 DB에 있는 단어만 남겨요." : "이제 은어만 바꾸고 나머지 말은 그대로 둬요.");
+    } catch (err) {
+      if (!mounted.current) return;
+      setModeError(errorText(err));
+    } finally {
+      if (mounted.current) setBusy("");
+    }
+  }
 
   // ---------------- 추가 ----------------
   async function submitAdd(e) {
@@ -272,6 +297,35 @@ export default function Glossary({ adminName, notify }) {
           하도급사의 <strong>음성 검측</strong>(탭과 호실 QR 화면)에서 말하거나 입력한 내용이 이 표대로 표준 용어로 바뀌어 저장됩니다.
         </p>
         <p className="gl-note">표를 고치면 그 뒤에 저장하는 보고부터 바로 적용돼요. 이미 저장된 보고에도 적용하려면 아래 ‘저장된 음성 기록에 다시 적용’을 눌러 주세요.</p>
+        {load === "ready" && (
+          <div className="gl-onlydb" data-testid="gl-mode">
+            <label className="gl-onlydb-switch" htmlFor="gl-mode-toggle">
+              <input
+                id="gl-mode-toggle"
+                type="checkbox"
+                role="switch"
+                checked={onlyDb}
+                disabled={!!busy}
+                onChange={(e) => toggleMode(e.target.checked)}
+                data-testid="gl-mode-toggle"
+              />
+              <span className="gl-onlydb-label">용어 DB에 있는 단어만 남기기</span>
+              <span className={`gl-onlydb-state${onlyDb ? " is-on" : ""}`} data-testid="gl-mode-state">
+                {busy === "mode" ? "저장 중…" : onlyDb ? "켜짐" : "꺼짐"}
+              </span>
+            </label>
+            <p className="gl-onlydb-desc" data-testid="gl-mode-desc">
+              {onlyDb
+                ? "음성을 글로 바꿀 때 현장 은어는 표준 용어로 바꾸고, 표에 없는 말(예: “했어요”)은 변환된 문장에서 뺍니다. 표의 표준 용어를 직접 말했으면 그대로 남아요. 원문은 그대로 저장되고, 호실 진행도 계산에도 영향이 없어요."
+                : "은어만 표준 용어로 바꾸고 나머지 말은 그대로 둡니다."}
+            </p>
+            {modeError && (
+              <div className="gl-error gl-onlydb-msg" role="alert" data-testid="gl-mode-error">
+                {modeError}
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {load === "loading" && (
@@ -311,6 +365,14 @@ export default function Glossary({ adminName, notify }) {
             <div className="gl-preview-out" data-testid="gl-preview-out" aria-live="polite">
               {!previewText.trim() ? (
                 <span className="gl-muted">바뀐 결과가 여기에 나옵니다.</span>
+              ) : onlyDb ? (
+                preview.text ? (
+                  <Marked parts={preview.parts} />
+                ) : (
+                  <span className="gl-muted" data-testid="gl-preview-none">
+                    표에 있는 단어가 없어서 결과가 비어 있어요.
+                  </span>
+                )
               ) : previewHits === 0 ? (
                 <span className="gl-muted" data-testid="gl-preview-none">
                   바뀌는 용어가 없어요: {previewText}
@@ -324,6 +386,18 @@ export default function Glossary({ adminName, notify }) {
             {previewHits > 0 && (
               <div className="gl-preview-meta" data-testid="gl-preview-meta">
                 {previewHits}곳 바뀜 · {preview.hits.map((h) => `${h.slang} → ${h.standard}`).join(", ")}
+                {previewKept.length > 0 ? ` · 표준 용어 그대로 ${previewKept.length}곳` : ""}
+              </div>
+            )}
+            {previewHits === 0 && previewKept.length > 0 && (
+              <div className="gl-preview-meta" data-testid="gl-preview-meta">
+                표준 용어 그대로 {previewKept.length}곳 · {previewKept.join(", ")}
+              </div>
+            )}
+            {previewDropped.length > 0 && (
+              <div className="gl-preview-meta" data-testid="gl-preview-dropped">
+                표에 없어서 뺀 말: {previewDropped.slice(0, 8).join(", ")}
+                {previewDropped.length > 8 ? " …" : ""}
               </div>
             )}
           </section>
@@ -332,7 +406,7 @@ export default function Glossary({ adminName, notify }) {
 
           <GlossarySamples terms={terms} adminName={adminName} busy={busy} setBusy={setBusy} onTermAdded={(nextTerms) => commit(nextTerms)} notify={notify} />
 
-          <GlossaryReapply terms={terms} adminName={adminName} busy={busy} setBusy={setBusy} notify={notify} />
+          <GlossaryReapply terms={terms} onlyDb={onlyDb} adminName={adminName} busy={busy} setBusy={setBusy} notify={notify} />
 
           <section className="card gl-table-card">
             <div className="gl-table-head">
