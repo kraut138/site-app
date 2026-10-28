@@ -17,12 +17,15 @@ import { subscribeAuth, fetchUserProfile, logOut, updateUserLanguage } from "./a
 import { LanguageProvider } from "./LanguageContext.jsx";
 import { DEFAULT_LANGUAGE } from "./i18n.js";
 import { readUnitDeepLink, clearUnitDeepLinkFromUrl, readQrBoardLink } from "./qr.js";
+import { readViewLink, clearViewLinkFromUrl } from "./viewLink.js";
 
 // 페이지가 처음 로드될 때 딱 한 번만 읽는다 - QR 스캔으로 들어온 경우 여기에 값이 담긴다.
 // 이 값이 있으면 로그인/사이드바 전체를 건너뛰고 QrUnitScreen(모바일 전용 화면)을 바로 보여준다.
 // QR 기록판 QR(?qr=코드)로 들어온 경우도 같은 방식으로 로그인 없이 전용 화면만 보여준다. 두 QR이 함께 있으면 기록판이 우선이다.
 const initialQrBoardId = readQrBoardLink();
 const initialDeepLink = initialQrBoardId ? null : readUnitDeepLink();
+// 주소 끝(#glossary)으로 들어온 "화면 바로가기"도 한 번만 읽는다(첫 화면의 '실제 앱 용어 DB 열기' 버튼). 로그인한 뒤 그 화면부터 보여준다. QR로 들어온 경우엔 쓰지 않는다.
+const initialViewLink = initialQrBoardId || initialDeepLink ? null : readViewLink();
 
 export default function App() {
   // authUser: Firebase Auth 로그인 여부. userProfile: Firestore에 저장된 이름/역할.
@@ -48,7 +51,7 @@ export default function App() {
       }
     }
   }
-  const [view, setView] = useState("operations");
+  const [view, setView] = useState(initialViewLink || "operations"); // 그 화면을 볼 권한이 없는 역할이면 아래 효과가 "operations"로 돌려보낸다
   const [unitTarget, setUnitTarget] = useState(null);
   const [buildings, setBuildings] = useState([]);
   const [inspections, setInspections] = useState([]);
@@ -74,6 +77,8 @@ export default function App() {
     // 딥링크 값은 이미 모듈 최상단 상수(initialDeepLink)에 담겨 있으니, 주소창은 바로 정리해도 된다.
     // 정리해두지 않으면 나중에 다른 화면을 보다가 새로고침했을 때 계속 이 호실로 튕기게 된다.
     if (initialDeepLink) clearUnitDeepLinkFromUrl();
+    // 화면 바로가기(#glossary)도 같은 이유로 바로 지운다 - 안 지우면 다른 화면을 보다가 새로고침했을 때 계속 그 화면으로 돌아간다.
+    if (initialViewLink) clearViewLinkFromUrl();
   }, []);
 
   useEffect(() => {
