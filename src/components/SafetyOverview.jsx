@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { formatDateTime } from "../data.js";
-import { StatusBadge, EmptyState } from "./UI.jsx";
+import { StatusBadge, EmptyState, Icon } from "./UI.jsx";
 import { NCRDetail } from "./NCR.jsx";
 
 const SAFETY_ID = "safety";
 
-export default function SafetyOverview({ role, buildings, inspections, ncrs, onUpdateNcrStatus, notify }) {
+export default function SafetyOverview({ role, buildings, inspections, ncrs, equipment, unitFloorPlans, onUpdateNcrStatus, onUpdateEquipmentStatus, notify }) {
   const [selectedNcrId, setSelectedNcrId] = useState(null);
+  const [equipmentBusyId, setEquipmentBusyId] = useState(null);
 
   const safetyInspections = inspections.filter((i) => i.categoryId === SAFETY_ID);
   const safetyNcrs = ncrs.filter((n) => n.categoryId === SAFETY_ID);
@@ -25,6 +26,18 @@ export default function SafetyOverview({ role, buildings, inspections, ncrs, onU
     .sort((a, b) => b.count - a.count);
 
   const sortedNcrs = [...safetyNcrs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const pendingEquipment = [...equipment.filter((eq) => eq.status === "대기")].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+  async function handleEquipmentDecision(id, status) {
+    setEquipmentBusyId(id);
+    try {
+      await onUpdateEquipmentStatus(id, { status, approver: "감리단" });
+      notify(status === "승인" ? "건설기계를 승인했습니다." : "건설기계 등록을 반려했습니다.");
+    } finally {
+      setEquipmentBusyId(null);
+    }
+  }
 
   return (
     <div>
@@ -78,11 +91,55 @@ export default function SafetyOverview({ role, buildings, inspections, ncrs, onU
         )}
       </div>
 
+      <div className="hairline" />
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ padding: "16px 20px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div className="section-title">건설기계 승인 대기</div>
+          <span className="eyebrow">{pendingEquipment.length}건</span>
+        </div>
+        {pendingEquipment.length === 0 ? (
+          <EmptyState message="승인 대기 중인 건설기계 등록이 없습니다." />
+        ) : (
+          <div style={{ padding: "8px 4px" }}>
+            {pendingEquipment.map((eq) => (
+              <div className="list-row" key={eq.id} style={{ cursor: "default" }}>
+                {eq.imageDataUrl ? (
+                  <img src={eq.imageDataUrl} alt={eq.equipmentName} style={{ width: 36, height: 36, borderRadius: "var(--radius-s)", objectFit: "cover", flexShrink: 0 }} />
+                ) : (
+                  <span style={{ width: 36, height: 36, borderRadius: "var(--radius-s)", background: "var(--surface-alt)", flexShrink: 0 }} />
+                )}
+                <span className="loc">{eq.companyName}</span>
+                <div className="grow">
+                  <div className="title">{eq.equipmentName}</div>
+                  <div className="meta">{eq.registrantName} · {formatDateTime(eq.createdAt)}</div>
+                </div>
+                <button
+                  className="btn btn-pass btn-sm"
+                  disabled={equipmentBusyId === eq.id}
+                  onClick={() => handleEquipmentDecision(eq.id, "승인")}
+                >
+                  <Icon.Check width="13" height="13" /> 승인
+                </button>
+                <button
+                  className="btn btn-fail btn-sm"
+                  disabled={equipmentBusyId === eq.id}
+                  onClick={() => handleEquipmentDecision(eq.id, "반려")}
+                >
+                  <Icon.Close width="12" height="12" /> 반려
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {selected && (
         <NCRDetail
           ncr={selected}
           building={buildings.find((b) => b.id === selected.buildingId)}
           role={role}
+          unitFloorPlans={unitFloorPlans}
           onClose={() => setSelectedNcrId(null)}
           onAdvance={async (status, extra) => {
             await onUpdateNcrStatus(selected.id, { status, ...extra });

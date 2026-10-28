@@ -1,42 +1,54 @@
 import React from "react";
 import { Icon } from "./UI.jsx";
-import { ROLES, RESTRICTED_VIEWS_FOR_SUB } from "../data.js";
+import { ROLES, isViewAllowed } from "../data.js";
+import { useLanguage } from "../LanguageContext.jsx";
+
+// 역할별로 사이드바에 붙는 색상 클래스와 표시 라벨 키. 관리자는 기본(남색) 그대로 둔다.
+function roleAppearance(role) {
+  if (role === ROLES.SUB) return { className: "role-sub", labelKey: "role.sub" };
+  return { className: "", labelKey: "role.super" };
+}
 
 const NAV_GROUPS = [
   {
-    label: "공사현황",
+    groupKey: "nav.group.status",
     items: [
-      { id: "dashboard", label: "대시보드", Icon: Icon.Dashboard },
-      { id: "checklist", label: "체크리스트", Icon: Icon.Checklist },
-      { id: "inspections", label: "검측관리", Icon: Icon.Inspection, badgeKey: "pending" },
-      { id: "ncr", label: "NCR 관리", Icon: Icon.Ncr, badgeKey: "ncr" },
-      { id: "unitinfo", label: "호실 정보", Icon: Icon.Door },
-      { id: "buildings", label: "동 관리", Icon: Icon.Building },
-      { id: "sitelayout", label: "배치도(3D)", Icon: Icon.Cube },
+      { id: "operations", labelKey: "nav.operations", Icon: Icon.Dashboard, badgeKey: "operations" },
+      { id: "voice", labelKey: "nav.voice", Icon: Icon.Mic },
+      { id: "unitinfo", labelKey: "nav.unitinfo", Icon: Icon.Door },
+      { id: "buildings", labelKey: "nav.buildings", Icon: Icon.Building },
+      { id: "sitelayout", labelKey: "nav.sitelayout", Icon: Icon.Cube },
+      { id: "glossary", labelKey: "nav.glossary", Icon: Icon.Book },
     ],
   },
   {
-    label: "안전관리",
-    items: [{ id: "safety", label: "안전 현황", Icon: Icon.Shield, badgeKey: "safetyNcr" }],
+    groupKey: "nav.group.safety",
+    items: [{ id: "safety", labelKey: "nav.safety", Icon: Icon.Shield, badgeKey: "safetyTotal" }],
   },
 ];
 
 const PAGE_META = {
-  dashboard: { title: "대시보드", desc: "공종별·동별 검측 현황과 부적합 통계를 한눈에 확인합니다" },
-  checklist: { title: "표준 체크리스트", desc: "공종별 표준 검측 항목을 확인합니다" },
-  inspections: { title: "검측관리", desc: "검측 요청, 도면 위치 확인, 원클릭 승인/반려" },
-  ncr: { title: "NCR 관리", desc: "부적합 사항 조치 현황과 재검측 프로세스" },
-  unitinfo: { title: "호실 정보", desc: "동·호수를 선택해 공종별 진행도, 특이사항, 평면도를 확인합니다" },
-  buildings: { title: "동 관리", desc: "현장 동·층·세대 정보를 관리합니다" },
-  sitelayout: { title: "배치도(3D)", desc: "동의 대략적인 위치와 형태를 3D로 확인합니다" },
-  safety: { title: "안전 현황", desc: "안전/환경 공종의 검측·NCR 현황만 모아서 확인합니다" },
+  operations: { titleKey: "page.operations.title", descKey: "page.operations.desc" },
+  voice: { titleKey: "page.voice.title", descKey: "page.voice.desc" },
+  unitinfo: { titleKey: "page.unitinfo.title", descKey: "page.unitinfo.desc" },
+  buildings: { titleKey: "page.buildings.title", descKey: "page.buildings.desc" },
+  sitelayout: { titleKey: "page.sitelayout.title", descKey: "page.sitelayout.desc" },
+  glossary: { titleKey: "page.glossary.title", descKey: "page.glossary.desc" },
+  safety: { titleKey: "page.safety.title", descKey: "page.safety.desc" },
 };
 
-export default function Layout({ role, setRole, view, setView, badges = {}, children }) {
+export default function Layout({ role, trueRole, viewAsRole, onSetViewAsRole, userProfile, onLogout, view, setView, badges = {}, children }) {
+  const { t } = useLanguage();
   const meta = PAGE_META[view] || {};
+  const { className: roleClassName, labelKey: roleLabelKey } = roleAppearance(role);
+  // 진짜 계정 권한이 관리자일 때만 두 역할(하도급사/관리자)을 넘나들며 미리보기할 수 있다 - 지금 보고 있는 역할(role)이
+  // 무엇이든, 전환 버튼 자체는 항상 보여야 다시 자기 자신(관리자)으로 돌아올 수 있다.
+  const canSwitchRole = trueRole === ROLES.SUPER;
+  const previewRoles = [ROLES.SUB, ROLES.SUPER];
+  const previewLabelKey = { [ROLES.SUB]: "role.sub", [ROLES.SUPER]: "role.super" };
   return (
     <div className="app-shell">
-      <aside className={`sidebar${role === ROLES.SUB ? " role-sub" : ""}`}>
+      <aside className={`sidebar${roleClassName ? ` ${roleClassName}` : ""}`}>
         <div className="sidebar-brand">
           <div className="sidebar-brand-mark">
             <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -44,18 +56,18 @@ export default function Layout({ role, setRole, view, setView, badges = {}, chil
             </svg>
           </div>
           <div className="sidebar-brand-text">
-            <div className="title">현장검측</div>
-            <div className="sub">SITE QC SYSTEM</div>
+            <div className="title">{t("app.brand")}</div>
+            <div className="sub">{t("app.brandSub")}</div>
           </div>
         </div>
 
         <nav className="sidebar-nav">
           {NAV_GROUPS.map((group) => {
-            const visibleItems = group.items.filter((item) => role === ROLES.SUPER || !RESTRICTED_VIEWS_FOR_SUB.includes(item.id));
+            const visibleItems = group.items.filter((item) => isViewAllowed(item.id, role));
             if (visibleItems.length === 0) return null;
             return (
-              <div className="sidebar-nav-group" key={group.label}>
-                <div className="sidebar-nav-group-label">{group.label}</div>
+              <div className="sidebar-nav-group" key={group.groupKey}>
+                <div className="sidebar-nav-group-label">{t(group.groupKey)}</div>
                 {visibleItems.map((item) => {
                   const badge = item.badgeKey ? badges[item.badgeKey] : 0;
                   return (
@@ -65,7 +77,7 @@ export default function Layout({ role, setRole, view, setView, badges = {}, chil
                       onClick={() => setView(item.id)}
                     >
                       <item.Icon className="icon" />
-                      {item.label}
+                      {t(item.labelKey)}
                       {!!badge && <span className="sidebar-nav-badge">{badge > 99 ? "99+" : badge}</span>}
                     </button>
                   );
@@ -76,19 +88,33 @@ export default function Layout({ role, setRole, view, setView, badges = {}, chil
         </nav>
 
         <div className="sidebar-foot">
+          {canSwitchRole && (
+            <div className="preview-switcher">
+              <div className="label">{t("preview.label")}</div>
+              <div className="role-pill-group">
+                {previewRoles.map((r) => (
+                  <button
+                    key={r}
+                    className={`role-pill${role === r ? " active" : ""}`}
+                    onClick={() => onSetViewAsRole(r === ROLES.SUPER ? null : r)}
+                  >
+                    {t(previewLabelKey[r])}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="role-switcher">
-            <div className="label">현재 역할</div>
-            <div className="role-pill-group">
-              <button className={`role-pill${role === ROLES.SUB ? " active" : ""}`} onClick={() => setRole(ROLES.SUB)}>
-                하도급사
-              </button>
-              <button className={`role-pill${role === ROLES.SUPER ? " active" : ""}`} onClick={() => setRole(ROLES.SUPER)}>
-                감리단/소장
+            <div className="label">{t(roleLabelKey)}</div>
+            <div className="account-info">
+              <span className="account-name">{userProfile?.name || userProfile?.email || ""}</span>
+              <button className="btn btn-ghost btn-sm" onClick={onLogout}>
+                {t("common.logout")}
               </button>
             </div>
           </div>
           <div className="sidebar-company-logo">
-            <img src="/logo-kwangwoon.png" alt="광운건설" />
+            <img src={`${import.meta.env.BASE_URL}logo-kwangwoon.png`} alt="광운건설" />
           </div>
         </div>
       </aside>
@@ -96,8 +122,27 @@ export default function Layout({ role, setRole, view, setView, badges = {}, chil
       <div className="main-col">
         <header className="topbar">
           <div>
-            <h1>{meta.title}</h1>
-            <div className="desc">{meta.desc}</div>
+            <h1>{t(meta.titleKey)}</h1>
+            <div className="desc">{t(meta.descKey)}</div>
+          </div>
+          <div className="topbar-role-switcher">
+            {canSwitchRole && (
+              <div className="role-pill-group">
+                {previewRoles.map((r) => (
+                  <button
+                    key={r}
+                    className={`role-pill${role === r ? " active" : ""}`}
+                    onClick={() => onSetViewAsRole(r === ROLES.SUPER ? null : r)}
+                  >
+                    {t(previewLabelKey[r])}
+                  </button>
+                ))}
+              </div>
+            )}
+            <span className="account-name">{userProfile?.name || userProfile?.email || ""}</span>
+            <button className="btn btn-ghost btn-sm" onClick={onLogout}>
+              {t("common.logout")}
+            </button>
           </div>
         </header>
         <main className="content">{children}</main>
