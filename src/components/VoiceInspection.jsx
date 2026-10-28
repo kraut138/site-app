@@ -20,6 +20,7 @@ import {
 } from "../voice.js";
 import { getGlossaryTerms, getGlossaryOnlyDb, getGlossaryPending, refreshGlossary } from "../glossaryStore.js";
 import { analyzeReport, hasEffect } from "../unitProgress.js";
+import { resolveSpokenPlace } from "../spokenUnit.js";
 
 // "음성 검측" (시안 index.html의 기능). 두 곳에서 쓴다.
 //  1) 하도급사 전용 "음성 검측" 탭: 공종(관리자 '표준 공종' 탭의 분류 + 그 아래 세부 공종)을 고르고 위치(동·층·부재)를 정한 뒤 마이크로 말한다.
@@ -27,6 +28,8 @@ import { analyzeReport, hasEffect } from "../unitProgress.js";
 // 말하면 → 음성 인식 → 인식된 글자를 바로 화면에 보여 주고 → 현장 은어를 표준 용어로 바꿔(관리자 "용어 DB" 탭의 표대로) → 공종별 요약 문장을 만들어 → 저장한다.
 // 관리자가 '용어 DB에 있는 단어만 남기기'를 켜 두었으면(기본) 바꾼 문장에는 표에 있는 단어만 남고 나머지 말은 빠진다("나라시 시마이 했어요" → "고르기 마무리").
 // 호실·공종 진행도를 읽는 계산은 빠진 말("301호", "도배 완료" 등)이 필요하므로 은어만 바꾼 전체 문장(normalized)을 따로 저장해 그 글을 읽는다.
+// 호실 QR 화면에서 "102동 502호 도배 완료"처럼 다른 호실을 분명하게 말하면, 그 보고는 말한 호실의 기록(동·층·호실을 말한 곳으로 바꿔)으로 저장한다(spokenUnit.js).
+// 그러면 그 호실의 '음성 기록'과 진행도에 그대로 쌓이고, 어느 화면에서 말했는지는 fromUnit에 남는다. 호실을 애매하게 말했거나 이 현장에 없는 곳이면 옮기지 않고 이 호실의 기록으로만 저장하며 이유를 알려 준다.
 // 음성 인식이 안 되는 기기(앱 안의 브라우저 등)를 위해 직접 입력으로도 같은 과정을 거치게 했다.
 // 화면 문구는 하도급사가 외국인 근로자일 수 있어 번역 사전(voice.*)을 쓴다. 저장되는 발화 원문·요약은 말한 그대로(한국어)다.
 
@@ -103,14 +106,26 @@ function phraseList(list) {
   return shown.join(", ") + (list.length > 3 ? " …" : "");
 }
 
-function ProgressNote({ progress, unitLabel, t }) {
-  const { resolved, analysis } = progress;
+// place: 말한 글에서 읽은 호실({ kind: "other" | "unknown" | "partial" | "multiple", place }) - 이 현장에 없는 곳이거나 애매하게 말했으면(옮겨 저장하지 못했으면) 그 이유를 먼저 알려 준다.
+// (호실이 여럿이라는 안내는 반영할 항목이 있었을 때만 한다 - 반영할 항목이 없으면 그 말을 먼저 알려 준다)
+const PLACE_KEY = { unknown: "voice.progress.noSuchPlace", partial: "voice.progress.partialPlace", multiple: "voice.progress.multiUnit" };
+
+// 반영할 항목 목록을 만들지 못한 경우(표준 공종 항목을 못 읽었을 때)에도 호실 안내는 해야 하므로 비어 있는 분석 결과를 쓴다
+const NO_PROGRESS = { resolved: { ok: false, reason: "none" }, analysis: { items: [], categories: [], ambiguous: [], skipped: [] } };
+
+function ProgressNote({ progress, unitLabel, place, t }) {
+  const { resolved, analysis } = progress || NO_PROGRESS;
   const effect = hasEffect(analysis);
+  const placeKey = place && PLACE_KEY[place.kind] && (place.kind !== "multiple" || effect) ? PLACE_KEY[place.kind] : null;
   return (
     <div className="vl-progress" data-testid="vl-progress">
       <div className="vl-result-sep" />
       <h4 className="vl-progress-title">{t("voice.progress.title")}</h4>
-      {effect && resolved.ok ? (
+      {placeKey ? (
+        <div className="vl-progress-msg is-warn" data-testid="vl-progress-msg">
+          {t(placeKey, { place: place.place || "" })}
+        </div>
+      ) : effect && resolved.ok ? (
         <>
           <div className="vl-progress-msg is-ok" data-testid="vl-progress-msg">
             {t("voice.progress.applied", { unit: unitLabel })}
@@ -154,8 +169,9 @@ function ProgressNote({ progress, unitLabel, t }) {
 
 // props: buildings, userName(로그인한 계정 이름), notify,
 //        unit: { buildingId, floor, unit } - 호실 QR 화면에서만 준다. 주면 위치가 이 호실로 고정되고 이름을 직접 입력받는다.
+//        allBuildings: 현장의 모든 동 - 호실 QR 화면에서 다른 동의 호실을 말했을 때 그 동을 찾는 데 쓴다(buildings에는 이 호실의 동만 넘기므로 따로 받는다. 안 주면 buildings).
 //        checklistItems: 표준 공종의 세부 항목 목록 - ① 세부 공종 선택 칸의 선택지, ② 말한 내용에서 "도배 완료" 같은 진행 상황을 읽어 호실 진행도에 반영할 때 쓴다(없으면 둘 다 하지 않는다).
-export default function VoiceInspection({ buildings, userName, notify, unit = null, checklistItems = [] }) {
+export default function VoiceInspection({ buildings, allBuildings = null, userName, notify, unit = null, checklistItems = [] }) {
   const { t } = useLanguage();
   const unitMode = !!unit;
   const unitFloor = unitMode ? Number(unit.floor) : 0;
@@ -212,6 +228,7 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
     notify,
     checklistItems,
     fixedUnit: unitMode ? unitName : "",
+    allBuildings: allBuildings || buildings,
   };
   const mounted = useRef(true);
   const recRef = useRef(null);
@@ -321,7 +338,9 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
       if (!mounted.current) return;
       setResult({ ...entry, state: "saved" });
       setMessage({ kind: "ok", key: "voice.status.done" });
-      if (latest.current.zone === entry.zone) setReports((prev) => [saved, ...prev.filter((r) => r.id !== saved.id)]);
+      // 이 화면의 목록에는 이 위치(호실)의 보고만 넣는다 - 같은 층의 다른 호실로 옮겨 저장한 보고(말한 호실의 기록)는 넣지 않는다.
+      const only = latest.current.elemFilter;
+      if (latest.current.zone === entry.zone && (!only || entry.elem === only)) setReports((prev) => [saved, ...prev.filter((r) => r.id !== saved.id)]);
       latest.current.notify(latest.current.t("voice.sent"));
     } catch {
       if (!mounted.current) return;
@@ -362,16 +381,31 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
 
   function makeReport(cur, rawText, via) {
     const fixed = convertVoiceText(rawText, getGlossaryTerms(), getGlossaryOnlyDb());
-    const elem = cur.elem.trim();
+    const hereElem = cur.elem.trim();
+    // 호실 QR 화면에서 다른 호실을 분명하게 말했으면("102동 502호 도배 완료") 그 호실의 보고로 저장한다: 동·층·호실을 말한 곳으로 바꾸고, 어느 화면에서 말했는지는 fromUnit에 남긴다.
+    // 애매하게 말했거나(동만, 호수만) 이 현장에 없는 곳이거나 호실이 여럿이면 옮기지 않고 이 호실의 보고로 저장한다 - 진행도에는 반영하지 않고 그 이유를 결과 상자에서 알려 준다.
+    let spoken = { kind: "none" };
+    if (cur.fixedUnit) {
+      try {
+        spoken = resolveSpokenPlace(fixed.normalized || rawText, { buildingId: cur.building.id, floor: cur.floor, unit: cur.fixedUnit }, cur.allBuildings);
+      } catch {
+        spoken = { kind: "none" };
+      }
+    }
+    const moved = spoken.kind === "other";
+    const loc = moved
+      ? { building: spoken.building, floor: spoken.floor, zone: buildZone(spoken.building.name, spoken.floor), elem: `${spoken.unit}호` }
+      : { building: cur.building, floor: cur.floor, zone: cur.zone, elem: hereElem };
+    const elem = loc.elem;
     // 바뀐 문장에서 어느 호실의 어느 항목이 완료/진행중인지 읽는다(화면에 알려 주는 용도 - 저장하는 값이 아니다).
     // 호실 정보 화면은 저장된 글에서 같은 방법으로 다시 계산하므로, 여기서 보여 주는 내용과 그쪽 결과가 같다.
     let progress = null;
     try {
       if (Array.isArray(cur.checklistItems) && cur.checklistItems.length > 0) {
         progress = analyzeReport(
-          { buildingId: cur.building.id, buildingName: cur.building.name, floor: cur.floor, elem, normalized: fixed.normalized, rawText },
+          { buildingId: loc.building.id, buildingName: loc.building.name, floor: loc.floor, elem, normalized: fixed.normalized, rawText },
           cur.checklistItems,
-          { fixedUnit: cur.fixedUnit, unitsPerFloor: cur.building.unitsPerFloor }
+          { fixedUnit: moved ? spoken.unit : cur.fixedUnit, unitsPerFloor: loc.building.unitsPerFloor }
         );
       }
     } catch {
@@ -382,11 +416,13 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
       trade: cur.tradeId,
       tradeItem: cur.tradeItem,
       author: cur.userName,
-      buildingId: cur.building.id,
-      buildingName: cur.building.name,
-      floor: cur.floor,
-      zone: cur.zone,
+      buildingId: loc.building.id,
+      buildingName: loc.building.name,
+      floor: loc.floor,
+      zone: loc.zone,
       elem,
+      ...(moved ? { fromUnit: `${buildZone(cur.building.name, cur.floor)} ${hereElem}` } : {}), // 말한 호실로 옮겨 저장했으면 말한 화면의 호실("101동 3층 301호")
+      place: spoken.kind === "none" || spoken.kind === "same" ? null : moved ? { kind: "other", buildingName: spoken.building.name, floor: spoken.floor, unit: spoken.unit } : spoken, // 말한 호실에 대한 결과 상자 안내용(저장하지 않는다)
       rawText,
       normalized: fixed.normalized, // 은어만 바꾼 전체 문장 - 진행도 계산이 읽는다
       dbText: fixed.dbText, // 용어 DB 단어만 남긴 글(그 방식이 꺼져 있으면 null이라 저장하지 않는다)
@@ -500,6 +536,9 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
   const shown = reports.slice(0, visible);
   const themeStyle = { "--vl": trade.color, "--vl-tint": `${trade.color}1c` };
   const unitText = unitMode ? t("voice.loc.unitOption", { n: unitName }) : "";
+  // 말한 호실로 옮겨 저장했을 때 알려 주는 "102동 5층 02호" / 지금 보고 있는 "101동 3층 301호"
+  const movedLabel = (p) => `${p.buildingName} ${floorText(p.floor)} ${t("voice.loc.unitOption", { n: p.unit })}`;
+  const hereLabel = building ? `${building.name} ${floorText(activeFloor)} ${unitText}` : "";
 
   return (
     <div className={`vl-page${unitMode ? " vl-page--unit" : ""}`} data-testid="vl-page">
@@ -508,6 +547,9 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
           <div className="vl-unit-head">
             <div className="section-title">{t("nav.voice")}</div>
             <p className="vl-unit-desc">{t("page.voice.desc")}</p>
+            <p className="vl-unit-desc vl-unit-hint" data-testid="vl-unit-hint">
+              {t("voice.unit.hint")}
+            </p>
           </div>
         )}
         <div className="vl-section-label">{t("voice.trade.label")}</div>
@@ -707,10 +749,21 @@ export default function VoiceInspection({ buildings, userName, notify, unit = nu
                 <div className="vl-result-summary" data-testid="vl-summary">
                   {result.summary}
                 </div>
-                {result.progress && (
+                {result.place && result.place.kind === "other" && (
+                  <div className="vl-moved" data-testid="vl-moved">
+                    <Icon.Pin width="15" height="15" />
+                    <span>{t("voice.moved.to", { place: movedLabel(result.place), here: hereLabel })}</span>
+                  </div>
+                )}
+                {(result.progress || (result.place && (result.place.kind === "unknown" || result.place.kind === "partial"))) && (
                   <ProgressNote
                     progress={result.progress}
-                    unitLabel={result.progress.resolved.ok ? `${floorText(result.progress.resolved.floor)} ${t("voice.loc.unitOption", { n: result.progress.resolved.unit })}` : ""}
+                    unitLabel={
+                      result.progress && result.progress.resolved.ok
+                        ? `${result.place && result.place.kind === "other" ? `${result.place.buildingName} ` : ""}${floorText(result.progress.resolved.floor)} ${t("voice.loc.unitOption", { n: result.progress.resolved.unit })}`
+                        : ""
+                    }
+                    place={result.place}
                     t={t}
                   />
                 )}

@@ -179,6 +179,11 @@ function RecordRow({ report, related, view }) {
         <Icon.Pin width="13" height="13" /> {r.buildingName ? `${r.buildingName} ` : ""}
         {r.floor}층 · {r.elem}
       </div>
+      {r.fromUnit && (
+        <div className="up-rec-from" data-testid="up-rec-from">
+          {r.fromUnit} 화면에서 이 호실을 말해 남긴 기록이에요
+        </div>
+      )}
       {showUnits && (
         <div className="up-rec-units" data-testid="up-rec-units">
           {related.length === 0 ? (

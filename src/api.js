@@ -601,6 +601,8 @@ export async function deleteQrCode(id) {
 //   rawText: 말한 그대로   normalized: 은어만 표준 용어로 바꾼 전체 문장(호실·진행도 계산이 읽는다)   summary: 공종별 요약 문장
 //   dbText: '용어 DB에 있는 단어만 남기기'를 켜 둔 채 저장한 기록에만 있는 글(표에 있는 단어로만 이룬 문장, 단어가 없으면 ""). 화면의 '순화한 내용'과 요약은 이 글을 쓴다.
 //           없는 기록(그 방식을 쓰기 전에 저장했거나 꺼 둔 채 저장한 기록)은 normalized를 쓴다.
+//   fromUnit: 호실 QR 화면에서 다른 호실을 말해 그 호실의 기록으로 옮겨 저장했을 때만 있는 글. 말한 화면의 호실("101동 3층 301호").
+//           이때 buildingId·buildingName·floor·zone·elem은 말한 호실의 것이다(그래서 그 호실의 '음성 기록'과 진행도에 그대로 쌓인다).
 //   (공종을 철근·설비·형틀·품질 승인 중에서 고르던 때 저장된 기록은 trade가 "rebar"·"formwork"·"qc"(설비는 "mep")이고 tradeItem 항목이 없다 - 읽을 때 그대로 보여 준다)
 const VOICE_SAVE_TIMEOUT_MS = 12000;
 
@@ -641,6 +643,7 @@ export async function createVoiceReport(data) {
     rawText,
     normalized: String(data.normalized || ""),
     ...(typeof data.dbText === "string" ? { dbText: data.dbText } : {}),
+    ...(typeof data.fromUnit === "string" && data.fromUnit.trim() ? { fromUnit: data.fromUnit.trim().slice(0, 60) } : {}),
     summary: String(data.summary || ""),
     via: data.via === "text" ? "text" : "voice",
     createdAt: now.toISOString(),
