@@ -184,6 +184,10 @@
                 <i data-lucide="qr-code" class="w-4 h-4"></i>
                 <span>1. 공종별 QR 생성소</span>
             </button>
+            <button onclick="switchContractorTab('tabDongHo')" id="nav-tabDongHo" class="tab-btn px-4 py-2.5 rounded-xl text-xs md:text-sm font-medium text-slate-600 hover:text-blue-600 flex items-center gap-2 whitespace-nowrap transition">
+                <i data-lucide="building-2" class="w-4 h-4"></i>
+                <span>2. 동.호수 생성</span>
+            </button>
             <button onclick="switchContractorTab('tabRoomDetail')" id="nav-tabRoomDetail" class="tab-btn px-4 py-2.5 rounded-xl text-xs md:text-sm font-medium text-slate-600 hover:text-blue-600 flex items-center gap-2 whitespace-nowrap transition">
                 <i data-lucide="door-open" class="w-4 h-4"></i>
                 <span>3. 각 호실 정보 & 평면도</span>
@@ -416,6 +420,50 @@
                         <button onclick="testInSubcontractorMode()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow transition">
                             <i data-lucide="smartphone" class="w-4 h-4"></i> 반장님 모드로 바로 테스트
                         </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tabDongHo" class="contractor-tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Dong-Ho Registration Form -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2 pb-2 border-b">
+                        <i data-lucide="building-2" class="w-4 h-4 text-blue-600"></i> 동·호수 직접 등록
+                    </h3>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">동</label>
+                        <input id="dongHoInputDong" type="text" placeholder="예: 101동" class="w-full text-xs border border-slate-200 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">호수</label>
+                        <input id="dongHoInputHo" type="text" placeholder="예: 1403호" class="w-full text-xs border border-slate-200 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">타입</label>
+                        <input id="dongHoInputType" type="text" placeholder="예: 84A타입" class="w-full text-xs border border-slate-200 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500" />
+                    </div>
+
+                    <button onclick="addDongHoEntry()" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition active:scale-95">
+                        <i data-lucide="plus" class="w-4 h-4"></i> 동·호수 등록
+                    </button>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">여기서 등록한 동·호수·타입은 목록에 저장되며, 필요할 때 삭제할 수 있습니다.</p>
+                </div>
+
+                <!-- Registered List -->
+                <div class="md:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                            <i data-lucide="list" class="w-4 h-4 text-blue-600"></i> 등록된 동·호수 목록
+                        </h3>
+                        <span class="text-[11px] text-slate-400 font-medium" id="dongHoCountBadge">0건</span>
+                    </div>
+                    <div id="dongHoListContainer" class="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                        <!-- rendered by renderDongHoList() -->
                     </div>
                 </div>
             </div>
@@ -1294,8 +1342,89 @@
             }, 3200);
         }
 
+        // ===== 2. 동·호수 생성 (직접 입력 등록) =====
+        const DONGHO_STORAGE_KEY = 'siteTongDongHoRegistry';
+        let dongHoRegistry = [];
+
+        function loadDongHoRegistry() {
+            try {
+                const saved = localStorage.getItem(DONGHO_STORAGE_KEY);
+                dongHoRegistry = saved ? JSON.parse(saved) : [
+                    { dong: '101동', ho: '1403호', type: '84A타입' },
+                    { dong: '102동', ho: '1402호', type: '59B타입' },
+                ];
+            } catch (e) {
+                dongHoRegistry = [];
+            }
+        }
+
+        function saveDongHoRegistry() {
+            localStorage.setItem(DONGHO_STORAGE_KEY, JSON.stringify(dongHoRegistry));
+        }
+
+        function addDongHoEntry() {
+            const dongInput = document.getElementById('dongHoInputDong');
+            const hoInput = document.getElementById('dongHoInputHo');
+            const typeInput = document.getElementById('dongHoInputType');
+            const dong = dongInput.value.trim();
+            const ho = hoInput.value.trim();
+            const type = typeInput.value.trim();
+
+            if (!dong || !ho || !type) {
+                showToast('동, 호수, 타입을 모두 입력해주세요.');
+                return;
+            }
+
+            dongHoRegistry.push({ dong, ho, type });
+            saveDongHoRegistry();
+            renderDongHoList();
+
+            dongInput.value = '';
+            hoInput.value = '';
+            typeInput.value = '';
+            dongInput.focus();
+            showToast(`${dong} ${ho} ${type} 등록 완료`);
+        }
+
+        function deleteDongHoEntry(index) {
+            const removed = dongHoRegistry[index];
+            dongHoRegistry.splice(index, 1);
+            saveDongHoRegistry();
+            renderDongHoList();
+            if (removed) showToast(`${removed.dong} ${removed.ho} 삭제됨`);
+        }
+
+        function renderDongHoList() {
+            const container = document.getElementById('dongHoListContainer');
+            const badge = document.getElementById('dongHoCountBadge');
+            if (!container) return;
+            if (badge) badge.innerText = `${dongHoRegistry.length}건`;
+
+            if (dongHoRegistry.length === 0) {
+                container.innerHTML = '<p class="text-xs text-slate-400 text-center py-8">등록된 동·호수가 없습니다. 왼쪽에서 추가해주세요.</p>';
+                return;
+            }
+
+            container.innerHTML = dongHoRegistry.map((item, idx) => `
+                <div class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-xs font-black text-slate-900">${item.dong}</span>
+                        <span class="text-xs font-bold text-blue-600">${item.ho}</span>
+                        <span class="text-[11px] font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-md">${item.type}</span>
+                    </div>
+                    <button onclick="deleteDongHoEntry(${idx})" class="text-slate-400 hover:text-red-500 transition" aria-label="삭제">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `).join('');
+
+            if (window.lucide) lucide.createIcons();
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             if (window.lucide) lucide.createIcons();
+            loadDongHoRegistry();
+            renderDongHoList();
             renderDashboardLogs();
             renderFramingGrid();
             renderRoomDetailView();
