@@ -4,12 +4,15 @@ import GlossaryImport from "./GlossaryImport.jsx";
 import GlossaryReapply from "./GlossaryReapply.jsx";
 import GlossarySamples from "./GlossarySamples.jsx";
 import * as api from "../api.js";
-import { setGlossaryTerms, setGlossaryMode, adoptGlossary } from "../glossaryStore.js";
+import { setGlossaryTerms, setGlossaryMode, setGlossaryFuzzy, adoptGlossary } from "../glossaryStore.js";
+import { FUZZY_LEVELS, FUZZY_ORDER, FUZZY_LABELS, fuzzyLabel, normalizeFuzzy } from "../fuzzyTerms.js";
 import { GLOSSARY_LIMITS, GLOSSARY_MESSAGES, applyGlossary, applyGlossaryOnly, checkTerm, slangKey } from "../voice.js";
 
 // 관리자 "용어 DB" 탭: 현장 은어 → 표준 용어 표를 보고 고치는 화면.
 // 하도급사의 "음성 검측"(탭과 호실 QR 화면)은 말한 내용을 이 표대로 바꿔서 저장한다. 표는 Firestore 문서 1개(meta/glossary)에 들어 있다.
 // 같은 문서에 변환 방식도 들어 있다: '용어 DB에 있는 단어만 남기기'(기본 켜짐) - 켜면 은어는 표준 용어로 바꾸고 표에 없는 말은 변환된 문장에서 뺀다.
+// 그 방식이 켜져 있을 때 '비슷한 용어 찾기'(끔·엄격 85%·보통 80%, 기본 보통)도 고를 수 있다: 음성이 잘못 들려 표에 없는 말이 되었을 때(예: "나라씨"),
+// 소리(자모)를 견주는 레벤슈타인 거리로 표의 단어 중 가장 비슷한 것("나라시")으로 보고 그 단어로 바꿔 남긴다(fuzzyTerms.js).
 // 관리자 화면은 한국어만 쓰므로 문구를 번역 사전(i18n)이 아니라 여기에 바로 적었다.
 
 // 검사 결과(checkTerm)나 저장소 오류를 사람이 읽는 문장으로 바꾼다.
@@ -34,10 +37,11 @@ function shortHint(value) {
 
 const SHORT_HINT = "글자 수가 적은 은어는 다른 낱말 속에서도 바뀝니다. 아래 ‘바꿔 보기’로 확인해 보세요.";
 
+// 바뀐 조각은 강조한다. 비슷한 말로 찾아 바꾼 조각(p.near)은 색을 달리하고, 마우스를 올리면(title) 들린 말과 비슷한 정도가 보인다.
 function Marked({ parts }) {
   return parts.map((p, i) =>
     p.from !== undefined ? (
-      <mark key={i} className="vl-mark" title={p.from}>
+      <mark key={i} className={`vl-mark${p.near ? " vl-mark--near" : ""}`} title={p.near ? `“${p.from}” — ${p.sim}% 비슷해서 바꿨어요` : p.from} data-near={p.near ? "1" : undefined}>
         {p.text}
       </mark>
     ) : (
@@ -46,13 +50,26 @@ function Marked({ parts }) {
   );
 }
 
+// 비슷한 말로 찾은 것·가까운 말 한 줄: “들린 말” ≈ 표의 단어(바뀌는 말) 비슷한 정도%
+function nearLine(x) {
+  return x.matched && x.matched !== x.text ? `“${x.from}” ≈ ${x.matched}(${x.text}) ${x.sim}%` : `“${x.from}” ≈ ${x.text} ${x.sim}%`;
+}
+
+const FUZZY_HELP = {
+  off: "음성이 잘못 들려 표에 없는 말이 되면(예: “나라씨”) 그 말은 평소처럼 변환된 문장에서 빠져요.",
+  strict: "소리가 거의 같은 말만 찾아요. 비슷한 소리끼리 헷갈린 경우(예: “나라씨” → 나라시)가 대부분이에요.",
+  normal: "소리가 한 개쯤 다른 말까지 찾아요(예: “나라지” → 나라시).",
+};
+
 // props: adminName(저장한 사람으로 남길 이름), notify
 export default function Glossary({ adminName, notify }) {
   const [terms, setTerms] = useState([]);
   const [load, setLoad] = useState("loading"); // loading | ready | error
-  const [busy, setBusy] = useState(""); // "" | "add" | "edit" | "delete" | "import" | "sample" | "mode" - 저장하는 동안 다른 조작을 막는다
+  const [busy, setBusy] = useState(""); // "" | "add" | "edit" | "delete" | "import" | "sample" | "mode" | "fuzzy" - 저장하는 동안 다른 조작을 막는다
   const [onlyDb, setOnlyDb] = useState(true); // 용어 DB에 있는 단어만 남기는 변환 방식인지
   const [modeError, setModeError] = useState("");
+  const [fuzzy, setFuzzy] = useState("normal"); // 비슷한 용어 찾기 단계: off | strict | normal
+  const [fuzzyError, setFuzzyError] = useState("");
 
   const [newSlang, setNewSlang] = useState("");
   const [newStandard, setNewStandard] = useState("");
@@ -112,6 +129,7 @@ export default function Glossary({ adminName, notify }) {
       if (!mounted.current) return;
       setTerms(res.terms);
       setOnlyDb(res.onlyDb !== false);
+      setFuzzy(normalizeFuzzy(res.fuzzy));
       setLoad("ready");
     } catch {
       if (!mounted.current) return;
@@ -152,10 +170,15 @@ export default function Glossary({ adminName, notify }) {
   const sorted = useMemo(() => [...terms].sort((a, b) => a.slang.localeCompare(b.slang, "ko")), [terms]);
   const needle = slangKey(query);
   const rows = needle ? sorted.filter((t) => slangKey(t.slang).includes(needle) || slangKey(t.standard).includes(needle)) : sorted;
-  const preview = useMemo(() => (onlyDb ? applyGlossaryOnly(previewText, terms) : applyGlossary(previewText, terms)), [previewText, terms, onlyDb]);
+  const preview = useMemo(
+    () => (onlyDb ? applyGlossaryOnly(previewText, terms, { fuzzy, explain: true }) : applyGlossary(previewText, terms)),
+    [previewText, terms, onlyDb, fuzzy]
+  );
   const previewHits = preview.hits.reduce((sum, h) => sum + h.count, 0);
   const previewKept = onlyDb ? preview.kept : [];
   const previewDropped = onlyDb ? preview.dropped : [];
+  const previewFuzzy = onlyDb ? preview.fuzzy : []; // 비슷한 말로 찾아 바꾼 곳
+  const previewNear = onlyDb ? preview.near : []; // 바꾸지 않았지만 표의 단어와 가까운 말(기준 미만이거나 짧은 용어라 막힌 것)
 
   // ---------------- 변환 방식 (용어 DB에 있는 단어만 남기기) ----------------
   async function toggleMode(next) {
@@ -171,6 +194,25 @@ export default function Glossary({ adminName, notify }) {
     } catch (err) {
       if (!mounted.current) return;
       setModeError(errorText(err));
+    } finally {
+      if (mounted.current) setBusy("");
+    }
+  }
+
+  // ---------------- 비슷한 용어 찾기 단계 ----------------
+  async function changeFuzzy(next) {
+    if (busy || !onlyDb || next === fuzzy) return;
+    setBusy("fuzzy");
+    setFuzzyError("");
+    try {
+      const saved = await api.setGlossaryFuzzy(next, adminName);
+      if (!mounted.current) return;
+      setFuzzy(saved);
+      setGlossaryFuzzy(saved); // 같은 화면의 음성 검측("하도급사로 보기")에도 바로 쓰이게 한다
+      notify(saved === "off" ? "이제 비슷한 용어 찾기를 쓰지 않아요." : `비슷한 용어 찾기를 ‘${fuzzyLabel(saved)}’로 바꿨어요.`);
+    } catch (err) {
+      if (!mounted.current) return;
+      setFuzzyError(errorText(err));
     } finally {
       if (mounted.current) setBusy("");
     }
@@ -324,6 +366,42 @@ export default function Glossary({ adminName, notify }) {
                 {modeError}
               </div>
             )}
+            <div className={`gl-fuzzy${onlyDb ? "" : " is-disabled"}`} data-testid="gl-fuzzy">
+              <div className="gl-fuzzy-head">
+                <span className="gl-fuzzy-title" id="gl-fuzzy-title">
+                  비슷한 용어 찾기
+                </span>
+                <span className={`gl-onlydb-state${onlyDb && fuzzy !== "off" ? " is-on" : ""}`} data-testid="gl-fuzzy-state">
+                  {busy === "fuzzy" ? "저장 중…" : onlyDb ? fuzzyLabel(fuzzy) : "쓰지 않음"}
+                </span>
+              </div>
+              <div className="gl-fuzzy-opts" role="radiogroup" aria-labelledby="gl-fuzzy-title">
+                {FUZZY_ORDER.map((level) => (
+                  <label key={level} className={`gl-fuzzy-opt${fuzzy === level ? " is-on" : ""}${busy || !onlyDb ? " is-locked" : ""}`}>
+                    <input
+                      type="radio"
+                      name="gl-fuzzy"
+                      value={level}
+                      checked={fuzzy === level}
+                      disabled={!!busy || !onlyDb}
+                      onChange={() => changeFuzzy(level)}
+                      data-testid={`gl-fuzzy-${level}`}
+                    />
+                    <span>{level === "off" ? FUZZY_LABELS.off : `${FUZZY_LABELS[level]} ${Math.round(FUZZY_LEVELS[level] * 100)}%`}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="gl-onlydb-desc gl-fuzzy-desc" data-testid="gl-fuzzy-desc">
+                {onlyDb
+                  ? `${fuzzy === "off" ? "" : "음성이 잘못 들려 표에 없는 말이 되었을 때(예: “나라씨”), 소리를 견주는 레벤슈타인 거리로 표의 단어 중 가장 비슷한 것(나라시)을 찾아 그 단어로 바꿔 남겨요. 비슷한 정도가 기준 이상일 때만 바꾸고, 그렇지 않은 말은 평소처럼 빼요. "}${FUZZY_HELP[fuzzy]}${fuzzy === "off" ? "" : " 소리가 5개 이하인 짧은 용어는 비슷한 소리끼리(ㅅ↔ㅆ 등)만 바꿔요. 원문과 호실 진행도 계산에는 영향이 없어요."}`
+                  : "‘용어 DB에 있는 단어만 남기기’를 켜면 쓸 수 있어요."}
+              </p>
+              {fuzzyError && (
+                <div className="gl-error gl-onlydb-msg" role="alert" data-testid="gl-fuzzy-error">
+                  {fuzzyError}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>
@@ -394,6 +472,17 @@ export default function Glossary({ adminName, notify }) {
                 표준 용어 그대로 {previewKept.length}곳 · {previewKept.join(", ")}
               </div>
             )}
+            {previewFuzzy.length > 0 && (
+              <div className="gl-preview-meta gl-preview-fuzzy" data-testid="gl-preview-fuzzy">
+                비슷한 말로 찾아 바꿈 {previewFuzzy.length}곳 · {previewFuzzy.map(nearLine).join(", ")}
+              </div>
+            )}
+            {previewNear.length > 0 && (
+              <div className="gl-preview-meta gl-preview-near" data-testid="gl-preview-near">
+                바꾸지 않은 가까운 말 (기준 {Math.round(FUZZY_LEVELS[fuzzy] * 100)}% 미만이거나 짧은 용어라 막힌 말): {previewNear.slice(0, 4).map(nearLine).join(", ")}
+                {previewNear.length > 4 ? " …" : ""}
+              </div>
+            )}
             {previewDropped.length > 0 && (
               <div className="gl-preview-meta" data-testid="gl-preview-dropped">
                 표에 없어서 뺀 말: {previewDropped.slice(0, 8).join(", ")}
@@ -406,7 +495,7 @@ export default function Glossary({ adminName, notify }) {
 
           <GlossarySamples terms={terms} adminName={adminName} busy={busy} setBusy={setBusy} onTermAdded={(nextTerms) => commit(nextTerms)} notify={notify} />
 
-          <GlossaryReapply terms={terms} onlyDb={onlyDb} adminName={adminName} busy={busy} setBusy={setBusy} notify={notify} />
+          <GlossaryReapply terms={terms} onlyDb={onlyDb} fuzzy={fuzzy} adminName={adminName} busy={busy} setBusy={setBusy} notify={notify} />
 
           <section className="card gl-table-card">
             <div className="gl-table-head">

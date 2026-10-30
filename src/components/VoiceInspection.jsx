@@ -18,7 +18,7 @@ import {
   floorChoices,
   buildZone,
 } from "../voice.js";
-import { getGlossaryTerms, getGlossaryOnlyDb, getGlossaryPending, refreshGlossary } from "../glossaryStore.js";
+import { getGlossaryTerms, getGlossaryOnlyDb, getGlossaryFuzzy, getGlossaryPending, refreshGlossary } from "../glossaryStore.js";
 import { analyzeReport, hasEffect } from "../unitProgress.js";
 import { resolveSpokenPlace } from "../spokenUnit.js";
 
@@ -27,6 +27,8 @@ import { resolveSpokenPlace } from "../spokenUnit.js";
 //  2) 호실 QR 스캔 화면(unit 속성을 줄 때): 위치(동·층·호)는 QR이 이미 정해 주므로 고르지 않고, 로그인이 없으니 이름은 직접 적는다(선택).
 // 말하면 → 음성 인식 → 인식된 글자를 바로 화면에 보여 주고 → 현장 은어를 표준 용어로 바꿔(관리자 "용어 DB" 탭의 표대로) → 공종별 요약 문장을 만들어 → 저장한다.
 // 관리자가 '용어 DB에 있는 단어만 남기기'를 켜 두었으면(기본) 바꾼 문장에는 표에 있는 단어만 남고 나머지 말은 빠진다("나라시 시마이 했어요" → "고르기 마무리").
+// 음성이 잘못 들려 표에 없는 말이 되었을 때("나라씨 씨마이")는 '비슷한 용어 찾기'(기본 켜짐)가 소리(자모)를 견주는 레벤슈타인 거리로 표의 가장 비슷한 단어를 골라 그 단어로 남긴다(fuzzyTerms.js).
+// 결과 상자에는 그렇게 찾아 바꾼 말과 비슷한 정도(%)를 알려 준다 - 저장하는 값은 아니고, 말한 그대로(rawText)는 늘 함께 남는다.
 // 호실·공종 진행도를 읽는 계산은 빠진 말("301호", "도배 완료" 등)이 필요하므로 은어만 바꾼 전체 문장(normalized)을 따로 저장해 그 글을 읽는다.
 // 호실 QR 화면에서 "102동 502호 도배 완료"처럼 다른 호실을 분명하게 말하면, 그 보고는 말한 호실의 기록(동·층·호실을 말한 곳으로 바꿔)으로 저장한다(spokenUnit.js).
 // 그러면 그 호실의 '음성 기록'과 진행도에 그대로 쌓이고, 어느 화면에서 말했는지는 fromUnit에 남는다. 호실을 애매하게 말했거나 이 현장에 없는 곳이면 옮기지 않고 이 호실의 기록으로만 저장하며 이유를 알려 준다.
@@ -85,10 +87,11 @@ function errorKey(code) {
 }
 
 // 은어가 표준 용어로 바뀐 문장을 보여 준다: 바뀐 부분은 강조하고, 마우스를 올리면(title) 원래 말한 낱말이 보인다.
+// 비슷한 소리로 찾아 바꾼 부분(p.near)은 점선 밑줄로 달리 보여 준다.
 function NormalizedText({ parts }) {
   return parts.map((p, i) =>
     p.from !== undefined ? (
-      <mark key={i} className="vl-mark" title={p.from}>
+      <mark key={i} className={`vl-mark${p.near ? " vl-mark--near" : ""}`} title={p.from}>
         {p.text}
       </mark>
     ) : (
@@ -380,7 +383,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   }
 
   function makeReport(cur, rawText, via) {
-    const fixed = convertVoiceText(rawText, getGlossaryTerms(), getGlossaryOnlyDb());
+    const fixed = convertVoiceText(rawText, getGlossaryTerms(), getGlossaryOnlyDb(), getGlossaryFuzzy());
     const hereElem = cur.elem.trim();
     // 호실 QR 화면에서 다른 호실을 분명하게 말했으면("102동 502호 도배 완료") 그 호실의 보고로 저장한다: 동·층·호실을 말한 곳으로 바꾸고, 어느 화면에서 말했는지는 fromUnit에 남긴다.
     // 애매하게 말했거나(동만, 호수만) 이 현장에 없는 곳이거나 호실이 여럿이면 옮기지 않고 이 호실의 보고로 저장한다 - 진행도에는 반영하지 않고 그 이유를 결과 상자에서 알려 준다.
@@ -428,6 +431,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
       dbText: fixed.dbText, // 용어 DB 단어만 남긴 글(그 방식이 꺼져 있으면 null이라 저장하지 않는다)
       parts: fixed.parts, // 화면에서 바뀐 부분을 강조하는 데만 쓴다(저장하지 않는다)
       replacedCount: fixed.replacedCount,
+      fuzzy: fixed.fuzzy, // 비슷한 소리로 찾아 바꾼 말들 - 결과 상자에 알려 주는 용도(저장하지 않는다)
       summary: buildSummary(cur.tradeId, fixed.shown, cur.tradeItem),
       progress, // 호실 진행도에 반영된 내용(저장하지 않는다)
       via,
@@ -742,6 +746,18 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
                     <div className="vl-result-norm" data-testid="vl-norm">
                       <NormalizedText parts={result.parts} />
                     </div>
+                    {Array.isArray(result.fuzzy) && result.fuzzy.length > 0 && (
+                      <div className="vl-fuzzy" data-testid="vl-fuzzy">
+                        <div className="vl-fuzzy-title">{t("voice.result.fuzzy")}</div>
+                        <ul className="vl-fuzzy-list">
+                          {result.fuzzy.map((f, i) => (
+                            <li key={i} data-testid="vl-fuzzy-item">
+                              “{f.from}” → {f.text} <span className="vl-fuzzy-sim">({t("voice.result.fuzzySim", { sim: f.sim })})</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </>
                 )}
                 <div className="vl-result-sep" />

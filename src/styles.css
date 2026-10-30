@@ -2479,6 +2479,42 @@ textarea.input {
   box-decoration-break: clone;
 }
 
+/* 비슷한 소리로 찾아 바꾼 낱말: 같은 배경 띠에 밑줄 대신 점선을 써서 '정확히 바꾼 말'과 구분한다 */
+.vl-mark--near {
+  box-shadow: none;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--vl, var(--blueprint));
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+/* 결과 상자: 비슷한 소리로 찾아 바꾼 말 목록 */
+.vl-fuzzy {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  background: var(--surface-alt);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.vl-fuzzy-title {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.vl-fuzzy-list {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+
+.vl-fuzzy-sim {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
 .vl-card-norm {
   margin-top: 8px;
   font-size: 13px;
@@ -2723,6 +2759,73 @@ textarea.input {
 
 .gl-onlydb .gl-onlydb-msg {
   margin-top: 6px;
+}
+
+/* 비슷한 용어 찾기(레벤슈타인 거리) 단계: 끔·엄격·보통 */
+.gl-fuzzy {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.gl-fuzzy-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.gl-fuzzy-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 6px;
+}
+
+.gl-fuzzy-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.gl-fuzzy-opt input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--blueprint);
+}
+
+.gl-fuzzy-opt.is-on {
+  border-color: var(--blueprint);
+  background: var(--vl-tint, rgba(23, 69, 111, 0.11));
+  color: var(--blueprint-deep);
+}
+
+.gl-fuzzy-opt:focus-within {
+  outline: 2px solid var(--line-blue);
+  outline-offset: 2px;
+}
+
+.gl-fuzzy-opt.is-locked {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gl-fuzzy.is-disabled .gl-fuzzy-head {
+  color: var(--ink-soft);
 }
 
 @media (prefers-reduced-motion: reduce) {

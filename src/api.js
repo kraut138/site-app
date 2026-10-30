@@ -15,6 +15,7 @@ import {
 import { db } from "./firebase.js";
 import { QR_LIMITS, newQrBoardId, isValidQrBoardId } from "./qr.js";
 import { VOICE_TRADES, VOICE_LIMITS, clockString, defaultGlossary, sanitizeGlossary, checkTerm, convertVoiceText, buildSummary, glossaryHash, GLOSSARY_MESSAGES } from "./voice.js";
+import { FUZZY_LEVELS, normalizeFuzzy } from "./fuzzyTerms.js";
 import { cleanImportEntries, planGlossaryImport, applyGlossaryImport } from "./glossaryImport.js";
 import { SAMPLE_LIMITS, SAMPLE_MESSAGES, cleanSampleName, newSampleId, sanitizeSamples, sanitizeSegments, splitIntoChunks, joinChunks } from "./audioSamples.js";
 
@@ -680,9 +681,10 @@ export async function setVoiceReportProgressOff(id, off, by) {
 }
 
 // ---------------- 용어 DB (현장 은어 → 표준 용어) ----------------
-// meta/glossary: { terms: [{ id, slang, standard }], onlyDb(용어 DB에 있는 단어만 남기는지 - 문서에 없으면 켜짐), updatedAt, updatedBy }
+// meta/glossary: { terms: [{ id, slang, standard }], onlyDb(용어 DB에 있는 단어만 남기는지 - 문서에 없으면 켜짐), fuzzy(비슷한 용어 찾기 단계 "off"·"strict"·"normal" - 문서에 없으면 보통), updatedAt, updatedBy }
 // 관리자 화면의 "용어 DB" 탭이 고치는 표이고, 음성 검측이 말한 내용을 표준 용어로 바꿀 때 이 표를 쓴다.
 // onlyDb가 켜져 있으면 바꾼 결과에는 표에 있는 단어(은어는 표준 용어로 바꾼 것, 표준 용어를 직접 말한 것)만 남고 나머지 말은 빠진다(voice.js applyGlossaryOnly).
+// fuzzy가 꺼져 있지 않으면 음성 인식이 잘못 들은 말도 표의 단어와 소리(자모)가 비슷하면(레벤슈타인 거리, fuzzyTerms.js) 가장 비슷한 표의 단어로 남는다. onlyDb가 꺼져 있으면 쓰이지 않는다.
 // 표 전체를 문서 1개에 넣어 둔다: 음성 검측 화면이 열릴 때마다 읽어도 1건만 읽으면 되고(무료 요금제의 읽기 한도 절약), 저장도 한 번에 끝난다.
 // 이 문서가 아직 없으면(관리자가 표를 한 번도 고치지 않았으면) 코드에 들어 있는 기본 용어(voice.js의 SLANG_RULES)를 그대로 쓴다.
 // 표를 고칠 때는 먼저 최신 표를 읽은 뒤 그 위에 한 줄만 바꿔서 저장한다(다른 관리자가 그 사이에 넣은 용어를 덮어쓰지 않도록).
@@ -697,15 +699,17 @@ function newGlossaryId() {
   return `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-// 반환: { saved: 표가 한 번이라도 저장돼 있는지, terms: 표(저장된 적이 없으면 기본 용어), onlyDb: 용어 DB에 있는 단어만 남기는지(기본 켜짐) }
+// 반환: { saved: 표가 한 번이라도 저장돼 있는지, terms: 표(저장된 적이 없으면 기본 용어), onlyDb: 용어 DB에 있는 단어만 남기는지(기본 켜짐),
+//        fuzzy: 비슷한 용어 찾기 단계 "off"·"strict"·"normal"(기본 보통) }
 // 문서가 있어도 terms 목록이 없으면(변환 방식만 먼저 저장한 경우) 표는 아직 저장된 적이 없는 것으로 보고 기본 용어를 쓴다.
 export async function fetchGlossary() {
   const snap = await withTimeout(getDoc(doc(db, "meta", "glossary")), GLOSSARY_READ_TIMEOUT_MS, "glossary/timeout");
-  if (!snap.exists()) return { saved: false, terms: defaultGlossary(), onlyDb: true };
+  if (!snap.exists()) return { saved: false, terms: defaultGlossary(), onlyDb: true, fuzzy: normalizeFuzzy(undefined) };
   const data = snap.data() || {};
   const onlyDb = data.onlyDb !== false;
-  if (!Array.isArray(data.terms)) return { saved: false, terms: defaultGlossary(), onlyDb };
-  return { saved: true, terms: sanitizeGlossary(data.terms), onlyDb };
+  const fuzzy = normalizeFuzzy(data.fuzzy);
+  if (!Array.isArray(data.terms)) return { saved: false, terms: defaultGlossary(), onlyDb, fuzzy };
+  return { saved: true, terms: sanitizeGlossary(data.terms), onlyDb, fuzzy };
 }
 
 // 표만 저장한다. merge로 써서 같은 문서의 변환 방식(onlyDb)은 그대로 둔다(표 목록은 통째로 바뀐다).
@@ -728,6 +732,18 @@ export async function setGlossaryOnlyDb(onlyDb, by) {
     "glossary/timeout"
   );
   return flag;
+}
+
+// '비슷한 용어 찾기' 단계 바꾸기("off" 끔 · "strict" 엄격 85% · "normal" 보통 80%). 표(terms)와 변환 방식은 건드리지 않는다.
+// 앞으로 남기는 보고부터 새 단계가 쓰인다(이미 저장된 기록은 '저장된 음성 기록에 다시 적용'으로 바꾼다). 반환: 저장된 단계
+export async function setGlossaryFuzzy(level, by) {
+  const value = normalizeFuzzy(level);
+  await withTimeout(
+    setDoc(doc(db, "meta", "glossary"), { fuzzy: value, updatedAt: nowIso(), updatedBy: String(by || "").trim().slice(0, 60) }, { merge: true }),
+    GLOSSARY_WRITE_TIMEOUT_MS,
+    "glossary/timeout"
+  );
+  return value;
 }
 
 // 새 용어 한 줄 추가. 반환: { terms(저장된 최신 표), term(추가된 줄) }
@@ -905,9 +921,9 @@ export async function fetchGlossarySampleAudio(sample) {
 // 그래서 원문(rawText: 말한 그대로, 건드리지 않는다)에 지금의 표와 방식을 다시 적용해 이 값들만 새로 만든다. 같은 표·방식으로 몇 번을 눌러도 결과는 같다.
 // 두 단계로 나눴다: (1) planGlossaryReapply - 모든 기록을 읽어 무엇이 바뀔지 계산만 한다(쓰기 없음), (2) applyGlossaryReapply - 바뀔 기록만 한 번에 400건씩 묶어 쓴다.
 // 미리보기와 적용 사이에 다른 관리자가 표를 또 고쳤다면 적용하지 않고 미리보기를 다시 하게 한다(보여 준 것과 다른 결과가 저장되지 않도록).
-// meta/glossaryApplied: { at, by, tableHash, onlyDb, total, changed } - 마지막으로 다시 적용한 기록(화면에 '언제, 몇 건'을 보여 주고, tableHash로 그 뒤에 표나 변환 방식이 바뀌었는지 알려 준다.
-// onlyDb는 그때의 변환 방식 - 이 값이 없는 기록은 은어만 바꾸던 때(false)에 적용한 것이다)
-// tableHash는 표의 내용(은어·표준 용어·순서)과 변환 방식으로 만든 지문이다(voice.js glossaryHash). 표를 저장한 시각이 아니라 내용을 견주므로,
+// meta/glossaryApplied: { at, by, tableHash, onlyDb, fuzzy, total, changed } - 마지막으로 다시 적용한 기록(화면에 '언제, 몇 건'을 보여 주고, tableHash로 그 뒤에 표나 변환 방식이 바뀌었는지 알려 준다.
+// onlyDb는 그때의 변환 방식 - 이 값이 없는 기록은 은어만 바꾸던 때(false)에 적용한 것이다. fuzzy는 그때 쓴 비슷한 용어 찾기 단계("off"이거나 값이 없으면 쓰지 않았던 때))
+// tableHash는 표의 내용(은어·표준 용어·순서)과 변환 방식·비슷한 용어 찾기 단계로 만든 지문이다(voice.js glossaryHash). 표를 저장한 시각이 아니라 내용을 견주므로,
 // 표를 고쳤다가 같은 내용으로 되돌려 놓았을 때는 '그대로'로 보이고, 화면은 표를 다시 읽지 않고도(이미 불러온 표로) 바뀐 여부를 알 수 있다.
 const REAPPLY_READ_TIMEOUT_MS = 30000;
 const REAPPLY_WRITE_TIMEOUT_MS = 30000;
@@ -927,7 +943,7 @@ export async function planGlossaryReapply() {
       noText += 1;
       return;
     }
-    const conv = convertVoiceText(rawText, current.terms, current.onlyDb);
+    const conv = convertVoiceText(rawText, current.terms, current.onlyDb, current.fuzzy);
     // tradeItem이 없는 기록은 세부 공종 칸이 없던 예전 기록이다 - buildSummary가 예전 문장 틀로 같은 요약을 만든다.
     const summary = buildSummary(String(data.trade || ""), conv.shown, typeof data.tradeItem === "string" ? data.tradeItem : undefined);
     const beforeFull = typeof data.normalized === "string" ? data.normalized : "";
@@ -948,7 +964,13 @@ export async function planGlossaryReapply() {
     });
   });
   changes.sort((a, b) => b.timestamp - a.timestamp);
-  return { total, noText, changes, termCount: current.terms.length, onlyDb: current.onlyDb, tableHash: glossaryHash(current.terms, current.onlyDb), tableSaved: current.saved };
+  const fuzzy = current.onlyDb ? current.fuzzy : "off"; // 변환 방식이 꺼져 있으면 비슷한 용어 찾기도 쓰이지 않는다
+  return { total, noText, changes, termCount: current.terms.length, onlyDb: current.onlyDb, fuzzy, tableHash: glossaryHash(current.terms, current.onlyDb, current.fuzzy), tableSaved: current.saved };
+}
+
+// 저장된 기록의 비슷한 용어 찾기 단계: 값이 없거나 알 수 없으면(이 기능이 생기기 전에 적용한 기록) 쓰지 않았던 것("off")
+function appliedFuzzy(value) {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(FUZZY_LEVELS, value) ? value : "off";
 }
 
 export async function fetchGlossaryApplied() {
@@ -960,17 +982,19 @@ export async function fetchGlossaryApplied() {
     by: typeof d.by === "string" ? d.by : "",
     tableHash: typeof d.tableHash === "string" ? d.tableHash : "",
     onlyDb: d.onlyDb === true,
+    fuzzy: d.onlyDb === true ? appliedFuzzy(d.fuzzy) : "off",
     total: Number(d.total) || 0,
     changed: Number(d.changed) || 0,
   };
 }
 
-export async function recordGlossaryApplied({ tableHash, onlyDb, total, changed }, by) {
+export async function recordGlossaryApplied({ tableHash, onlyDb, fuzzy, total, changed }, by) {
   const record = {
     at: nowIso(),
     by: String(by || "").trim().slice(0, 60),
     tableHash: String(tableHash || ""),
     onlyDb: onlyDb === true,
+    fuzzy: onlyDb === true ? appliedFuzzy(fuzzy) : "off",
     total: Number(total) || 0,
     changed: Number(changed) || 0,
   };
@@ -983,7 +1007,7 @@ export async function recordGlossaryApplied({ tableHash, onlyDb, total, changed 
 export async function applyGlossaryReapply(plan, by, opts = {}) {
   const changes = Array.isArray(plan && plan.changes) ? plan.changes : [];
   const now = await fetchGlossary();
-  if (glossaryHash(now.terms, now.onlyDb) !== ((plan && plan.tableHash) || "")) throw glossaryError("table-changed");
+  if (glossaryHash(now.terms, now.onlyDb, now.fuzzy) !== ((plan && plan.tableHash) || "")) throw glossaryError("table-changed");
   let updated = 0;
   let missing = 0;
   let stopped = false;
@@ -1017,7 +1041,7 @@ export async function applyGlossaryReapply(plan, by, opts = {}) {
   }
   if (!stopped) {
     try {
-      await recordGlossaryApplied({ tableHash: plan.tableHash, onlyDb: plan.onlyDb === true, total: plan.total, changed: updated }, by);
+      await recordGlossaryApplied({ tableHash: plan.tableHash, onlyDb: plan.onlyDb === true, fuzzy: plan.fuzzy, total: plan.total, changed: updated }, by);
     } catch {
       // 기록을 남기지 못해도 이미 바뀐 내용에는 영향이 없다.
     }

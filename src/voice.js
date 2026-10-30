@@ -1,6 +1,7 @@
 // 음성 검측(VOICE-LOCK): 공종 정보, 현장 은어 → 표준 용어 변환, 요약 문장 만들기, 위치(동·층) 도우미, 음성 인식 객체.
 // 화면에 보이는 문구는 i18n.js(voice.*)에 있고, 여기에는 저장되는 데이터(한국어 표준 용어)와 계산 로직만 둔다.
 import { CATEGORIES, getCategory } from "./data.js";
+import { FUZZY_LEVELS, buildFuzzyIndex, findFuzzyMatches, normalizeFuzzy } from "./fuzzyTerms.js";
 
 // 공종: 관리자 "표준 공종" 탭(공사현황 > 표준 공종)에 나오는 분류와 똑같이 골조공사·마감공사·설비/전기다.
 // (안전/환경은 그 탭에서도, 골구도·진행도 화면에서도 빠져 있어 여기서도 뺀다)
@@ -132,10 +133,13 @@ export function checkTerm(input, terms, selfId = "") {
 // 표의 내용으로 만든 짧은 지문(문자열). 저장된 음성 기록에 표를 다시 적용할 때 "마지막으로 적용한 표와 지금 표가 같은가"를 견주는 데 쓴다.
 // 줄의 id와 저장 시각은 문장을 바꾸는 결과에 영향이 없으므로 넣지 않고, 은어·표준 용어와 줄의 순서(같은 길이의 은어끼리는 순서가 결과를 정한다)만 본다.
 // onlyDb(용어 DB에 있는 단어만 남기는 변환 방식)도 결과를 바꾸므로 켜져 있으면 지문에 함께 넣는다. 꺼져 있으면(기본값) 예전 계산과 똑같은 값이 나온다.
+// fuzzy(비슷한 용어 찾기 단계: "off"·"strict"·"normal")도 onlyDb가 켜져 있을 때의 결과를 바꾸므로 꺼져 있지 않으면 계산 방식 번호(near1)와 함께 넣는다.
+// 인자를 안 주면 꺼진 것으로 보므로 예전 계산과 똑같은 값이 나온다. (계산 방식을 고치면 이 번호를 올려, 예전 방식으로 바꾼 기록이 '표가 바뀌었다'로 보이게 한다)
 // 같은 내용이면 어느 기기에서 계산해도 같은 값이 나온다. (cyrb53 - 외부 라이브러리 없이 정수 연산만 쓴다)
-export function glossaryHash(terms, onlyDb = false) {
+export function glossaryHash(terms, onlyDb = false, fuzzy = "off") {
   const rows = sanitizeGlossary(terms);
-  let s = String(rows.length) + (onlyDb ? "\u0003only-db" : "");
+  const level = onlyDb ? normalizeFuzzy(fuzzy) : "off";
+  let s = String(rows.length) + (onlyDb ? "\u0003only-db" : "") + (level !== "off" ? `\u0004near1-${level}` : "");
   for (const t of rows) s += `\u0001${t.slang}\u0002${t.standard}`;
   let h1 = 0xdeadbeef ^ s.length;
   let h2 = 0x41c6ce57 ^ s.length;
@@ -285,9 +289,21 @@ function onlyMatcherFor(terms) {
       cands.push({ codes, gap: codes.length >= 3, term, kind: "standard", out: form });
     }
   }
-  const matcher = cands.length > 0 ? startsOf(cands) : null;
+  // 비슷한 용어 찾기에서 유사도가 같을 때 표에서 앞선 단어를 고르도록 순서를 달아 둔다(startsOf가 정렬하기 전의 순서 = 은어들, 그다음 표준 용어들)
+  cands.forEach((c, i) => {
+    c.order = i;
+  });
+  const matcher = cands.length > 0 ? { ...startsOf(cands.slice()), cands, fuzzyIndex: null } : null;
   onlyMatcherCache.set(terms, matcher);
   return matcher;
+}
+
+// 비슷한 용어 찾기 도구(fuzzyTerms.js): 표의 단어(은어와 표준 용어)를 소리(자모)로 풀어 둔 목록. 처음 필요할 때 한 번만 만든다.
+function fuzzyIndexOf(matcher) {
+  if (!matcher.fuzzyIndex) {
+    matcher.fuzzyIndex = buildFuzzyIndex(matcher.cands.map((c) => ({ key: String.fromCodePoint(...c.codes), cand: c, order: c.order })));
+  }
+  return matcher.fuzzyIndex;
 }
 
 // 문장 src를 왼쪽부터 한 번 훑어, 찾을 말이 나온 자리를 차례로 모은다: [{ start, end, cand }]
@@ -347,58 +363,113 @@ export function applyGlossary(text, terms) {
   return { text: out + rest, parts, hits: [...hits.values()] };
 }
 
+const NEAR_MIN_SIM = 0.6; // 바꾸지 않은 말 중 이 정도(60%) 이상 닮은 것만 '가까운 말'로 알려 준다
+
 // "용어 DB에 있는 단어만 남기기": 문장 속에서 표에 있는 단어만 골라 낸다.
 //  - 현장 은어 → 표준 용어로 바꿔서 넣는다 ("나라시" → 표에 적힌 표준 용어)
 //  - 표준 용어를 직접 말했으면 그 말을 그대로 넣는다 (standardForms: 전체·괄호 안팎·"/"로 나뉜 낱말, 두 글자 이상)
 //  - 표에 없는 말("했어요", 숫자, 조사 등)은 모두 뺀다
+//  - 비슷한 용어 찾기(opts.fuzzy가 "strict"·"normal"일 때): 위에서 정확히 찾지 못한 말 중에 표의 단어와 소리가 비슷한 말이 있으면
+//    (음성 인식이 잘못 들은 말: "나라씨" → "나라시") 레벤슈타인 거리(fuzzyTerms.js)로 가장 비슷한 단어를 골라 그 단어처럼 넣는다. 기준에 못 미치면 그대로 뺀다.
 // 고른 단어들은 말한 순서대로 띄어쓰기 한 칸으로 잇는다. 표에 있는 단어가 하나도 없으면 text는 "".
-// 돌려주는 값: text, parts(화면에 강조해 보여 줄 조각들: 은어에서 바뀐 조각에는 from=원래 말, 단어 사이의 띄어쓰기 조각 포함),
-//   hits(바뀐 은어와 횟수: applyGlossary와 같은 모양 - 표준 용어를 그대로 둔 것은 넣지 않는다), kept(그대로 둔 표준 용어들), dropped(뺀 말 덩어리들: 글자나 숫자가 있는 것만)
-export function applyGlossaryOnly(text, terms) {
+// opts: { fuzzy: 비슷한 용어 찾기 단계(없으면 끔), explain: true면 바꾸지 않은 말 중 표의 단어와 가까운 것도 알려 준다(미리보기 화면용) }
+// 돌려주는 값: text, parts(화면에 강조해 보여 줄 조각들: 은어에서 바뀐 조각에는 from=원래 말, 비슷한 말로 찾은 조각에는 near=true와 sim(%)도 있다. 단어 사이의 띄어쓰기 조각 포함),
+//   hits(바뀐 은어와 횟수: applyGlossary와 같은 모양 - 표준 용어를 그대로 둔 것·비슷한 말로 찾은 것은 넣지 않는다), kept(그대로 둔 표준 용어들),
+//   dropped(뺀 말 덩어리들: 글자나 숫자가 있는 것만),
+//   fuzzy(비슷한 말로 찾아 바꾼 것들: { from(들린 말), matched(찾은 표의 단어), text(글에 넣은 말), sim(%), kind: "slang"|"standard", id }),
+//   near(explain일 때만: 바꾸지 않았지만 표의 단어와 가까운 말들 { from, matched, text, sim(%) } - 유사도 높은 순)
+export function applyGlossaryOnly(text, terms, opts = null) {
   const src = String(text == null ? "" : text);
-  const empty = { text: "", parts: [], hits: [], kept: [], dropped: [] };
+  const empty = { text: "", parts: [], hits: [], kept: [], dropped: [], fuzzy: [], near: [] };
   const matcher = src ? onlyMatcherFor(terms) : null;
   const dropOf = (chunk) => {
     const value = cleanTermText(chunk);
     return /[\p{L}\p{N}]/u.test(value) ? value : "";
   };
   if (!matcher) return src ? { ...empty, dropped: [dropOf(src)].filter(Boolean) } : empty;
+  const minSim = FUZZY_LEVELS[opts && opts.fuzzy ? normalizeFuzzy(opts.fuzzy) : "off"] || 0;
+  const index = minSim > 0 ? fuzzyIndexOf(matcher) : null;
+  const percent = (sim) => Math.round(sim * 100);
+  const shownWord = (cand) => (cand.kind === "slang" ? cand.term.slang : cand.out);
+
+  // 정확히 찾은 곳들 사이의 빈틈에서 비슷한 말을 찾아, 정확히 찾은 곳과 함께 말한 순서대로 늘어놓는다
+  const found = [];
+  let edge = 0;
+  const lookBetween = (from, to) => {
+    if (!index || to <= from) return;
+    for (const f of findFuzzyMatches(src.slice(from, to), index, minSim)) {
+      found.push({ start: from + f.start, end: from + f.end, cand: f.entry.cand, sim: f.sim, fuzzy: true });
+    }
+  };
+  for (const m of findMatches(src, matcher.starts)) {
+    lookBetween(edge, m.start);
+    found.push(m);
+    edge = m.end;
+  }
+  lookBetween(edge, src.length);
+
   const parts = [];
   const hits = new Map();
   const words = [];
   const kept = [];
   const dropped = [];
+  const fuzzy = [];
   let last = 0;
-  for (const m of findMatches(src, matcher.starts)) {
+  for (const m of found) {
     const gap = dropOf(src.slice(last, m.start));
     if (gap) dropped.push(gap);
     const { term, kind, out } = m.cand;
     const spoken = src.slice(m.start, m.end);
     if (words.length > 0) parts.push({ text: " " });
-    if (kind === "slang" || spoken !== out) parts.push({ text: out, from: spoken });
-    else parts.push({ text: out });
     words.push(out);
-    if (kind === "slang") {
-      const hit = hits.get(term.id) || { id: term.id, slang: term.slang, standard: term.standard, count: 0 };
-      hit.count += 1;
-      hits.set(term.id, hit);
+    if (m.fuzzy) {
+      parts.push({ text: out, from: spoken, near: true, sim: percent(m.sim) });
+      fuzzy.push({ from: spoken, matched: shownWord(m.cand), text: out, sim: percent(m.sim), kind, id: term.id });
     } else {
-      kept.push(out);
+      if (kind === "slang" || spoken !== out) parts.push({ text: out, from: spoken });
+      else parts.push({ text: out });
+      if (kind === "slang") {
+        const hit = hits.get(term.id) || { id: term.id, slang: term.slang, standard: term.standard, count: 0 };
+        hit.count += 1;
+        hits.set(term.id, hit);
+      } else {
+        kept.push(out);
+      }
     }
     last = m.end;
   }
   const tail = dropOf(src.slice(last));
   if (tail) dropped.push(tail);
-  return { text: words.join(" "), parts, hits: [...hits.values()], kept, dropped };
+
+  // 바꾸지 않은 말 중 표의 단어와 가까운 것(기준에 못 미치거나 짧은 단어라 막힌 것) - 미리보기에서 "왜 안 바뀌었는지" 보여 주는 용도
+  const near = [];
+  if (index && opts && opts.explain) {
+    let from = 0;
+    const scan = (to) => {
+      for (const f of findFuzzyMatches(src.slice(from, to), index, NEAR_MIN_SIM, { shortRule: false })) {
+        near.push({ from: src.slice(from + f.start, from + f.end), matched: shownWord(f.entry.cand), text: f.entry.cand.out, sim: percent(f.sim) });
+      }
+    };
+    for (const m of found) {
+      scan(m.start);
+      from = m.end;
+    }
+    scan(src.length);
+    near.sort((a, b) => b.sim - a.sim);
+  }
+  return { text: words.join(" "), parts, hits: [...hits.values()], kept, dropped, fuzzy, near };
 }
 
-// 말한(또는 입력한) 글 하나를 보고에 쓸 글들로 바꾼다. onlyDb는 관리자 "용어 DB" 탭의 '용어 DB에 있는 단어만 남기기' 설정이다.
+// 말한(또는 입력한) 글 하나를 보고에 쓸 글들로 바꾼다. onlyDb는 관리자 "용어 DB" 탭의 '용어 DB에 있는 단어만 남기기' 설정이고,
+// fuzzy는 같은 탭의 '비슷한 용어 찾기' 단계("off"·"strict"·"normal", 안 주면 끔)다 - onlyDb가 켜져 있을 때만 쓰인다.
 //  - normalized: 은어만 표준 용어로 바꾼 전체 문장(다른 말은 그대로). 호실·공종 진행도를 읽어 내는 계산이 이 글을 읽으므로 늘 만들어 저장한다.
+//    (비슷한 용어 찾기는 이 글을 바꾸지 않는다 - 잘못 들은 말을 짐작으로 고쳐 호실·진행도를 잘못 읽는 일이 없도록)
 //  - dbText: onlyDb가 켜져 있을 때만 문자열(표에 있는 단어로만 이룬 문장, 없으면 ""), 꺼져 있으면 null
 //  - shown: 화면에 '순화한 내용'으로 보여 주고 요약에 넣는 글 (dbText가 있으면 dbText, 없으면 normalized)
 //  - parts, replacedCount: shown에서 강조해 보여 줄 조각들과 은어가 바뀐 곳의 수
 //  - dropped: 표에 없어서 뺀 말들 (onlyDb일 때만)
-export function convertVoiceText(raw, terms, onlyDb) {
+//  - fuzzy: 비슷한 말로 찾아 바꾼 것들 (applyGlossaryOnly의 fuzzy와 같은 모양, 없으면 [])
+export function convertVoiceText(raw, terms, onlyDb, fuzzy = "off") {
   const full = applyGlossary(raw, terms);
   if (!onlyDb) {
     return {
@@ -408,9 +479,10 @@ export function convertVoiceText(raw, terms, onlyDb) {
       parts: full.parts,
       replacedCount: full.hits.reduce((sum, h) => sum + h.count, 0),
       dropped: [],
+      fuzzy: [],
     };
   }
-  const only = applyGlossaryOnly(raw, terms);
+  const only = applyGlossaryOnly(raw, terms, { fuzzy });
   return {
     normalized: full.text,
     dbText: only.text,
@@ -418,6 +490,7 @@ export function convertVoiceText(raw, terms, onlyDb) {
     parts: only.parts,
     replacedCount: only.hits.reduce((sum, h) => sum + h.count, 0),
     dropped: only.dropped,
+    fuzzy: only.fuzzy,
   };
 }
 
