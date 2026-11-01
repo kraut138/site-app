@@ -4,28 +4,28 @@ export const CATEGORIES = [
     id: "frame",
     name: "골조공사",
     shortName: "골조",
-    color: "#5B7CA6",
+    color: "#2563EB", // 현장통 공종 색: 파랑
     description: "철근 배근, 거푸집, 콘크리트 타설 및 양생",
   },
   {
     id: "finish",
     name: "마감공사",
     shortName: "마감",
-    color: "#B8895A",
+    color: "#9333EA", // 보라
     description: "미장, 방수, 타일, 창호 마감 상태",
   },
   {
     id: "mep",
     name: "설비/전기",
     shortName: "설비전기",
-    color: "#5C8C6B",
+    color: "#059669", // 초록
     description: "배관 누수 테스트, 전기 간선 및 절연저항",
   },
   {
     id: "safety",
     name: "안전/환경",
     shortName: "안전환경",
-    color: "#B2555A",
+    color: "#E11D48", // 장미(빨강)
     description: "추락방지, 가설구조물, 보호구 착용",
   },
 ];
@@ -163,10 +163,11 @@ export function isAdminRole(role) {
 }
 
 // 뷰(탭)별 접근 가능한 역할. 값을 생략하면 모든 역할이 접근 가능.
-// (대시보드는 "현장관리" 탭 내부의 서브탭이며, OperationsHub.jsx에서 role로 별도 제한됨)
-// 빈 목록([])은 "어느 역할도 열 수 없음"이다 - 메뉴에서 없앤 탭이라 혹시 그 값이 남아 있어도 공사현황으로 돌려보낸다
-// (화면 코드 파일은 지우지 않고 남겨 두었으니, 다시 쓰려면 메뉴(Layout.jsx)와 App.jsx 연결을 되살리고 여기 목록을 지우면 된다).
+// 빈 목록([])은 "어느 역할도 열 수 없음"이다 - 메뉴에서 없앤 탭이라 혹시 그 값이 남아 있어도 첫 화면으로 돌려보낸다
+// (화면 코드 파일은 지우지 않고 남겨 두었으니, 다시 쓰려면 platform/tabs.js의 탭 목록과 App.jsx 연결을 되살리고 여기 목록을 지우면 된다).
 export const VIEW_ROLES = {
+  dashboard: [ROLES.SUPER],
+  qrgen: [ROLES.SUPER],
   voice: [ROLES.SUB],
   buildings: [ROLES.SUPER],
   sitelayout: [ROLES.SUPER],
@@ -185,6 +186,12 @@ export const VIEW_ROLES = {
 export function isViewAllowed(viewId, role) {
   const allowed = VIEW_ROLES[viewId];
   return !allowed || allowed.includes(role);
+}
+
+// 로그인 직후(또는 보던 화면을 볼 수 없는 역할로 바뀌었을 때) 가장 먼저 보여 줄 화면.
+// 관리자는 공사현황 대시보드, 하도급사는 모바일 모드의 음성 보고 화면이다.
+export function defaultViewFor(role) {
+  return role === ROLES.SUPER ? "dashboard" : "voice";
 }
 
 export const SHAPE_OPTIONS = [

@@ -16,6 +16,12 @@ const dict = {
   ko: {
     "app.brand": "현장검측",
     "app.brandSub": "SITE QC SYSTEM",
+    "platform.brand": "현장통",
+    "platform.title": "스마트 음성인식 시공관리 플랫폼",
+    "platform.subtitle": "광운건설 · 시공사-하도급 실시간 연동",
+    "platform.tab.voice": "음성 보고",
+    "platform.tab.requests": "공사 확인 · NCR",
+    "platform.safety": "안전모 및 개인보호구 필수 착용",
     "role.sub": "하도급사",
     "role.super": "관리자",
     "preview.label": "다른 역할로 보기",
@@ -35,7 +41,7 @@ const dict = {
     "nav.safety": "안전 현황",
 
     "page.operations.title": "공사현황",
-    "page.operations.desc": "대시보드·공사 확인 요청 내역·NCR 관리·표준 공종을 한 곳에서 확인합니다",
+    "page.operations.desc": "공사 확인 요청 내역·NCR 관리·표준 공종을 한 곳에서 확인합니다",
     "page.workers.title": "인력 등록",
     "page.workers.desc": "건설사·공종을 선택해 현장 인력을 등록하고 승인 현황을 확인합니다",
     "page.equipment.title": "건설기계 등록",
@@ -275,7 +281,7 @@ const dict = {
     "status.재검측요청": "재검측요청",
     "status.완료": "완료",
 
-    "login.title": "현장검측",
+    "login.title": "현장통 시작하기",
     "login.subtitleLogin": "로그인하고 시작하세요",
     "login.subtitleSignup": "새 계정을 만드세요",
     "login.id": "아이디 (이메일)",
@@ -458,6 +464,12 @@ const dict = {
   en: {
     "app.brand": "Site QC",
     "app.brandSub": "SITE QC SYSTEM",
+    "platform.brand": "SiteTong",
+    "platform.title": "Smart Voice Construction Management Platform",
+    "platform.subtitle": "Kwangwoon Construction · Live link between contractor and subcontractors",
+    "platform.tab.voice": "Voice report",
+    "platform.tab.requests": "Requests & NCR",
+    "platform.safety": "Hard hat and protective equipment required",
     "role.sub": "Subcontractor",
     "role.super": "Administrator",
     "preview.label": "Preview as",
@@ -477,7 +489,7 @@ const dict = {
     "nav.safety": "Safety Status",
 
     "page.operations.title": "Site Status",
-    "page.operations.desc": "Dashboard, confirmation requests, NCR management, and standard trades in one place",
+    "page.operations.desc": "Confirmation requests, NCR management, and standard trades in one place",
     "page.workers.title": "Worker Registration",
     "page.workers.desc": "Register site workers by company and trade, and check approval status",
     "page.equipment.title": "Equipment Registration",
@@ -717,7 +729,7 @@ const dict = {
     "status.재검측요청": "Re-inspection requested",
     "status.완료": "Resolved",
 
-    "login.title": "Site QC",
+    "login.title": "Get started with SiteTong",
     "login.subtitleLogin": "Log in to get started",
     "login.subtitleSignup": "Create a new account",
     "login.id": "ID (Email)",
@@ -900,6 +912,12 @@ const dict = {
   vi: {
     "app.brand": "Kiểm Định Công Trường",
     "app.brandSub": "SITE QC SYSTEM",
+    "platform.brand": "SiteTong",
+    "platform.title": "Nền tảng quản lý thi công bằng giọng nói thông minh",
+    "platform.subtitle": "Kwangwoon Construction · Liên kết thời gian thực giữa nhà thầu chính và nhà thầu phụ",
+    "platform.tab.voice": "Báo cáo bằng giọng nói",
+    "platform.tab.requests": "Yêu cầu & NCR",
+    "platform.safety": "Bắt buộc đội mũ bảo hộ và đeo thiết bị bảo hộ cá nhân",
     "role.sub": "Nhà thầu phụ",
     "role.super": "Quản trị viên",
     "preview.label": "Xem trước với vai trò",
@@ -919,7 +937,7 @@ const dict = {
     "nav.safety": "Tình trạng an toàn",
 
     "page.operations.title": "Tình trạng công trường",
-    "page.operations.desc": "Xem bảng điều khiển, yêu cầu xác nhận thi công, quản lý NCR và hạng mục tiêu chuẩn tại một nơi",
+    "page.operations.desc": "Xem yêu cầu xác nhận thi công, quản lý NCR và hạng mục tiêu chuẩn tại một nơi",
     "page.workers.title": "Đăng ký nhân lực",
     "page.workers.desc": "Chọn nhà thầu và hạng mục để đăng ký nhân lực và xem trạng thái phê duyệt",
     "page.equipment.title": "Đăng ký thiết bị",
@@ -1159,7 +1177,7 @@ const dict = {
     "status.재검측요청": "Yêu cầu kiểm tra lại",
     "status.완료": "Hoàn thành",
 
-    "login.title": "Kiểm Định Công Trường",
+    "login.title": "Bắt đầu với SiteTong",
     "login.subtitleLogin": "Đăng nhập để bắt đầu",
     "login.subtitleSignup": "Tạo tài khoản mới",
     "login.id": "Tài khoản (Email)",
@@ -1342,6 +1360,12 @@ const dict = {
   zh: {
     "app.brand": "现场检测",
     "app.brandSub": "SITE QC SYSTEM",
+    "platform.brand": "SiteTong",
+    "platform.title": "智能语音识别施工管理平台",
+    "platform.subtitle": "光云建设 · 总包与分包实时联动",
+    "platform.tab.voice": "语音报告",
+    "platform.tab.requests": "施工确认 · NCR",
+    "platform.safety": "必须佩戴安全帽和个人防护装备",
     "role.sub": "分包商",
     "role.super": "管理员",
     "preview.label": "以其他角色预览",
@@ -1361,7 +1385,7 @@ const dict = {
     "nav.safety": "安全现况",
 
     "page.operations.title": "施工现况",
-    "page.operations.desc": "在一处查看仪表板、施工确认申请、NCR管理和标准工种",
+    "page.operations.desc": "在一处查看施工确认申请、NCR管理和标准工种",
     "page.workers.title": "人力登记",
     "page.workers.desc": "选择公司和工种登记现场人力并查看批准状态",
     "page.equipment.title": "机械设备登记",
@@ -1601,7 +1625,7 @@ const dict = {
     "status.재검측요청": "要求复测",
     "status.완료": "已完成",
 
-    "login.title": "现场检测",
+    "login.title": "开始使用 SiteTong",
     "login.subtitleLogin": "登录后开始使用",
     "login.subtitleSignup": "创建新账户",
     "login.id": "账号（邮箱）",

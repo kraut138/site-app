@@ -174,15 +174,22 @@ function ProgressNote({ progress, unitLabel, place, t }) {
 //        unit: { buildingId, floor, unit } - 호실 QR 화면에서만 준다. 주면 위치가 이 호실로 고정되고 이름을 직접 입력받는다.
 //        allBuildings: 현장의 모든 동 - 호실 QR 화면에서 다른 동의 호실을 말했을 때 그 동을 찾는 데 쓴다(buildings에는 이 호실의 동만 넘기므로 따로 받는다. 안 주면 buildings).
 //        checklistItems: 표준 공종의 세부 항목 목록 - ① 세부 공종 선택 칸의 선택지, ② 말한 내용에서 "도배 완료" 같은 진행 상황을 읽어 호실 진행도에 반영할 때 쓴다(없으면 둘 다 하지 않는다).
-export default function VoiceInspection({ buildings, allBuildings = null, userName, notify, unit = null, checklistItems = [] }) {
+//        initialTrade: 공종별 QR(?t=)로 들어왔을 때 미리 골라 둘 공종(frame·finish·mep). 없으면 지난번에 고른 공종.
+//        compact: 좁은 한 줄 칸(모바일 모드)에 맞춰 호실 QR 화면과 같은 한 줄 배치로 보여 준다.
+export default function VoiceInspection({ buildings, allBuildings = null, userName, notify, unit = null, checklistItems = [], initialTrade = "", compact = false }) {
   const { t } = useLanguage();
   const unitMode = !!unit;
   const unitFloor = unitMode ? Number(unit.floor) : 0;
   const unitName = unitMode ? String(unit.unit).trim().slice(0, 30) : ""; // 호수(너무 긴 값은 잘라 쓴다)
   const unitLabel = unitName ? `${unitName}호` : ""; // 부재 칸에 저장되는 값(저장 내용은 한국어 고정). 호수가 비어 있으면 위치를 정할 수 없어 녹음이 잠긴다.
   const [initial] = useState(() => readSaved(unitMode ? UNIT_STORAGE_KEY : STORAGE_KEY));
-  const [tradeId, setTradeId] = useState(() => (VOICE_TRADES.some((x) => x.id === initial.tradeId) ? initial.tradeId : VOICE_TRADES[0].id));
-  const [tradeItem, setTradeItem] = useState(() => (typeof initial.tradeItem === "string" ? initial.tradeItem.slice(0, VOICE_LIMITS.tradeItem) : ""));
+  // initialTrade: "공종별 QR 생성소"에서 만든 QR로 들어왔을 때 그 QR에 담긴 공종(frame·finish·mep). 있으면 지난번에 고른 공종보다 우선한다.
+  const qrTrade = VOICE_TRADES.some((x) => x.id === initialTrade) ? initialTrade : "";
+  const [tradeId, setTradeId] = useState(() => (qrTrade ? qrTrade : VOICE_TRADES.some((x) => x.id === initial.tradeId) ? initial.tradeId : VOICE_TRADES[0].id));
+  // QR의 공종이 지난번 공종과 다르면 지난번에 골라 둔 세부 공종은 이번 공종의 항목이 아니므로 비워 둔다.
+  const [tradeItem, setTradeItem] = useState(() =>
+    typeof initial.tradeItem === "string" && !(qrTrade && qrTrade !== initial.tradeId) ? initial.tradeItem.slice(0, VOICE_LIMITS.tradeItem) : ""
+  );
   const [buildingId, setBuildingId] = useState(() => (buildings.some((b) => b.id === initial.buildingId) ? initial.buildingId : ""));
   const [floor, setFloor] = useState(() => (Number.isInteger(initial.floor) && initial.floor !== 0 ? initial.floor : 1));
   const [elem, setElem] = useState(() => (typeof initial.elem === "string" ? initial.elem.slice(0, VOICE_LIMITS.elem) : ""));
@@ -545,7 +552,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   const hereLabel = building ? `${building.name} ${floorText(activeFloor)} ${unitText}` : "";
 
   return (
-    <div className={`vl-page${unitMode ? " vl-page--unit" : ""}`} data-testid="vl-page">
+    <div className={`vl-page${unitMode ? " vl-page--unit" : ""}${compact ? " vl-page--compact" : ""}`} data-testid="vl-page">
       <section className="card card-pad">
         {unitMode && (
           <div className="vl-unit-head">

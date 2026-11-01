@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
-import Layout from "./components/Layout.jsx";
+import PlatformShell from "./platform/PlatformShell.jsx";
+import PortalDashboard from "./platform/PortalDashboard.jsx";
+import QrGenerator from "./platform/QrGenerator.jsx";
 import OperationsHub from "./components/OperationsHub.jsx";
 import VoiceInspection from "./components/VoiceInspection.jsx";
 import QrBoardScreen from "./components/QrBoardScreen.jsx";
@@ -11,7 +13,7 @@ import LoginScreen from "./components/LoginScreen.jsx";
 import SafetyOverview from "./components/SafetyOverview.jsx";
 import QrUnitScreen from "./components/QrUnitScreen.jsx";
 import { Toast } from "./components/UI.jsx";
-import { ROLES, isAdminRole, isViewAllowed, normalizeRole } from "./data.js";
+import { ROLES, isAdminRole, isViewAllowed, normalizeRole, defaultViewFor } from "./data.js";
 import * as api from "./api.js";
 import { subscribeAuth, fetchUserProfile, logOut, updateUserLanguage } from "./auth.js";
 import { LanguageProvider } from "./LanguageContext.jsx";
@@ -51,7 +53,9 @@ export default function App() {
       }
     }
   }
-  const [view, setView] = useState(initialViewLink || "operations"); // 그 화면을 볼 권한이 없는 역할이면 아래 효과가 "operations"로 돌려보낸다
+  // 고른 화면(view)을 지금 역할이 볼 수 없으면 그 역할의 첫 화면(관리자: 대시보드, 하도급사: 음성 보고)을 대신 보여 준다.
+  // 그래서 모드를 바꿨다가 돌아와도, #glossary 같은 바로가기로 들어와도 빈 화면이 되지 않는다.
+  const [view, setView] = useState(initialViewLink || null);
   const [unitTarget, setUnitTarget] = useState(null);
   const [buildings, setBuildings] = useState([]);
   const [inspections, setInspections] = useState([]);
@@ -109,11 +113,7 @@ export default function App() {
     setViewAsRole(null);
   }
 
-  useEffect(() => {
-    if (role && !isViewAllowed(view, role)) {
-      setView("operations");
-    }
-  }, [role, view]);
+  const activeView = role ? (view && isViewAllowed(view, role) ? view : defaultViewFor(role)) : view;
 
   useEffect(() => {
     // QR 기록판 화면은 공사 데이터가 필요 없으니, 스캔한 사람의 기기에서 전체 데이터를 읽어오지 않는다.
@@ -312,18 +312,21 @@ export default function App() {
   } else {
     content = (
       <>
-        <Layout
+        <PlatformShell
           role={role}
           trueRole={trueRole}
-          viewAsRole={viewAsRole}
           onSetViewAsRole={setViewAsRole}
           userProfile={userProfile}
           onLogout={handleLogout}
-          view={view}
+          view={activeView}
           setView={setView}
           badges={badges}
         >
-          {view === "operations" && (
+          {activeView === "dashboard" && (
+            <PortalDashboard buildings={buildings} inspections={inspections} ncrs={ncrs} notify={notify} />
+          )}
+          {activeView === "qrgen" && <QrGenerator buildings={buildings} notify={notify} onGoBuildings={() => setView("buildings")} />}
+          {activeView === "operations" && (
             <OperationsHub
               key={role}
               role={role}
@@ -344,16 +347,17 @@ export default function App() {
               notify={notify}
             />
           )}
-          {view === "voice" && (
+          {activeView === "voice" && (
             <VoiceInspection
+              compact
               buildings={buildings}
               userName={(userProfile && (userProfile.name || userProfile.email)) || ""}
               notify={notify}
               checklistItems={checklistItems}
             />
           )}
-          {view === "glossary" && <Glossary adminName={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />}
-          {view === "safety" && (
+          {activeView === "glossary" && <Glossary adminName={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />}
+          {activeView === "safety" && (
             <SafetyOverview
               role={role}
               buildings={buildings}
@@ -366,7 +370,7 @@ export default function App() {
               notify={notify}
             />
           )}
-          {view === "unitinfo" && (
+          {activeView === "unitinfo" && (
             <UnitInfo
               buildings={buildings}
               inspections={inspections}
@@ -382,7 +386,7 @@ export default function App() {
               userName={(userProfile && (userProfile.name || userProfile.email)) || ""}
             />
           )}
-          {view === "buildings" && (
+          {activeView === "buildings" && (
             <Buildings
               buildings={buildings}
               onCreate={handleCreateBuilding}
@@ -398,10 +402,10 @@ export default function App() {
               notify={notify}
             />
           )}
-          {view === "sitelayout" && (
+          {activeView === "sitelayout" && (
             <SiteLayout buildings={buildings} checklistItems={checklistItems} inspections={inspections} onNavigateToUnit={handleNavigateToUnit} />
           )}
-        </Layout>
+        </PlatformShell>
         <Toast message={toast} onDone={() => setToast("")} />
       </>
     );

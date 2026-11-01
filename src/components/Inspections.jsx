@@ -4,7 +4,6 @@ import { Icon, StatusBadge, CategoryTag, Modal, EmptyState, Stamp } from "./UI.j
 import DrawingPin from "./DrawingPin.jsx";
 import ConfirmationRequestForm from "./ConfirmationRequestForm.jsx";
 import { useLanguage } from "../LanguageContext.jsx";
-import { LANGUAGES } from "../i18n.js";
 
 const TAB_KEYS = [
   { value: "전체", key: "insp.tab.all" },
@@ -24,7 +23,7 @@ export default function Inspections({
   onBatchUpdateStatus,
   notify,
 }) {
-  const { t, lang, setLang } = useLanguage();
+  const { t } = useLanguage();
   const [tab, setTab] = useState("전체");
   const [selectedId, setSelectedId] = useState(null);
   const [checkedIds, setCheckedIds] = useState(new Set());
@@ -313,25 +312,6 @@ export default function Inspections({
           })
         )}
       </div>
-
-      {role === ROLES.SUB && (
-        <div className="card card-pad" style={{ marginTop: 16 }}>
-          <div className="section-head">
-            <div className="section-title">{t("dashboard.language")}</div>
-          </div>
-          <div className="language-picker">
-            {LANGUAGES.map((l) => (
-              <button
-                key={l.code}
-                className={`language-pill${lang === l.code ? " active" : ""}`}
-                onClick={() => setLang(l.code)}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {selected && (
         <InspectionDetail

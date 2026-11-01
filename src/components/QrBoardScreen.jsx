@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { LanguageProvider, useLanguage } from "../LanguageContext.jsx";
 import { LANGUAGES, DEFAULT_LANGUAGE } from "../i18n.js";
+import BrandFrame from "../platform/BrandFrame.jsx";
 import * as api from "../api.js";
 import QrComposer from "./QrComposer.jsx";
 import QrEntryList from "./QrEntryList.jsx";
@@ -64,34 +65,34 @@ function Board({ qrId, lang, onChangeLang }) {
     return created;
   }
 
+  const langSwitch = (
+    <div className="qr-lang flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700" role="group" aria-label="Language">
+      {LANGUAGES.map((l) => (
+        <button
+          key={l.code}
+          type="button"
+          className={`qr-lang-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all${
+            lang === l.code ? " active bg-blue-600 text-white shadow" : " text-slate-400 hover:text-white"
+          }`}
+          onClick={() => onChangeLang(l.code)}
+          data-testid={`qr-lang-${l.code}`}
+        >
+          {l.label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="qr-screen" data-testid="qr-board">
-      <div className="qr-screen-header">
-        <div className="qr-board-topline">
-          <span className="qr-screen-brand">{t("app.brand")}</span>
-          <div className="qr-lang" role="group" aria-label="Language">
-            {LANGUAGES.map((l) => (
-              <button
-                key={l.code}
-                type="button"
-                className={`qr-lang-btn${lang === l.code ? " active" : ""}`}
-                onClick={() => onChangeLang(l.code)}
-                data-testid={`qr-lang-${l.code}`}
-              >
-                {l.label}
-              </button>
-            ))}
+    <BrandFrame narrow testId="qr-board" rootClass="qr-screen" right={langSwitch}>
+      {status === "ready" && code && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-4">
+          <div className="qr-screen-title text-2xl font-black text-slate-900 tracking-tight" data-testid="qr-board-title">
+            {code.title}
           </div>
+          {code.note ? <div className="qr-board-note text-xs text-slate-500 mt-1">{code.note}</div> : null}
         </div>
-        {status === "ready" && code && (
-          <>
-            <div className="qr-screen-title" data-testid="qr-board-title">
-              {code.title}
-            </div>
-            {code.note ? <div className="qr-board-note">{code.note}</div> : null}
-          </>
-        )}
-      </div>
+      )}
 
       <div className="qr-screen-body">
         {status === "loading" && (
@@ -129,7 +130,7 @@ function Board({ qrId, lang, onChangeLang }) {
           </>
         )}
       </div>
-    </div>
+    </BrandFrame>
   );
 }
 

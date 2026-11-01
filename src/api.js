@@ -9,6 +9,9 @@ import {
   setDoc,
   query,
   where,
+  orderBy,
+  limit,
+  onSnapshot,
   writeBatch,
   arrayUnion,
 } from "firebase/firestore";
@@ -668,6 +671,21 @@ export async function fetchFloorVoiceReports(buildingId, floor) {
   const q = query(collection(db, "voiceReports"), where("buildingId", "==", String(buildingId || "")), where("floor", "==", Number(floor)));
   const snap = await withTimeout(getDocs(q), VOICE_FLOOR_READ_TIMEOUT_MS, "voice/timeout");
   return snapToArray(snap).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+}
+
+// 관리자 대시보드의 "실시간 음성 보고 피드": 화면이 열려 있는 동안만 가장 최근 보고 count건을 실시간으로 받는다(onSnapshot).
+// 처음에 count건을 읽고 그 뒤로는 새로 생기거나 바뀐 보고만 읽으므로 무료 요금제의 읽기 한도를 거의 쓰지 않는다.
+// timestamp 한 필드의 정렬은 Firestore가 자동으로 만들어 두는 색인으로 처리되어 따로 색인을 만들 필요가 없다.
+// onData(보고 배열, 최신순)·onError(오류)를 넘기고, 돌려주는 함수를 부르면 구독이 끝난다.
+export function subscribeRecentVoiceReports(count, onData, onError) {
+  const q = query(collection(db, "voiceReports"), orderBy("timestamp", "desc"), limit(count));
+  return onSnapshot(
+    q,
+    (snap) => onData(snapToArray(snap)),
+    (err) => {
+      if (onError) onError(err);
+    }
+  );
 }
 
 // 관리자가 잘못 인식된 보고를 호실 진행도에서 빼거나(off=true) 다시 넣는다(off=false). 보고 자체(글·요약)는 그대로 남는다.

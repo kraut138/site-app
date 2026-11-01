@@ -11,7 +11,8 @@ const NCR_COLOR = {
   완료: "var(--pass)",
 };
 
-export default function Dashboard({ buildings, inspections, ncrs }) {
+// hideStats: 위쪽 숫자 카드 4개를 숨긴다(현장통 대시보드가 같은 숫자를 자기 카드로 먼저 보여 줄 때 쓴다).
+export default function Dashboard({ buildings, inspections, ncrs, hideStats = false }) {
   const { t } = useLanguage();
   const total = inspections.length;
   const approved = inspections.filter((i) => i.status === "승인").length;
@@ -40,6 +41,7 @@ export default function Dashboard({ buildings, inspections, ncrs }) {
 
   return (
     <div>
+      {!hideStats && (
       <div className="grid grid-4" style={{ marginBottom: 18 }}>
         <StatCard label={t("dashboard.totalRequests")} value={total} unit={t("common.case")} sub={`${t("dashboard.pending")} ${pending}${t("common.case")}`} />
         <StatCard
@@ -63,6 +65,7 @@ export default function Dashboard({ buildings, inspections, ncrs }) {
           sub={t("dashboard.totalUnits", { count: buildings.reduce((s, b) => s + b.floors * b.unitsPerFloor, 0) })}
         />
       </div>
+      )}
 
       <div className="grid grid-2" style={{ marginBottom: 16, alignItems: "start" }}>
         <div className="card card-pad">

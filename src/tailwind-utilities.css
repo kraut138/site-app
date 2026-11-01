@@ -1,0 +1,4 @@
+/* 현장통 디자인 엔진(Tailwind)의 부품·유틸리티 클래스(bg-slate-100, rounded-2xl 같은 것들).
+   styles.css(앱 기존 부품 스타일)보다 나중에 불러와서, 새 화면에서 붙인 유틸리티 클래스가 기존 스타일과 겹칠 때 항상 이긴다. */
+@tailwind components;
+@tailwind utilities;

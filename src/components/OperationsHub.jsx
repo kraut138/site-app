@@ -1,13 +1,11 @@
 import React, { useState } from "react";
-import { ROLES, isAdminRole } from "../data.js";
-import Dashboard from "./Dashboard.jsx";
 import Inspections from "./Inspections.jsx";
 import NCR from "./NCR.jsx";
 import Checklist from "./Checklist.jsx";
 import { useLanguage } from "../LanguageContext.jsx";
 
+// 공사현황 대시보드는 현장통 화면의 첫 번째 탭(platform/PortalDashboard.jsx)으로 옮겼다. 여기에는 나머지 세 가지만 남는다.
 const SUBTABS = [
-  { id: "dashboard", labelKey: "ops.tab.dashboard", restrictedToSuper: true },
   { id: "inspections", labelKey: "ops.tab.inspections", badgeKey: "pending" },
   { id: "ncr", labelKey: "ops.tab.ncr", badgeKey: "ncr" },
   { id: "checklist", labelKey: "ops.tab.checklist" },
@@ -32,14 +30,13 @@ export default function OperationsHub({
   notify,
 }) {
   const { t } = useLanguage();
-  const visibleSubTabs = SUBTABS.filter((t) => !t.restrictedToSuper || isAdminRole(role));
-  const [subTab, setSubTab] = useState(isAdminRole(role) ? "dashboard" : "inspections");
-  const activeSubTab = visibleSubTabs.some((t) => t.id === subTab) ? subTab : visibleSubTabs[0]?.id;
+  const [subTab, setSubTab] = useState("inspections");
+  const activeSubTab = SUBTABS.some((t) => t.id === subTab) ? subTab : SUBTABS[0].id;
 
   return (
     <div>
       <div className="ops-subtabs">
-        {visibleSubTabs.map((tab) => {
+        {SUBTABS.map((tab) => {
           const badge = tab.badgeKey ? badges[tab.badgeKey] : 0;
           return (
             <button
@@ -53,8 +50,6 @@ export default function OperationsHub({
           );
         })}
       </div>
-
-      {activeSubTab === "dashboard" && <Dashboard buildings={buildings} inspections={inspections} ncrs={ncrs} />}
 
       {activeSubTab === "inspections" && (
         <Inspections

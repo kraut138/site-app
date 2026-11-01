@@ -1,4 +1,7 @@
 import React, { useState } from "react";
+import { QrCode, MapPin } from "lucide-react";
+import BrandFrame from "../platform/BrandFrame.jsx";
+import { CATEGORIES } from "../data.js";
 import { Toast } from "./UI.jsx";
 import UnitDetailPanel from "./UnitDetailPanel.jsx";
 import ConfirmationRequestForm from "./ConfirmationRequestForm.jsx";
@@ -31,25 +34,41 @@ export default function QrUnitScreen({
 
   if (!building) {
     return (
-      <div className="qr-screen">
-        <div className="qr-screen-header">
-          <span className="qr-screen-brand">현장검측</span>
-        </div>
+      <BrandFrame narrow testId="qr-screen" rootClass="qr-screen">
         <div className="qr-screen-body">
           <div className="card card-pad" style={{ textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>
             등록된 동 정보를 찾을 수 없습니다.
           </div>
         </div>
-      </div>
+      </BrandFrame>
     );
   }
 
+  // 공종별 QR 생성소에서 만든 QR이면 그 공종의 이름과 색으로, 호실만 담긴 예전 QR이면 기본(회색)으로 보여 준다.
+  const trade = CATEGORIES.find((c) => c.id === target.trade) || null;
+
   return (
-    <div className="qr-screen">
-      <div className="qr-screen-header">
-        <span className="qr-screen-brand">현장검측</span>
-        <div className="qr-screen-title">
-          {building.name} {target.floor}층 {target.unit}호
+    <BrandFrame narrow testId="qr-screen" rootClass="qr-screen">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-4" data-testid="qr-location-banner">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full text-white shadow-sm"
+            style={{ backgroundColor: trade ? trade.color : "#475569" }}
+            data-testid="qr-trade-badge"
+          >
+            <QrCode className="w-3.5 h-3.5" aria-hidden="true" />
+            {trade ? trade.name : "호실 QR"}
+          </span>
+          <span className="text-xs text-slate-400 flex items-center gap-1 font-medium">
+            <MapPin className="w-3.5 h-3.5 text-rose-500" aria-hidden="true" />
+            현장 QR 인식됨
+          </span>
+        </div>
+        <div className="mt-3">
+          <h2 className="qr-screen-title text-2xl font-black text-slate-900 tracking-tight" data-testid="qr-unit-title">
+            {building.name} {target.floor}층 {target.unit}호
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">마이크를 누르고 작업 완료 내용을 편하게 말씀해주세요.</p>
         </div>
       </div>
 
@@ -61,6 +80,7 @@ export default function QrUnitScreen({
             unit={{ buildingId: building.id, floor: target.floor, unit: target.unit }}
             notify={notify}
             checklistItems={checklistItems}
+            initialTrade={target.trade || ""}
           />
         )}
 
@@ -107,6 +127,6 @@ export default function QrUnitScreen({
       </div>
 
       <Toast message={toast} onDone={() => setToast("")} />
-    </div>
+    </BrandFrame>
   );
 }

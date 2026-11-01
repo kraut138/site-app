@@ -1,0 +1,3 @@
+/* 현장통 디자인 엔진(Tailwind)의 "기본 정리"(브라우저 기본 모양을 같게 맞추는 부분).
+   styles.css(앱 기존 부품 스타일)보다 먼저 불러온다. 부품·유틸리티 클래스는 tailwind-utilities.css에 있다. */
+@tailwind base;

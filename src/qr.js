@@ -4,20 +4,28 @@
 
 // 쿼리 파라미터 이름은 짧게(b/f/u) 유지 - QR 코드에 담기는 URL이 짧을수록
 // 코드 패턴이 단순해져 스캔이 더 잘 되고 인쇄 크기도 작아진다.
-export function buildUnitDeepLink(buildingId, floor, unit) {
+// t(공종)는 "공종별 QR 생성소"에서 만든 QR에만 붙는다: 스캔하면 음성 검측의 공종이 그 공종으로 미리 골라져 있다(frame·finish·mep).
+// t가 없거나 알 수 없는 값이면 예전 QR과 똑같이 동작한다.
+export const QR_TRADE_IDS = ["frame", "finish", "mep"];
+
+export function buildUnitDeepLink(buildingId, floor, unit, trade = "") {
   const base = `${window.location.origin}${window.location.pathname}`;
   const params = new URLSearchParams({ b: buildingId, f: String(floor), u: unit });
+  if (QR_TRADE_IDS.includes(trade)) params.set("t", trade);
   return `${base}?${params.toString()}`;
 }
 
-// 현재 페이지 URL에서 딥링크 파라미터를 읽는다. 없으면 null.
+// 현재 페이지 URL에서 딥링크 파라미터를 읽는다. 없으면 null. 공종(t)이 올바르게 들어 있을 때만 trade가 붙는다.
 export function readUnitDeepLink() {
   const params = new URLSearchParams(window.location.search);
   const b = params.get("b");
   const f = params.get("f");
   const u = params.get("u");
   if (!b || !f || !u) return null;
-  return { buildingId: b, floor: Number(f), unit: u };
+  const t = params.get("t");
+  const link = { buildingId: b, floor: Number(f), unit: u };
+  if (QR_TRADE_IDS.includes(t)) link.trade = t;
+  return link;
 }
 
 // 딥링크로 진입한 경우, 주소창에 파라미터가 계속 남아있으면 이후 새로고침 시에도
