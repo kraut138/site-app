@@ -1,6 +1,5 @@
 // 현장통 화면의 탭 목록. 관리자 포털과 하도급 모바일 모드가 각각 다른 탭을 가진다.
-// id는 App.jsx의 view 값과 같고(data.js의 VIEW_ROLES가 역할별로 열 수 있는 화면을 정한다),
-// 화면 바로가기(#glossary)도 이 id를 그대로 쓴다.
+// id는 App.jsx의 view 값과 같고(data.js의 VIEW_ROLES가 역할별로 열 수 있는 화면을 정한다).
 import {
   LayoutDashboard,
   QrCode,

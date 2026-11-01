@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { Map as MapIcon, History as HistoryIcon } from "lucide-react";
 import { CATEGORIES, getCategory, formatDateTime, categoryProgress, itemsForCategory, itemStatusForUnit, findUnitFloorPlan } from "../data.js";
 import { Icon, EmptyState, CategoryTag, StatusBadge } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
@@ -213,7 +214,10 @@ function RecordRow({ report, related, view }) {
 }
 
 // 공종별 진행도 카드('감리 승인' 막대 + '음성 보고' 막대)와 음성 기록 카드. 관리자 '호실 정보'에서만 보인다.
-function UnitProgressCards({ building, buildingId, floor, unit, inspections, checklistItems, canEdit, userName, notify }) {
+// children이 함수면 두 카드를 직접 놓지 않고 { gauge, progressCard, recordsCard }를 넘겨 호출한 결과를 그린다(카드 배치는 부르는 쪽이 정한다).
+//   gauge = { percent, state }: 상단 '통합 호실 공정률'에 쓰는 값. state는 loading(음성 보고를 읽는 중) | error(읽지 못함) | none(세부 공종 항목이 없음) | ready
+//   gap: 카드 아래 간격(px) - 배치하는 쪽이 간격을 직접 주면 0
+function UnitProgressCards({ building, buildingId, floor, unit, inspections, checklistItems, canEdit, userName, notify, gap = 16, children }) {
   const voice = useFloorVoiceReports(buildingId, floor);
   const [offMap, setOffMap] = useState({}); // 이 화면에서 제외/복구한 보고 { id: 제외 여부 }
   const [voiceBusy, setVoiceBusy] = useState(false);
@@ -260,8 +264,27 @@ function UnitProgressCards({ building, buildingId, floor, unit, inspections, che
   const waiting = voice.status === "loading" && records.length === 0;
   const countOf = (n) => (waiting ? "…" : n);
 
+  // 통합 호실 공정률: 이 호실의 모든 세부 공종 항목마다 "감리가 승인했으면 100%, 아니면 음성 보고에서 읽은 진행률"을 구해 평균 낸 값.
+  // (아래 공종별 진행도에 보이는 항목 표시 - 승인 체크 · 음성 칩 - 을 그대로 합친 것이라 직접 세어 확인할 수 있다)
+  const gaugePercent = useMemo(() => {
+    let total = 0;
+    let sum = 0;
+    for (const c of CATEGORIES) {
+      for (const item of itemsForCategory(checklistItems, c.id)) {
+        total += 1;
+        if (itemStatusForUnit(inspections, buildingId, floor, unit, item.id) === "승인") sum += 100;
+        else sum += voiceProgress.byItem[item.id] ? voiceProgress.byItem[item.id].percent : 0;
+      }
+    }
+    return total ? Math.round(sum / total) : null;
+  }, [inspections, checklistItems, buildingId, floor, unit, voiceProgress]);
+  const gauge = {
+    percent: gaugePercent,
+    state: voice.status === "error" ? "error" : waiting ? "loading" : gaugePercent === null ? "none" : "ready",
+  };
+
   const progressCard = (
-    <div className="card card-pad" style={{ marginBottom: 16 }}>
+    <div className="card card-pad" style={{ marginBottom: gap }}>
       <div className="section-head">
         <div className="section-title">
           {building ? building.name : ""} {floor}층 {unit}호 · 공종별 진행도
@@ -349,9 +372,12 @@ function UnitProgressCards({ building, buildingId, floor, unit, inspections, che
   );
 
   const recordsCard = (
-    <div className="card card-pad" style={{ marginBottom: 16 }} data-testid="up-rec-card">
+    <div className="card card-pad" style={{ marginBottom: gap }} data-testid="up-rec-card">
       <div className="section-head">
-        <div className="section-title">음성 기록</div>
+        <div className="section-title">
+          <HistoryIcon className="w-4 h-4 text-blue-600" aria-hidden="true" />
+          음성 기록
+        </div>
         <button type="button" className="btn btn-ghost btn-sm up-rec-refresh" onClick={voice.reload} disabled={voice.status === "loading"} data-testid="up-rec-refresh">
           {voice.status === "loading" ? "읽는 중…" : "새로고침"}
         </button>
@@ -409,6 +435,7 @@ function UnitProgressCards({ building, buildingId, floor, unit, inspections, che
     </div>
   );
 
+  if (typeof children === "function") return children({ gauge, progressCard, recordsCard });
   return (
     <>
       {progressCard}
@@ -423,7 +450,8 @@ function UnitProgressCards({ building, buildingId, floor, unit, inspections, che
  * - building, buildingId, floor, unit
  * - inspections, checklistItems, unitNotes, unitFloorPlans
  * - onCreateNote, onDeleteNote, notify
- * - layout: "split"(기본, 좌우 2열) | "stacked"(세로로 순서대로, 모바일 화면용)
+ * - layout: "split"(기본, 좌우 2열: 평면도·진행도 | 음성 기록·특이사항) | "stacked"(세로로 순서대로, 모바일 화면용)
+ * - toolbar: split 배치에서 카드들 위에 놓을 줄을 그리는 함수. ({ gauge }) => 화면. gauge = { percent, state } ('통합 호실 공정률')
  * - showProgress: false면 공종별 진행도·음성 기록 카드를 빼고(음성 보고도 읽지 않는다) 특이사항·평면도만 보여 준다. 호실 QR 화면이 이렇게 쓴다.
  * - canEdit: 관리자만 true - 잘못 반영된 음성 보고를 진행도에서 제외/복구할 수 있다. userName: 그때 기록해 둘 이름.
  */
@@ -440,6 +468,7 @@ export default function UnitDetailPanel({
   onDeleteNote,
   notify,
   layout = "split",
+  toolbar = null,
   showProgress = true,
   canEdit = false,
   userName = "",
@@ -556,7 +585,7 @@ export default function UnitDetailPanel({
                   border: `1.5px solid ${nextPinColor}`,
                 }}
               />
-              {draftPin ? "위치가 지정됐어요" : "아래 도면을 클릭해 위치를 지정하세요"}
+              {draftPin ? "위치가 지정됐어요" : layout === "stacked" ? "아래 도면을 클릭해 위치를 지정하세요" : "평면도를 클릭해 위치를 지정하세요"}
               <button type="button" className="btn btn-ghost btn-sm" style={{ padding: "3px 8px" }} onClick={cancelAddingPin}>
                 취소
               </button>
@@ -602,9 +631,12 @@ export default function UnitDetailPanel({
   );
 
   const planCard = (
-    <div className="card card-pad">
+    <div className="card card-pad" data-testid="unit-plan-card">
       <div className="section-head">
-        <div className="section-title">호실 평면도</div>
+        <div className="section-title">
+          <MapIcon className="w-4 h-4 text-blue-600" aria-hidden="true" />
+          호실 평면도
+        </div>
         <span className="eyebrow">{addingPin ? "특이사항 위치 지정 중" : `검측 위치 ${allPins.length}건 표시`}</span>
       </div>
       <DrawingPin
@@ -633,13 +665,40 @@ export default function UnitDetailPanel({
     );
   }
 
-  return (
-    <div className="grid grid-2" style={{ alignItems: "start" }}>
-      <div>
-        {progressPart}
-        {notesCard}
+  // 넓은 화면 2열(관리자 '호실 정보', 현장통 화면의 배치): 왼쪽에 평면도 → 공종별 진행도, 오른쪽에 음성 기록 → 특이사항.
+  // 위쪽에는 toolbar(호실 탐색 줄)가 오고, 좁은 화면에서는 한 열로 차례로 쌓인다. 두 열을 따로 쌓아서 한쪽 카드가 길어도 다른 쪽에 빈칸이 생기지 않는다.
+  const columns = (gauge, progressNode, recordsNode) => (
+    <div className="space-y-6" data-testid="unit-detail">
+      {typeof toolbar === "function" ? toolbar({ gauge }) : null}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="lg:col-span-7 flex flex-col gap-6 min-w-0" data-testid="unit-col-main">
+          {planCard}
+          {progressNode}
+        </div>
+        <div className="lg:col-span-5 flex flex-col gap-6 min-w-0" data-testid="unit-col-side">
+          {recordsNode}
+          {notesCard}
+        </div>
       </div>
-      {planCard}
     </div>
+  );
+
+  if (!showProgress) return columns({ percent: null, state: "none" }, null, null);
+
+  return (
+    <UnitProgressCards
+      building={building}
+      buildingId={buildingId}
+      floor={floor}
+      unit={unit}
+      inspections={inspections}
+      checklistItems={checklistItems}
+      canEdit={canEdit}
+      userName={userName}
+      notify={notify}
+      gap={0}
+    >
+      {({ gauge, progressCard, recordsCard }) => columns(gauge, progressCard, recordsCard)}
+    </UnitProgressCards>
   );
 }

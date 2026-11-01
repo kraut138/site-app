@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>현장통 (SiteTong)</title>
+    <!--
+      이 파일은 고칠 필요가 없는 "옛 주소 안내 파일"이다. 화면은 저장소 맨 위의 index.html 하나뿐이다.
+      예전 주소(…/app/)로 들어오면 사이트 첫 주소로 보낸다.
+      이미 인쇄해 붙인 QR 코드(?b=동&f=층&u=호, ?qr=코드)가 그대로 동작하도록 주소 뒤쪽 값을 함께 넘긴다.
+    -->
+    <script>
+      try {
+        location.replace("../" + location.search + location.hash);
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <p style="font-family: sans-serif; padding: 24px">현장통으로 이동합니다… <a href="../">바로 가기</a></p>
+  </body>
+</html>

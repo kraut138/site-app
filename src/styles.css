@@ -190,7 +190,7 @@ textarea {
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-l); /* 현장통 화면의 카드(rounded-2xl) */
   box-shadow: var(--shadow-card);
 }
 
@@ -2129,7 +2129,7 @@ textarea.input {
 .gl-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px; /* 다른 탭과 같은 카드 간격(space-y-6) */
   /* 바뀐 낱말 강조(.vl-mark)가 이 화면에서도 같은 모양으로 보이도록 */
   --vl: var(--blueprint);
   --vl-tint: #17456f1c;
@@ -2155,9 +2155,9 @@ textarea.input {
 /* 변환 방식 스위치: 용어 DB에 있는 단어만 남기기 */
 /* 용어 DB 탭: 변환 방식 스위치 ('용어 DB에 있는 단어만 남기기') - 엑셀 올리기의 .gl-mode(반영 방식 선택지)와 이름이 겹치지 않게 gl-onlydb로 둔다 */
 .gl-onlydb {
-  margin-top: 14px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
+  /* 변환 방식 카드의 첫 내용이라 위쪽 구분선·여백은 없다 */
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .gl-onlydb-switch {
@@ -2371,23 +2371,51 @@ textarea.input {
 
 .gl-table-head {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 20px 12px;
+  padding: 20px 20px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* 제목·설명 묶음(찾기 칸은 오른쪽, 좁으면 아래로 내려간다) */
+.gl-table-title {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.gl-table-sub {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-faint);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .gl-search {
   max-width: 260px;
 }
 
+/* 새 은어 등록 카드 안의 양식: 한 줄에 하나씩 */
 .gl-add {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
-  gap: 10px 12px;
-  align-items: end;
-  padding: 0 20px 16px;
-  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gl-add-note {
+  margin: 16px 0 0;
+  padding: 12px;
+  border-radius: var(--radius-m);
+  background: #faf5ff; /* purple-50 */
+  color: #581c87; /* purple-900 */
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.6;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .gl-add .field {
@@ -2395,8 +2423,11 @@ textarea.input {
 }
 
 .gl-add-msg {
-  grid-column: 1 / -1;
   margin-top: -2px;
+}
+
+.gl-add-btn {
+  width: 100%;
 }
 
 .gl-error {
@@ -2798,19 +2829,11 @@ textarea.input {
 
 @media (max-width: 720px) {
   .gl-table-head {
-    flex-wrap: wrap;
     padding: 14px 14px 10px;
   }
   .gl-search {
     flex: 1 1 100%;
     max-width: none;
-  }
-  .gl-add {
-    grid-template-columns: minmax(0, 1fr);
-    padding: 0 14px 14px;
-  }
-  .gl-add-btn {
-    width: 100%;
   }
   .gl-edit {
     grid-template-columns: minmax(0, 1fr);

@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { unitOptions } from "../data.js";
+import { unitOptions, findUnitFloorPlan } from "../data.js";
 import { EmptyState } from "./UI.jsx";
 import UnitDetailPanel from "./UnitDetailPanel.jsx";
+
+// 호실 탐색 줄의 선택 칸 모양(현장통 화면)
+const PICKER_SELECT = "text-xs font-semibold border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500";
 
 export default function UnitInfo({
   buildings,
@@ -46,14 +49,25 @@ export default function UnitInfo({
     );
   }
 
-  return (
-    <div>
-      <div className="card card-pad" style={{ marginBottom: 16 }}>
-        <div className="field-row" style={{ marginBottom: 0 }}>
-          <div className="field">
-            <label>동</label>
+  // 호실 탐색 줄(현장통 화면 모양): 왼쪽에 동 · 층 · 호 선택, 오른쪽에 '통합 호실 공정률'.
+  // 공정률은 아래 카드들이 읽은 음성 보고와 감리 승인으로 계산하므로, 카드를 그리는 UnitDetailPanel이 값을 넘겨 준다.
+  const toolbar = ({ gauge }) => {
+    const gaugeText = gauge.state === "loading" ? "…" : gauge.state === "ready" ? `${gauge.percent}%` : "–";
+    const gaugeHelp =
+      gauge.state === "error"
+        ? "음성 보고를 읽지 못해서 공정률을 계산하지 못했어요. 아래 ‘음성 새로고침’을 눌러 주세요."
+        : "이 호실의 모든 세부 공종 항목에서, 감리가 승인했거나 음성 보고로 읽은 진행률을 평균 낸 값이에요.";
+    return (
+      <div
+        className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3"
+        data-testid="unit-picker"
+      >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-xs font-bold text-slate-500 w-full sm:w-auto">호실 탐색:</span>
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             <select
-              className="input"
+              aria-label="동"
+              className={PICKER_SELECT}
               value={buildingId}
               onChange={(e) => {
                 setBuildingId(e.target.value);
@@ -65,44 +79,56 @@ export default function UnitInfo({
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
-          </div>
-          <div className="field">
-            <label>층</label>
-            <select className="input" value={floor} onChange={(e) => setFloor(Number(e.target.value))}>
+            <select aria-label="층" className={PICKER_SELECT} value={floor} onChange={(e) => setFloor(Number(e.target.value))}>
               {building &&
                 Array.from({ length: building.floors }, (_, i) => i + 1).map((f) => (
                   <option key={f} value={f}>{f}층</option>
                 ))}
             </select>
-          </div>
-          <div className="field">
-            <label>호</label>
-            <select className="input" value={unit} onChange={(e) => setUnit(e.target.value)}>
+            <select aria-label="호" className={PICKER_SELECT} value={unit} onChange={(e) => setUnit(e.target.value)}>
               {building &&
-                unitOptions(building.unitsPerFloor).map((u) => (
-                  <option key={u} value={u}>{u}호</option>
-                ))}
+                unitOptions(building.unitsPerFloor).map((u) => {
+                  const plan = findUnitFloorPlan(unitFloorPlans, buildingId, u);
+                  return (
+                    <option key={u} value={u}>{u}호{plan && plan.name ? ` (${plan.name})` : ""}</option>
+                  );
+                })}
             </select>
           </div>
         </div>
+        <div className="flex items-center gap-2" title={gaugeHelp}>
+          <span className="text-xs text-slate-500">통합 호실 공정률:</span>
+          <span
+            className="text-sm font-black text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200"
+            data-testid="unit-gauge"
+            data-state={gauge.state}
+            aria-label={`통합 호실 공정률 ${gaugeText}`}
+          >
+            {gaugeText}
+          </span>
+        </div>
       </div>
+    );
+  };
 
-      <UnitDetailPanel
-        building={building}
-        buildingId={buildingId}
-        floor={floor}
-        unit={unit}
-        inspections={inspections}
-        checklistItems={checklistItems}
-        unitNotes={unitNotes}
-        unitFloorPlans={unitFloorPlans}
-        onCreateNote={onCreateNote}
-        onDeleteNote={onDeleteNote}
-        notify={notify}
-        layout="split"
-        canEdit={canEdit}
-        userName={userName}
-      />
-    </div>
+  return (
+    <UnitDetailPanel
+      building={building}
+      buildingId={buildingId}
+      floor={floor}
+      unit={unit}
+      inspections={inspections}
+      checklistItems={checklistItems}
+      unitNotes={unitNotes}
+      unitFloorPlans={unitFloorPlans}
+      onCreateNote={onCreateNote}
+      onDeleteNote={onDeleteNote}
+      notify={notify}
+      layout="split"
+      toolbar={toolbar}
+      canEdit={canEdit}
+      userName={userName}
+    />
   );
 }
+

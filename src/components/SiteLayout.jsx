@@ -12,10 +12,7 @@ export default function SiteLayout({ buildings, checklistItems, inspections, onN
   }
 
   return (
-    <div className="card card-pad">
-      <div className="section-head">
-        <span className="eyebrow">전체 동 · 승인된 세대 표시</span>
-      </div>
+    <div className="card card-pad" data-testid="golgu-card">
       <GolguDiagram buildings={buildings} inspections={inspections} checklistItems={checklistItems} onNavigateToUnit={onNavigateToUnit} />
     </div>
   );

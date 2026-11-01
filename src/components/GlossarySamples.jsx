@@ -47,7 +47,7 @@ function errorText(err) {
 
 function termMessage(check) {
   if (check.code === "duplicate" && check.existing) {
-    return `이미 표에 있는 은어예요 (${check.existing.slang} → ${check.existing.standard}). 아래 용어 표에서 그 줄을 고쳐 주세요.`;
+    return `이미 표에 있는 은어예요 (${check.existing.slang} → ${check.existing.standard}). 위의 용어 표에서 그 줄을 고쳐 주세요.`;
   }
   return GLOSSARY_MESSAGES[check.code] || "입력한 값을 확인해 주세요.";
 }

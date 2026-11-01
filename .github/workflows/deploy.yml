@@ -21,6 +21,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 화면은 저장소 맨 위의 index.html 하나뿐이고, 코드는 src 폴더 안에만 둡니다.
+      # 잘못 올렸을 때 사이트가 조용히 망가지지 않도록, 배포 전에 구조를 확인하고 결과를 이 실행 화면(Annotations)에 한국어로 알려 줍니다.
+      - name: Check project structure
+        shell: bash
+        run: |
+          # 1) index.html이 예전 시안(정적 화면)으로 덮어써졌거나 src가 지워졌으면, 여기서 멈춥니다(사이트는 이전 상태 그대로 남습니다).
+          if ! grep -q 'src/main.jsx' index.html; then
+            echo "::error title=index.html이 통합 플랫폼 파일이 아니에요::저장소 맨 위의 index.html이 예전 시안으로 덮어써진 것 같아요. 사이트는 이전 상태 그대로 두고 배포를 멈췄어요. index.html을 통합 플랫폼 버전으로 되돌려 주세요."
+            exit 1
+          fi
+          if [ ! -f src/main.jsx ] || [ ! -f src/App.jsx ]; then
+            echo "::error title=src 폴더가 비어 있거나 없어요::앱 코드는 src 폴더 안에 있어야 해요. 사이트는 이전 상태 그대로 두고 배포를 멈췄어요. 정리하다가 src 폴더가 지워졌는지 확인해 주세요."
+            exit 1
+          fi
+          # 2) 사이트에 반영되지 않는 낯선 파일이 저장소 맨 위에 있으면 알려 줍니다(배포는 계속합니다).
+          stray=""
+          while IFS= read -r name; do
+            case "$name" in
+              .git|.github|.gitattributes|.gitignore|README.md|firestore.rules|index.html|package.json|package-lock.json|postcss.config.js|public|src|tailwind.config.js|vite.config.js) ;;
+              *) stray="$stray [$name]" ;;
+            esac
+          done < <(find . -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
+          if [ -n "$stray" ]; then
+            echo "::warning title=저장소 맨 위에 낯선 파일이 있어요::사이트에 반영되지 않는 파일이에요. 지우거나 src 폴더 안으로 옮겨 주세요.$stray"
+          fi
+          # 3) src 안에 같은 이름의 파일이 두 곳에 있으면 알려 줍니다(어느 쪽이 적용되는지 헷갈리기 쉬워요).
+          dup=$(find src -type f -printf '%f\n' | sort | uniq -d | sed 's/.*/[&]/' | tr '\n' ' ' || true)
+          if [ -n "$dup" ]; then
+            echo "::warning title=src 안에 같은 이름의 파일이 두 곳에 있어요::한 곳만 남기고 지워 주세요. $dup"
+          fi
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

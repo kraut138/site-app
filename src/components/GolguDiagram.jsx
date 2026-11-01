@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { Grid3x3, Info } from "lucide-react";
 import { CATEGORIES, itemsForCategory, unitOptions, isCategoryCompleteForUnit } from "../data.js";
 import { Icon } from "./UI.jsx";
 
@@ -212,6 +213,26 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
 
   return (
     <div>
+      <div className="flex flex-wrap items-center justify-between pb-4 border-b border-slate-100 gap-3 mb-5" data-testid="golgu-head">
+        <div className="min-w-0">
+          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+            <Grid3x3 className="w-4 h-4 text-blue-600" aria-hidden="true" />
+            골구도 및 공정 히트맵 (Structural Framing Grid)
+          </h3>
+          <p className="text-xs text-slate-400 mt-0.5">전체 동 · 승인된 세대를 층·호수별 바둑판으로 보여 줘요. 호실을 누르면 호실 정보로 이동합니다.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium text-slate-600" data-testid="golgu-legend">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="golgu-brick" style={{ width: 14, height: 14 }} />
+            미완료
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="golgu-brick complete" style={{ width: 14, height: 14 }} />
+            완료
+          </span>
+        </div>
+      </div>
+
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
         {VISIBLE_CATEGORIES.map((c) => (
           <button
@@ -247,14 +268,6 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8, fontSize: 12, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span className="golgu-brick" style={{ width: 14, height: 14 }} />
-          미완료
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span className="golgu-brick complete" style={{ width: 14, height: 14 }} />
-          완료
-        </div>
         <span style={{ color: "var(--ink-soft)" }}>
           {focusedBuilding?.name} · {focusedUnits}세대 중 <strong style={{ color: "var(--pass)" }}>{completeCount}세대</strong> 완료
         </span>
@@ -263,11 +276,6 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
           엑셀 다운로드
         </button>
       </div>
-      <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 8 }}>
-        감리단이 "공사 확인 요청"을 승인한 호실만 완료로 표시됩니다. 공사진행 탭의 자체 진행 표시와는 별개입니다.
-        {categoryId !== "frame" && " 골조공사가 끝나지 않은 호실은 마감·설비 공종에서 색 없이(호수만) 표시됩니다."}
-      </div>
-
       <div className="golgu-carousel-outer">
         <div
           ref={stageRef}
@@ -315,6 +323,14 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
           </button>
         </div>
         {n > 1 && <div className="golgu-scroll-hint">좌우로 드래그하거나 버튼을 눌러 다른 동을 볼 수 있어요</div>}
+      </div>
+
+      <div className="mt-5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-start gap-2" data-testid="golgu-note">
+        <Info className="w-4 h-4 text-blue-600 shrink-0 mt-px" aria-hidden="true" />
+        <span>
+          감리단이 "공사 확인 요청"을 승인한 호실만 완료로 표시됩니다. 호실 정보에서 음성 보고로 읽은 진행도와는 별개입니다.
+          {categoryId !== "frame" && " 골조공사가 끝나지 않은 호실은 마감·설비 공종에서 색 없이(호수만) 표시됩니다."}
+        </span>
       </div>
     </div>
   );

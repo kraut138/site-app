@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BookMarked, PlusCircle, SlidersHorizontal } from "lucide-react";
 import { EmptyState } from "./UI.jsx";
 import GlossaryImport from "./GlossaryImport.jsx";
 import GlossaryReapply from "./GlossaryReapply.jsx";
@@ -328,84 +329,6 @@ export default function Glossary({ adminName, notify }) {
 
   return (
     <div className="gl-page" data-testid="gl-page">
-      <section className="card card-pad gl-intro">
-        <div className="section-head">
-          <div className="section-title">현장 은어 → 표준 용어 표</div>
-          <span className="eyebrow" data-testid="gl-count">
-            {load === "ready" ? countText : ""}
-          </span>
-        </div>
-        <p>
-          하도급사의 <strong>음성 검측</strong>(탭과 호실 QR 화면)에서 말하거나 입력한 내용이 이 표대로 표준 용어로 바뀌어 저장됩니다.
-        </p>
-        <p className="gl-note">표를 고치면 그 뒤에 저장하는 보고부터 바로 적용돼요. 이미 저장된 보고에도 적용하려면 아래 ‘저장된 음성 기록에 다시 적용’을 눌러 주세요.</p>
-        {load === "ready" && (
-          <div className="gl-onlydb" data-testid="gl-mode">
-            <label className="gl-onlydb-switch" htmlFor="gl-mode-toggle">
-              <input
-                id="gl-mode-toggle"
-                type="checkbox"
-                role="switch"
-                checked={onlyDb}
-                disabled={!!busy}
-                onChange={(e) => toggleMode(e.target.checked)}
-                data-testid="gl-mode-toggle"
-              />
-              <span className="gl-onlydb-label">용어 DB에 있는 단어만 남기기</span>
-              <span className={`gl-onlydb-state${onlyDb ? " is-on" : ""}`} data-testid="gl-mode-state">
-                {busy === "mode" ? "저장 중…" : onlyDb ? "켜짐" : "꺼짐"}
-              </span>
-            </label>
-            <p className="gl-onlydb-desc" data-testid="gl-mode-desc">
-              {onlyDb
-                ? "음성을 글로 바꿀 때 현장 은어는 표준 용어로 바꾸고, 표에 없는 말(예: “했어요”)은 변환된 문장에서 뺍니다. 표의 표준 용어를 직접 말했으면 그대로 남아요. 원문은 그대로 저장되고, 호실 진행도 계산에도 영향이 없어요."
-                : "은어만 표준 용어로 바꾸고 나머지 말은 그대로 둡니다."}
-            </p>
-            {modeError && (
-              <div className="gl-error gl-onlydb-msg" role="alert" data-testid="gl-mode-error">
-                {modeError}
-              </div>
-            )}
-            <div className={`gl-fuzzy${onlyDb ? "" : " is-disabled"}`} data-testid="gl-fuzzy">
-              <div className="gl-fuzzy-head">
-                <span className="gl-fuzzy-title" id="gl-fuzzy-title">
-                  비슷한 용어 찾기
-                </span>
-                <span className={`gl-onlydb-state${onlyDb && fuzzy !== "off" ? " is-on" : ""}`} data-testid="gl-fuzzy-state">
-                  {busy === "fuzzy" ? "저장 중…" : onlyDb ? fuzzyLabel(fuzzy) : "쓰지 않음"}
-                </span>
-              </div>
-              <div className="gl-fuzzy-opts" role="radiogroup" aria-labelledby="gl-fuzzy-title">
-                {FUZZY_ORDER.map((level) => (
-                  <label key={level} className={`gl-fuzzy-opt${fuzzy === level ? " is-on" : ""}${busy || !onlyDb ? " is-locked" : ""}`}>
-                    <input
-                      type="radio"
-                      name="gl-fuzzy"
-                      value={level}
-                      checked={fuzzy === level}
-                      disabled={!!busy || !onlyDb}
-                      onChange={() => changeFuzzy(level)}
-                      data-testid={`gl-fuzzy-${level}`}
-                    />
-                    <span>{level === "off" ? FUZZY_LABELS.off : `${FUZZY_LABELS[level]} ${Math.round(FUZZY_LEVELS[level] * 100)}%`}</span>
-                  </label>
-                ))}
-              </div>
-              <p className="gl-onlydb-desc gl-fuzzy-desc" data-testid="gl-fuzzy-desc">
-                {onlyDb
-                  ? `${fuzzy === "off" ? "" : "음성이 잘못 들려 표에 없는 말이 되었을 때(예: “나라씨”), 소리를 견주는 레벤슈타인 거리로 표의 단어 중 가장 비슷한 것(나라시)을 찾아 그 단어로 바꿔 남겨요. 비슷한 정도가 기준 이상일 때만 바꾸고, 그렇지 않은 말은 평소처럼 빼요. "}${FUZZY_HELP[fuzzy]}${fuzzy === "off" ? "" : " 소리가 5개 이하인 짧은 용어는 비슷한 소리끼리(ㅅ↔ㅆ 등)만 바꿔요. 원문과 호실 진행도 계산에는 영향이 없어요."}`
-                  : "‘용어 DB에 있는 단어만 남기기’를 켜면 쓸 수 있어요."}
-              </p>
-              {fuzzyError && (
-                <div className="gl-error gl-onlydb-msg" role="alert" data-testid="gl-fuzzy-error">
-                  {fuzzyError}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </section>
-
       {load === "loading" && (
         <div className="card card-pad gl-state" data-testid="gl-loading">
           표를 불러오는 중…
@@ -423,6 +346,291 @@ export default function Glossary({ adminName, notify }) {
 
       {load === "ready" && (
         <>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start" data-testid="gl-main">
+            <section className="card card-pad gl-add-card lg:col-start-3 lg:row-start-1 lg:sticky lg:top-24" data-testid="gl-add-card">
+              <div className="section-head">
+                <div className="section-title">
+                  <PlusCircle className="w-4 h-4 text-emerald-600" aria-hidden="true" />
+                  새 현장 은어 등록
+                </div>
+              </div>
+              <form className="gl-add" onSubmit={submitAdd} data-testid="gl-add-form" noValidate>
+                <div className="field">
+                  <label htmlFor="gl-new-slang">현장 은어</label>
+                  <input
+                    id="gl-new-slang"
+                    ref={slangInput}
+                    className="input"
+                    placeholder="현장에서 쓰는 말"
+                    maxLength={GLOSSARY_LIMITS.slang}
+                    value={newSlang}
+                    disabled={!!busy}
+                    onChange={(e) => {
+                      setNewSlang(e.target.value);
+                      setAddError("");
+                    }}
+                    autoComplete="off"
+                    data-testid="gl-new-slang"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="gl-new-standard">표준 용어</label>
+                  <input
+                    id="gl-new-standard"
+                    className="input"
+                    placeholder="바꿔 적을 표준 용어"
+                    maxLength={GLOSSARY_LIMITS.standard}
+                    value={newStandard}
+                    disabled={!!busy}
+                    onChange={(e) => {
+                      setNewStandard(e.target.value);
+                      setAddError("");
+                    }}
+                    autoComplete="off"
+                    data-testid="gl-new-standard"
+                  />
+                </div>
+                <button className="btn btn-primary gl-add-btn" disabled={!!busy || !newSlang.trim() || !newStandard.trim()} data-testid="gl-add">
+                  {busy === "add" ? "추가 중…" : "추가"}
+                </button>
+                {addError ? (
+                  <div className="gl-error gl-add-msg" role="alert" data-testid="gl-add-error">
+                    {addError}
+                  </div>
+                ) : shortHint(newSlang) ? (
+                  <div className="gl-hint gl-add-msg" data-testid="gl-add-hint">
+                    {SHORT_HINT}
+                  </div>
+                ) : null}
+              </form>
+              <p className="gl-add-note">
+                표를 고치면 그 뒤에 저장하는 보고부터 바로 적용돼요. 이미 저장된 보고에도 적용하려면 아래 ‘저장된 음성 기록에 다시 적용’을 눌러 주세요.
+              </p>
+            </section>
+
+            <section className="card gl-table-card min-w-0 lg:col-span-2 lg:col-start-1 lg:row-start-1" data-testid="gl-table-card">
+              <div className="gl-table-head">
+                <div className="gl-table-title">
+                  <div className="section-title">
+                    <BookMarked className="w-4 h-4 text-purple-600" aria-hidden="true" />
+                    현장 은어 → 표준 용어 표
+                    <span className="eyebrow" data-testid="gl-count">
+                      {countText}
+                    </span>
+                  </div>
+                  <p className="gl-table-sub">
+                    하도급사의 <strong>음성 검측</strong>(탭과 호실 QR 화면)에서 말하거나 입력한 내용이 이 표대로 표준 용어로 바뀌어 저장됩니다.
+                  </p>
+                </div>
+                <input
+                  className="input gl-search"
+                  type="search"
+                  placeholder="은어·표준 용어 찾기"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  aria-label="용어 찾기"
+                  data-testid="gl-search"
+                />
+              </div>
+
+              {rowError && (
+                <div className="gl-error gl-row-error" role="alert" data-testid="gl-row-error">
+                  {rowError}
+                </div>
+              )}
+
+              {terms.length === 0 ? (
+                <div data-testid="gl-empty">
+                  <EmptyState message="표가 비어 있어요. 새 은어를 등록하면 음성 검측에 바로 쓰입니다. (표가 비어 있으면 아무것도 바뀌지 않습니다)" />
+                </div>
+              ) : rows.length === 0 ? (
+                <div className="gl-state" data-testid="gl-no-match">
+                  ‘{query.trim()}’에 맞는 용어가 없어요.
+                </div>
+              ) : (
+                <div className="gl-table-wrap">
+                  <table className="gl-table" data-testid="gl-table">
+                    <thead>
+                      <tr>
+                        <th className="gl-col-slang">현장 은어</th>
+                        <th className="gl-col-standard">표준 용어</th>
+                        <th className="gl-col-act">
+                          <span className="gl-sr">작업</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((t) =>
+                        editId === t.id ? (
+                          <tr key={t.id} className="gl-row is-editing" data-testid="gl-row">
+                            <td colSpan={3}>
+                              <div className="gl-edit">
+                                <div className="field">
+                                  <label htmlFor={`gl-edit-slang-${t.id}`}>현장 은어</label>
+                                  <input
+                                    id={`gl-edit-slang-${t.id}`}
+                                    className="input"
+                                    value={editSlang}
+                                    maxLength={GLOSSARY_LIMITS.slang}
+                                    disabled={busy === "edit"}
+                                    onChange={(e) => {
+                                      setEditSlang(e.target.value);
+                                      setEditError("");
+                                    }}
+                                    onKeyDown={onEditKey}
+                                    autoComplete="off"
+                                    autoFocus
+                                    data-testid="gl-edit-slang"
+                                  />
+                                </div>
+                                <div className="field">
+                                  <label htmlFor={`gl-edit-standard-${t.id}`}>표준 용어</label>
+                                  <input
+                                    id={`gl-edit-standard-${t.id}`}
+                                    className="input"
+                                    value={editStandard}
+                                    maxLength={GLOSSARY_LIMITS.standard}
+                                    disabled={busy === "edit"}
+                                    onChange={(e) => {
+                                      setEditStandard(e.target.value);
+                                      setEditError("");
+                                    }}
+                                    onKeyDown={onEditKey}
+                                    autoComplete="off"
+                                    data-testid="gl-edit-standard"
+                                  />
+                                </div>
+                                <div className="gl-actions">
+                                  <button type="button" className="btn btn-primary btn-sm" onClick={saveEdit} disabled={busy === "edit"} data-testid="gl-edit-save">
+                                    {busy === "edit" ? "저장 중…" : "저장"}
+                                  </button>
+                                  <button type="button" className="btn btn-ghost btn-sm" onClick={cancelEdit} disabled={busy === "edit"} data-testid="gl-edit-cancel">
+                                    취소
+                                  </button>
+                                </div>
+                                {editError ? (
+                                  <div className="gl-error gl-edit-msg" role="alert" data-testid="gl-edit-error">
+                                    {editError}
+                                  </div>
+                                ) : shortHint(editSlang) ? (
+                                  <div className="gl-hint gl-edit-msg">{SHORT_HINT}</div>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr key={t.id} ref={t.id === flashId ? flashRow : null} className={`gl-row${t.id === flashId ? " is-flash" : ""}`} data-testid="gl-row">
+                            <td className="gl-slang" data-testid="gl-cell-slang">
+                              {t.slang}
+                            </td>
+                            <td data-testid="gl-cell-standard">{t.standard}</td>
+                            <td>
+                              {deleteId === t.id ? (
+                                <div className="gl-confirm" role="group" aria-label={`${t.slang} 삭제 확인`}>
+                                  <span>삭제할까요?</span>
+                                  <div className="gl-actions">
+                                    <button type="button" className="btn btn-fail btn-sm" onClick={() => confirmDelete(t)} disabled={!!busy} data-testid="gl-delete-confirm">
+                                      {busy === "delete" ? "삭제 중…" : "삭제"}
+                                    </button>
+                                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDeleteId("")} disabled={!!busy} data-testid="gl-delete-cancel">
+                                      취소
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="gl-actions">
+                                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => startEdit(t)} disabled={!!busy} aria-label={`${t.slang} 수정`} data-testid="gl-edit">
+                                    수정
+                                  </button>
+                                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => askDelete(t)} disabled={!!busy} aria-label={`${t.slang} 삭제`} data-testid="gl-delete">
+                                    삭제
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </div>
+
+          <section className="card card-pad gl-intro" data-testid="gl-settings">
+            <div className="section-head">
+              <div className="section-title">
+                <SlidersHorizontal className="w-4 h-4 text-purple-600" aria-hidden="true" />
+                변환 방식
+              </div>
+              <span className="eyebrow">음성 → 글</span>
+            </div>
+            <div className="gl-onlydb" data-testid="gl-mode">
+              <label className="gl-onlydb-switch" htmlFor="gl-mode-toggle">
+                <input
+                  id="gl-mode-toggle"
+                  type="checkbox"
+                  role="switch"
+                  checked={onlyDb}
+                  disabled={!!busy}
+                  onChange={(e) => toggleMode(e.target.checked)}
+                  data-testid="gl-mode-toggle"
+                />
+                <span className="gl-onlydb-label">용어 DB에 있는 단어만 남기기</span>
+                <span className={`gl-onlydb-state${onlyDb ? " is-on" : ""}`} data-testid="gl-mode-state">
+                  {busy === "mode" ? "저장 중…" : onlyDb ? "켜짐" : "꺼짐"}
+                </span>
+              </label>
+              <p className="gl-onlydb-desc" data-testid="gl-mode-desc">
+                {onlyDb
+                  ? "음성을 글로 바꿀 때 현장 은어는 표준 용어로 바꾸고, 표에 없는 말(예: “했어요”)은 변환된 문장에서 뺍니다. 표의 표준 용어를 직접 말했으면 그대로 남아요. 원문은 그대로 저장되고, 호실 진행도 계산에도 영향이 없어요."
+                  : "은어만 표준 용어로 바꾸고 나머지 말은 그대로 둡니다."}
+              </p>
+              {modeError && (
+                <div className="gl-error gl-onlydb-msg" role="alert" data-testid="gl-mode-error">
+                  {modeError}
+                </div>
+              )}
+              <div className={`gl-fuzzy${onlyDb ? "" : " is-disabled"}`} data-testid="gl-fuzzy">
+                <div className="gl-fuzzy-head">
+                  <span className="gl-fuzzy-title" id="gl-fuzzy-title">
+                    비슷한 용어 찾기
+                  </span>
+                  <span className={`gl-onlydb-state${onlyDb && fuzzy !== "off" ? " is-on" : ""}`} data-testid="gl-fuzzy-state">
+                    {busy === "fuzzy" ? "저장 중…" : onlyDb ? fuzzyLabel(fuzzy) : "쓰지 않음"}
+                  </span>
+                </div>
+                <div className="gl-fuzzy-opts" role="radiogroup" aria-labelledby="gl-fuzzy-title">
+                  {FUZZY_ORDER.map((level) => (
+                    <label key={level} className={`gl-fuzzy-opt${fuzzy === level ? " is-on" : ""}${busy || !onlyDb ? " is-locked" : ""}`}>
+                      <input
+                        type="radio"
+                        name="gl-fuzzy"
+                        value={level}
+                        checked={fuzzy === level}
+                        disabled={!!busy || !onlyDb}
+                        onChange={() => changeFuzzy(level)}
+                        data-testid={`gl-fuzzy-${level}`}
+                      />
+                      <span>{level === "off" ? FUZZY_LABELS.off : `${FUZZY_LABELS[level]} ${Math.round(FUZZY_LEVELS[level] * 100)}%`}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="gl-onlydb-desc gl-fuzzy-desc" data-testid="gl-fuzzy-desc">
+                  {onlyDb
+                    ? `${fuzzy === "off" ? "" : "음성이 잘못 들려 표에 없는 말이 되었을 때(예: “나라씨”), 소리를 견주는 레벤슈타인 거리로 표의 단어 중 가장 비슷한 것(나라시)을 찾아 그 단어로 바꿔 남겨요. 비슷한 정도가 기준 이상일 때만 바꾸고, 그렇지 않은 말은 평소처럼 빼요. "}${FUZZY_HELP[fuzzy]}${fuzzy === "off" ? "" : " 소리가 5개 이하인 짧은 용어는 비슷한 소리끼리(ㅅ↔ㅆ 등)만 바꿔요. 원문과 호실 진행도 계산에는 영향이 없어요."}`
+                    : "‘용어 DB에 있는 단어만 남기기’를 켜면 쓸 수 있어요."}
+                </p>
+                {fuzzyError && (
+                  <div className="gl-error gl-onlydb-msg" role="alert" data-testid="gl-fuzzy-error">
+                    {fuzzyError}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
           <section className="card card-pad gl-preview" data-testid="gl-preview">
             <div className="section-head">
               <div className="section-title">바꿔 보기</div>
@@ -496,194 +704,6 @@ export default function Glossary({ adminName, notify }) {
           <GlossarySamples terms={terms} adminName={adminName} busy={busy} setBusy={setBusy} onTermAdded={(nextTerms) => commit(nextTerms)} notify={notify} />
 
           <GlossaryReapply terms={terms} onlyDb={onlyDb} fuzzy={fuzzy} adminName={adminName} busy={busy} setBusy={setBusy} notify={notify} />
-
-          <section className="card gl-table-card">
-            <div className="gl-table-head">
-              <div className="section-title">용어 표</div>
-              <input
-                className="input gl-search"
-                type="search"
-                placeholder="은어·표준 용어 찾기"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                aria-label="용어 찾기"
-                data-testid="gl-search"
-              />
-            </div>
-
-            <form className="gl-add" onSubmit={submitAdd} data-testid="gl-add-form" noValidate>
-              <div className="field">
-                <label htmlFor="gl-new-slang">현장 은어</label>
-                <input
-                  id="gl-new-slang"
-                  ref={slangInput}
-                  className="input"
-                  placeholder="현장에서 쓰는 말"
-                  maxLength={GLOSSARY_LIMITS.slang}
-                  value={newSlang}
-                  disabled={!!busy}
-                  onChange={(e) => {
-                    setNewSlang(e.target.value);
-                    setAddError("");
-                  }}
-                  autoComplete="off"
-                  data-testid="gl-new-slang"
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="gl-new-standard">표준 용어</label>
-                <input
-                  id="gl-new-standard"
-                  className="input"
-                  placeholder="바꿔 적을 표준 용어"
-                  maxLength={GLOSSARY_LIMITS.standard}
-                  value={newStandard}
-                  disabled={!!busy}
-                  onChange={(e) => {
-                    setNewStandard(e.target.value);
-                    setAddError("");
-                  }}
-                  autoComplete="off"
-                  data-testid="gl-new-standard"
-                />
-              </div>
-              <button className="btn btn-primary gl-add-btn" disabled={!!busy || !newSlang.trim() || !newStandard.trim()} data-testid="gl-add">
-                {busy === "add" ? "추가 중…" : "추가"}
-              </button>
-              {addError ? (
-                <div className="gl-error gl-add-msg" role="alert" data-testid="gl-add-error">
-                  {addError}
-                </div>
-              ) : shortHint(newSlang) ? (
-                <div className="gl-hint gl-add-msg" data-testid="gl-add-hint">
-                  {SHORT_HINT}
-                </div>
-              ) : null}
-            </form>
-
-            {rowError && (
-              <div className="gl-error gl-row-error" role="alert" data-testid="gl-row-error">
-                {rowError}
-              </div>
-            )}
-
-            {terms.length === 0 ? (
-              <div data-testid="gl-empty">
-                <EmptyState message="표가 비어 있어요. 위에서 용어를 추가하면 음성 검측에 바로 쓰입니다. (표가 비어 있으면 아무것도 바뀌지 않습니다)" />
-              </div>
-            ) : rows.length === 0 ? (
-              <div className="gl-state" data-testid="gl-no-match">
-                ‘{query.trim()}’에 맞는 용어가 없어요.
-              </div>
-            ) : (
-              <div className="gl-table-wrap">
-                <table className="gl-table" data-testid="gl-table">
-                  <thead>
-                    <tr>
-                      <th className="gl-col-slang">현장 은어</th>
-                      <th className="gl-col-standard">표준 용어</th>
-                      <th className="gl-col-act">
-                        <span className="gl-sr">작업</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((t) =>
-                      editId === t.id ? (
-                        <tr key={t.id} className="gl-row is-editing" data-testid="gl-row">
-                          <td colSpan={3}>
-                            <div className="gl-edit">
-                              <div className="field">
-                                <label htmlFor={`gl-edit-slang-${t.id}`}>현장 은어</label>
-                                <input
-                                  id={`gl-edit-slang-${t.id}`}
-                                  className="input"
-                                  value={editSlang}
-                                  maxLength={GLOSSARY_LIMITS.slang}
-                                  disabled={busy === "edit"}
-                                  onChange={(e) => {
-                                    setEditSlang(e.target.value);
-                                    setEditError("");
-                                  }}
-                                  onKeyDown={onEditKey}
-                                  autoComplete="off"
-                                  autoFocus
-                                  data-testid="gl-edit-slang"
-                                />
-                              </div>
-                              <div className="field">
-                                <label htmlFor={`gl-edit-standard-${t.id}`}>표준 용어</label>
-                                <input
-                                  id={`gl-edit-standard-${t.id}`}
-                                  className="input"
-                                  value={editStandard}
-                                  maxLength={GLOSSARY_LIMITS.standard}
-                                  disabled={busy === "edit"}
-                                  onChange={(e) => {
-                                    setEditStandard(e.target.value);
-                                    setEditError("");
-                                  }}
-                                  onKeyDown={onEditKey}
-                                  autoComplete="off"
-                                  data-testid="gl-edit-standard"
-                                />
-                              </div>
-                              <div className="gl-actions">
-                                <button type="button" className="btn btn-primary btn-sm" onClick={saveEdit} disabled={busy === "edit"} data-testid="gl-edit-save">
-                                  {busy === "edit" ? "저장 중…" : "저장"}
-                                </button>
-                                <button type="button" className="btn btn-ghost btn-sm" onClick={cancelEdit} disabled={busy === "edit"} data-testid="gl-edit-cancel">
-                                  취소
-                                </button>
-                              </div>
-                              {editError ? (
-                                <div className="gl-error gl-edit-msg" role="alert" data-testid="gl-edit-error">
-                                  {editError}
-                                </div>
-                              ) : shortHint(editSlang) ? (
-                                <div className="gl-hint gl-edit-msg">{SHORT_HINT}</div>
-                              ) : null}
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        <tr key={t.id} ref={t.id === flashId ? flashRow : null} className={`gl-row${t.id === flashId ? " is-flash" : ""}`} data-testid="gl-row">
-                          <td className="gl-slang" data-testid="gl-cell-slang">
-                            {t.slang}
-                          </td>
-                          <td data-testid="gl-cell-standard">{t.standard}</td>
-                          <td>
-                            {deleteId === t.id ? (
-                              <div className="gl-confirm" role="group" aria-label={`${t.slang} 삭제 확인`}>
-                                <span>삭제할까요?</span>
-                                <div className="gl-actions">
-                                  <button type="button" className="btn btn-fail btn-sm" onClick={() => confirmDelete(t)} disabled={!!busy} data-testid="gl-delete-confirm">
-                                    {busy === "delete" ? "삭제 중…" : "삭제"}
-                                  </button>
-                                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDeleteId("")} disabled={!!busy} data-testid="gl-delete-cancel">
-                                    취소
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="gl-actions">
-                                <button type="button" className="btn btn-ghost btn-sm" onClick={() => startEdit(t)} disabled={!!busy} aria-label={`${t.slang} 수정`} data-testid="gl-edit">
-                                  수정
-                                </button>
-                                <button type="button" className="btn btn-ghost btn-sm" onClick={() => askDelete(t)} disabled={!!busy} aria-label={`${t.slang} 삭제`} data-testid="gl-delete">
-                                  삭제
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
         </>
       )}
     </div>

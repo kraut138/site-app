@@ -3,3 +3,5 @@ dist
 .netlify
 .DS_Store
 *.log
+# 업데이트용 압축 파일은 저장소에 올리지 않습니다
+*.zip

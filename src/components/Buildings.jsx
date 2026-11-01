@@ -40,8 +40,8 @@ export default function Buildings({
 
   return (
     <div>
-      <div className="grid" style={{ gridTemplateColumns: canEdit ? "1fr 340px" : "1fr", alignItems: "start" }}>
-      <div className="card">
+      <div className={`grid grid-cols-1 gap-6 items-start ${canEdit ? "md:grid-cols-3" : ""}`}>
+      <div className={`card ${canEdit ? "md:col-span-2 md:order-2" : ""}`}>
         <div style={{ padding: "16px 20px 4px" }}>
           <div className="section-title">등록된 동 ({buildings.length})</div>
           <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 4 }}>동을 클릭하면 호실 평면도를 등록·관리할 수 있습니다.</div>
@@ -106,7 +106,7 @@ export default function Buildings({
       </div>
 
       {canEdit && (
-        <form className="card card-pad" onSubmit={submit}>
+        <form className="card card-pad md:order-1" onSubmit={submit}>
           <div className="section-title" style={{ marginBottom: 14 }}>
             <Icon.Plus width="16" height="16" />새 동 추가
           </div>
