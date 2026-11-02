@@ -3921,3 +3921,91 @@ textarea.input {
     print-color-adjust: exact;
   }
 }
+
+/* ---- 6. 공사 확인 음성요청 내역 : 동·호수 칸 모아보기 ---- */
+.vr-board {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.vr-board-head {
+  padding: 16px 20px;
+}
+
+.vr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.vr-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.vr-cell:hover {
+  background: var(--surface-alt);
+}
+
+.vr-cell.is-active {
+  border-color: var(--blueprint);
+  background: var(--surface-alt);
+}
+
+.vr-cell.is-unresolved {
+  border-style: dashed;
+  color: var(--ink-faint);
+}
+
+.vr-cell-loc {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.vr-cell.is-unresolved .vr-cell-loc {
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+
+.vr-cell-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--blueprint);
+  font-weight: 700;
+}
+
+.vr-detail {
+  padding: 16px 20px;
+}
+
+.vr-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.vr-detail-head .section-title {
+  margin-right: auto;
+}
+
+.vr-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}

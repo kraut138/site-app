@@ -9,6 +9,7 @@ import {
   BookOpen,
   ClipboardCheck,
   Mic,
+  Headphones,
 } from "lucide-react";
 
 // 관리자(시공사 관리자 포털) 탭 - 앞의 6개는 현장통 시안의 탭 순서 그대로이고, 뒤의 1개(검측·NCR·표준 공종)는 앱에만 있던 기능이다.
@@ -20,7 +21,8 @@ export const ADMIN_TABS = [
   { id: "unitinfo", label: "3. 각 호실 정보 & 평면도", Icon: DoorOpen },
   { id: "sitelayout", label: "4. 건물 골구도 뷰어", Icon: Grid3x3 },
   { id: "glossary", label: "5. 현장용어/은어 DB", Icon: BookOpen },
-  { id: "operations", label: "6. 검측·NCR·표준 공종", Icon: ClipboardCheck, badgeKey: "operations" },
+  { id: "voicerequests", label: "6. 공사 확인 음성요청 내역", Icon: Headphones },
+  { id: "operations", label: "7. 검측·NCR·표준 공종", Icon: ClipboardCheck, badgeKey: "operations" },
 ];
 
 // 하도급사(하도급 반장 모바일 모드) 탭 - 번역 사전의 키로 적는다.
@@ -37,6 +39,7 @@ export const PAGE_META = {
   unitinfo: { titleKey: "page.unitinfo.title", descKey: "page.unitinfo.desc" },
   sitelayout: { titleKey: "page.sitelayout.title", descKey: "page.sitelayout.desc" },
   glossary: { titleKey: "page.glossary.title", descKey: "page.glossary.desc" },
+  voicerequests: { title: "공사 확인 음성요청 내역", desc: "하도급 반장이 남긴 음성 보고를 동·호수 칸으로 모아 확인합니다" },
   operations: { titleKey: "page.operations.title", descKey: "page.operations.desc" },
   voice: { titleKey: "page.voice.title", descKey: "page.voice.desc" },
 };

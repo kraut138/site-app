@@ -173,6 +173,7 @@ export const VIEW_ROLES = {
   sitelayout: [ROLES.SUPER],
   glossary: [ROLES.SUPER],
   unitinfo: [ROLES.SUPER],
+  voicerequests: [ROLES.SUPER],
   // 메뉴에서 없앤 탭: 안전 현황(safety), 인력 등록(workers), 건설기계 등록(equipment), 인력 현황(workerRoster), QR코드(qrcodes), 현장 3D(site3d), 서류(documents)
   safety: [],
   workers: [],
