@@ -8,11 +8,10 @@ import {
   Grid3x3,
   BookOpen,
   ClipboardCheck,
-  ShieldCheck,
   Mic,
 } from "lucide-react";
 
-// 관리자(시공사 관리자 포털) 탭 - 앞의 6개는 현장통 시안의 탭 순서 그대로이고, 뒤의 2개는 앱에만 있던 기능이다.
+// 관리자(시공사 관리자 포털) 탭 - 앞의 6개는 현장통 시안의 탭 순서 그대로이고, 뒤의 1개(검측·NCR·표준 공종)는 앱에만 있던 기능이다.
 // 관리자 화면은 한국어로만 보여 주므로 이름은 그대로 적는다(하도급사가 보는 화면만 번역 사전을 쓴다).
 export const ADMIN_TABS = [
   { id: "dashboard", label: "공사현황 대시보드", Icon: LayoutDashboard },
@@ -22,7 +21,6 @@ export const ADMIN_TABS = [
   { id: "sitelayout", label: "4. 건물 골구도 뷰어", Icon: Grid3x3 },
   { id: "glossary", label: "5. 현장용어/은어 DB", Icon: BookOpen },
   { id: "operations", label: "6. 검측·NCR·표준 공종", Icon: ClipboardCheck, badgeKey: "operations" },
-  { id: "safety", label: "7. 안전 현황", Icon: ShieldCheck, badgeKey: "safetyTotal" },
 ];
 
 // 하도급사(하도급 반장 모바일 모드) 탭 - 번역 사전의 키로 적는다.
@@ -41,7 +39,6 @@ export const PAGE_META = {
   glossary: { titleKey: "page.glossary.title", descKey: "page.glossary.desc" },
   operations: { titleKey: "page.operations.title", descKey: "page.operations.desc" },
   voice: { titleKey: "page.voice.title", descKey: "page.voice.desc" },
-  safety: { titleKey: "page.safety.title", descKey: "page.safety.desc" },
 };
 
 // 관리자 화면에서만 다르게 쓰는 제목·설명(공사현황 대시보드는 별도 탭이라 "공사현황"이라는 이름을 여기서는 쓰지 않는다).

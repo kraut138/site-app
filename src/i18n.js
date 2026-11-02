@@ -29,7 +29,6 @@ const dict = {
     "common.case": "건",
 
     "nav.group.status": "공사현황",
-    "nav.group.safety": "안전관리",
     "nav.operations": "공사현황",
     "nav.workers": "인력 등록",
     "nav.equipment": "건설기계 등록",
@@ -38,7 +37,6 @@ const dict = {
     "nav.sitelayout": "골구도",
     "nav.glossary": "용어 DB",
     "nav.site3d": "현장 3D",
-    "nav.safety": "안전 현황",
 
     "page.operations.title": "공사현황",
     "page.operations.desc": "공사 확인 요청 내역·NCR 관리·표준 공종을 한 곳에서 확인합니다",
@@ -248,8 +246,6 @@ const dict = {
     "roster.expelSuccess": "인력을 퇴출 처리했습니다.",
     "roster.expelledNotice": "퇴출 처리된 인력입니다.",
     "status.퇴출": "퇴출",
-    "page.safety.title": "안전 현황",
-    "page.safety.desc": "안전/환경 공종의 검측·NCR과 건설기계 승인 대기를 모아서 확인합니다",
 
     "dashboard.totalRequests": "전체 검측 요청",
     "dashboard.pending": "대기",
@@ -388,7 +384,7 @@ const dict = {
     "checklist.delete": "삭제",
     "checklist.addPlaceholder": "{name}에 새 항목 추가",
     "checklist.add": "추가",
-    "checklist.hint": "이 템플릿은 공사 확인 요청 내역 탭에서 검측 요청을 작성할 때 자동으로 불러와 항목별로 체크할 수 있습니다. 안전/환경 공종은 \"안전 현황\" 탭에서 별도로 관리합니다.",
+    "checklist.hint": "이 템플릿은 공사 확인 요청 내역 탭에서 검측 요청을 작성할 때 자동으로 불러와 항목별로 체크할 수 있습니다.",
     "checklist.hintAdmin": " 항목 추가·삭제·순서 변경(드래그 또는 화살표 버튼)은 관리자만 가능합니다.",
     "checklist.reorderFailed": "순서 변경에 실패했습니다.",
     "checklist.itemAdded": "공종 항목을 추가했습니다.",
@@ -477,7 +473,6 @@ const dict = {
     "common.case": "",
 
     "nav.group.status": "Site Status",
-    "nav.group.safety": "Safety",
     "nav.operations": "Site Status",
     "nav.workers": "Worker Registration",
     "nav.equipment": "Equipment Registration",
@@ -486,7 +481,6 @@ const dict = {
     "nav.sitelayout": "Frame Diagram",
     "nav.glossary": "Term DB",
     "nav.site3d": "Site 3D",
-    "nav.safety": "Safety Status",
 
     "page.operations.title": "Site Status",
     "page.operations.desc": "Confirmation requests, NCR management, and standard trades in one place",
@@ -696,8 +690,6 @@ const dict = {
     "roster.expelSuccess": "Worker has been expelled.",
     "roster.expelledNotice": "This worker has been expelled.",
     "status.퇴출": "Expelled",
-    "page.safety.title": "Safety Status",
-    "page.safety.desc": "Safety/environment inspections, NCRs, and pending equipment approvals in one view",
 
     "dashboard.totalRequests": "Total Requests",
     "dashboard.pending": "Pending",
@@ -836,7 +828,7 @@ const dict = {
     "checklist.delete": "Delete",
     "checklist.addPlaceholder": "Add a new item to {name}",
     "checklist.add": "Add",
-    "checklist.hint": "This template is automatically loaded and checked item-by-item when writing a confirmation request in the Requests tab. Safety/Environment items are managed separately in the \"Safety Status\" tab.",
+    "checklist.hint": "This template is automatically loaded and checked item-by-item when writing a confirmation request in the Requests tab.",
     "checklist.hintAdmin": " Adding, deleting, and reordering items (drag or arrow buttons) is available to admins only.",
     "checklist.reorderFailed": "Failed to change the order.",
     "checklist.itemAdded": "Item added.",
@@ -925,7 +917,6 @@ const dict = {
     "common.case": "",
 
     "nav.group.status": "Tình trạng công trường",
-    "nav.group.safety": "An toàn",
     "nav.operations": "Tình trạng công trường",
     "nav.workers": "Đăng ký nhân lực",
     "nav.equipment": "Đăng ký thiết bị",
@@ -934,7 +925,6 @@ const dict = {
     "nav.sitelayout": "Sơ đồ khung",
     "nav.glossary": "CSDL thuật ngữ",
     "nav.site3d": "Công trường 3D",
-    "nav.safety": "Tình trạng an toàn",
 
     "page.operations.title": "Tình trạng công trường",
     "page.operations.desc": "Xem yêu cầu xác nhận thi công, quản lý NCR và hạng mục tiêu chuẩn tại một nơi",
@@ -1144,8 +1134,6 @@ const dict = {
     "roster.expelSuccess": "Đã trục xuất nhân lực.",
     "roster.expelledNotice": "Nhân lực này đã bị trục xuất.",
     "status.퇴출": "Đã trục xuất",
-    "page.safety.title": "Tình trạng an toàn",
-    "page.safety.desc": "Xem kiểm định an toàn/môi trường, NCR và thiết bị chờ duyệt tại một nơi",
 
     "dashboard.totalRequests": "Tổng yêu cầu kiểm định",
     "dashboard.pending": "Chờ xử lý",
@@ -1284,7 +1272,7 @@ const dict = {
     "checklist.delete": "Xóa",
     "checklist.addPlaceholder": "Thêm mục mới vào {name}",
     "checklist.add": "Thêm",
-    "checklist.hint": "Mẫu này sẽ tự động được tải và có thể đánh dấu từng mục khi tạo yêu cầu xác nhận thi công ở tab yêu cầu. Hạng mục An toàn/Môi trường được quản lý riêng ở tab \"Tình trạng an toàn\".",
+    "checklist.hint": "Mẫu này sẽ tự động được tải và có thể đánh dấu từng mục khi tạo yêu cầu xác nhận thi công ở tab yêu cầu.",
     "checklist.hintAdmin": " Chỉ quản trị viên mới có thể thêm, xóa, đổi thứ tự mục (kéo thả hoặc nút mũi tên).",
     "checklist.reorderFailed": "Đổi thứ tự không thành công.",
     "checklist.itemAdded": "Đã thêm mục.",
@@ -1373,7 +1361,6 @@ const dict = {
     "common.case": "件",
 
     "nav.group.status": "施工现况",
-    "nav.group.safety": "安全管理",
     "nav.operations": "施工现况",
     "nav.workers": "人力登记",
     "nav.equipment": "机械设备登记",
@@ -1382,7 +1369,6 @@ const dict = {
     "nav.sitelayout": "骨架图",
     "nav.glossary": "术语库",
     "nav.site3d": "现场3D",
-    "nav.safety": "安全现况",
 
     "page.operations.title": "施工现况",
     "page.operations.desc": "在一处查看施工确认申请、NCR管理和标准工种",
@@ -1592,8 +1578,6 @@ const dict = {
     "roster.expelSuccess": "已清退该人力。",
     "roster.expelledNotice": "该人员已被清退。",
     "status.퇴출": "已清退",
-    "page.safety.title": "安全现况",
-    "page.safety.desc": "汇总查看安全/环境工种的检测、NCR及待批准的机械设备",
 
     "dashboard.totalRequests": "全部检测申请",
     "dashboard.pending": "待处理",
@@ -1732,7 +1716,7 @@ const dict = {
     "checklist.delete": "删除",
     "checklist.addPlaceholder": "向{name}添加新项目",
     "checklist.add": "添加",
-    "checklist.hint": "在申请内容标签页填写施工确认申请时，会自动加载此模板并可按项目逐一勾选。安全/环境工种在\"安全现况\"标签页单独管理。",
+    "checklist.hint": "在申请内容标签页填写施工确认申请时，会自动加载此模板并可按项目逐一勾选。",
     "checklist.hintAdmin": " 仅管理员可以添加、删除、更改项目顺序（拖动或箭头按钮）。",
     "checklist.reorderFailed": "更改顺序失败。",
     "checklist.itemAdded": "已添加工种项目。",

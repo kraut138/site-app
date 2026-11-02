@@ -17,7 +17,7 @@ src/                       앱 코드는 전부 여기에만 둡니다
   main.jsx                   앱 시작점
   App.jsx                    로그인 확인 · 데이터 불러오기 · 어떤 탭을 보여줄지 결정
   platform/                  현장통 화면의 뼈대: 상단바, 탭 목록(tabs.js), 대시보드, 공종별 QR 생성소
-  components/                각 탭의 안쪽 화면: 동.호수, 호실 정보, 골구도, 용어 DB, 음성 검측, 검측·NCR, 안전 현황 …
+  components/                각 탭의 안쪽 화면: 동.호수, 호실 정보, 골구도, 용어 DB, 음성 검측, 검측·NCR …
   api.js                     Firestore에 읽고 쓰는 곳 (데이터 저장은 모두 여기를 지납니다)
   auth.js · firebase.js      로그인 · Firebase 설정값
   data.js                    역할 · 공종 · 화면별 권한 같은 기본 정보

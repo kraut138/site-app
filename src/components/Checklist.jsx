@@ -3,7 +3,7 @@ import { CATEGORIES, ROLES, isAdminRole, itemsForCategory, DEFAULT_ITEMS_BY_CATE
 import { Icon } from "./UI.jsx";
 import { useLanguage } from "../LanguageContext.jsx";
 
-// 안전/환경은 별도 "안전 현황" 탭에서 다루므로 이 탭에서는 제외
+// 안전/환경 공종은 이 탭에서 편집하지 않는다(처음 만들어진 기본 항목을 그대로 쓴다)
 const VISIBLE_CATEGORIES = CATEGORIES.filter((c) => c.id !== "safety");
 
 export default function Checklist({ role, items, onCreateItem, onDeleteItem, onResetCategory, onReorderItems, notify }) {

@@ -186,6 +186,35 @@ textarea {
   width: 100%;
 }
 
+/* 접기/펼치기 단추: 공종별 진행률 카드(대시보드 · 호실 정보)의 머리에 놓는 작은 둥근 단추 */
+.fold-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 3px 11px 3px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fold-toggle:hover {
+  background: var(--surface-alt);
+  color: var(--ink);
+}
+
+.fold-toggle:focus-visible {
+  outline: 2px solid var(--blueprint);
+  outline-offset: 2px;
+}
+
 /* ============ Cards / surfaces ============ */
 .card {
   background: var(--surface);
@@ -3084,6 +3113,62 @@ textarea.input {
   color: var(--ink-faint);
 }
 
+/* 접어 둔 '공종별 진행도': 공종마다 한 줄 - 공종 이름 · 감리 승인 막대와 % · 상태 · 음성 보고 %.
+   칸 너비를 고정한 격자라서 줄마다 막대 길이와 상태·음성 칸 위치가 같다.
+   기본(좁은 폭, 휴대폰)은 두 줄: 윗줄 = 이름 · 막대 · %, 아랫줄 = 상태(이름 아래) · 음성 %(막대 아래).
+   카드 안쪽 폭이 넉넉하면(컨테이너 쿼리) 한 줄로 펼쳐 놓는다. 컨테이너 쿼리를 모르는 아주 옛 브라우저는 계속 두 줄로 보인다. */
+.up-progress-body {
+  container-type: inline-size;
+  container-name: upfold;
+}
+
+.up-fold-row {
+  display: grid;
+  grid-template-columns: 82px minmax(60px, 1fr) 38px;
+  grid-template-areas:
+    "tag bar pct"
+    "state voice voice";
+  align-items: center;
+  gap: 6px 10px;
+  padding: 9px 0;
+}
+
+.up-fold-row + .up-fold-row {
+  border-top: 1px solid var(--line);
+}
+
+.up-fold-tag {
+  grid-area: tag;
+}
+
+.up-fold-track {
+  grid-area: bar;
+  height: 8px;
+}
+
+.up-fold-pct {
+  grid-area: pct;
+  text-align: right;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.up-fold-state {
+  grid-area: state;
+}
+
+.up-fold-voice {
+  grid-area: voice;
+}
+
+@container upfold (min-width: 440px) {
+  .up-fold-row {
+    grid-template-columns: 82px minmax(60px, 1fr) 38px 72px 84px;
+    grid-template-areas: "tag bar pct state voice";
+  }
+}
+
 .up-chip {
   display: inline-flex;
   align-items: center;
@@ -3264,7 +3349,8 @@ textarea.input {
     min-height: 40px;
   }
   .up-voice-refresh,
-  .up-rec-refresh {
+  .up-rec-refresh,
+  .fold-toggle {
     min-height: 36px;
   }
 }

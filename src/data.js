@@ -164,7 +164,7 @@ export function isAdminRole(role) {
 
 // 뷰(탭)별 접근 가능한 역할. 값을 생략하면 모든 역할이 접근 가능.
 // 빈 목록([])은 "어느 역할도 열 수 없음"이다 - 메뉴에서 없앤 탭이라 혹시 그 값이 남아 있어도 첫 화면으로 돌려보낸다
-// (화면 코드 파일은 지우지 않고 남겨 두었으니, 다시 쓰려면 platform/tabs.js의 탭 목록과 App.jsx 연결을 되살리고 여기 목록을 지우면 된다).
+// (없앤 화면의 코드 파일은 저장소에서 지웠다. 이 이름들은 값을 생략하면 '모두 허용'으로 읽히므로 빈 목록으로 남겨 막아 둔다).
 export const VIEW_ROLES = {
   dashboard: [ROLES.SUPER],
   qrgen: [ROLES.SUPER],
@@ -173,8 +173,8 @@ export const VIEW_ROLES = {
   sitelayout: [ROLES.SUPER],
   glossary: [ROLES.SUPER],
   unitinfo: [ROLES.SUPER],
-  safety: [ROLES.SUPER],
-  // 메뉴에서 없앤 탭: 인력 등록(workers), 건설기계 등록(equipment), 인력 현황(workerRoster), QR코드(qrcodes), 현장 3D(site3d), 서류(documents)
+  // 메뉴에서 없앤 탭: 안전 현황(safety), 인력 등록(workers), 건설기계 등록(equipment), 인력 현황(workerRoster), QR코드(qrcodes), 현장 3D(site3d), 서류(documents)
+  safety: [],
   workers: [],
   equipment: [],
   workerRoster: [],

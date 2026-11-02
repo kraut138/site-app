@@ -5,6 +5,7 @@ import { findTrade, tradeName } from "../voice.js";
 import { fuzzyLabel } from "../fuzzyTerms.js";
 import * as api from "../api.js";
 import Dashboard from "../components/Dashboard.jsx";
+import FoldToggle, { useFolded } from "../components/FoldToggle.jsx";
 
 // 공사현황 대시보드(현장통 시안의 첫 번째 탭): 숫자 카드 4개 → 실시간 음성 보고 피드 + 공종별 현황 → (앱에만 있던) 검측·NCR 분석 카드.
 // 모든 숫자는 실제 데이터에서 나온다. 음성 보고는 화면이 열려 있는 동안만 가장 최근 FEED_COUNT건을 실시간으로 받는다(api.subscribeRecentVoiceReports).
@@ -30,6 +31,7 @@ export default function PortalDashboard({ buildings, inspections, ncrs }) {
   const [glossary, setGlossary] = useState(null);
   const [buildingFilter, setBuildingFilter] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const [tradeFolded, toggleTradeFolded] = useFolded("dashTrade"); // '공종별 검측 승인 현황'을 접어 두었는지(이 기기에 기억)
 
   // 화면이 열려 있는 동안만 실시간으로 받고, 떠나면 바로 끊는다(읽기 한도 절약).
   useEffect(() => {
@@ -178,47 +180,66 @@ export default function PortalDashboard({ buildings, inspections, ncrs }) {
           </div>
         </div>
 
-        <div className={`${CARD} p-5 flex flex-col justify-between`}>
+        {/* 접어 두면 카드가 내용만큼만 차지한다(self-start). 펼쳐 둘 때는 옆 카드와 높이를 맞춘다. */}
+        <div className={`${CARD} p-5 flex flex-col justify-between${tradeFolded ? " self-start" : ""}`} data-testid="trade-card" data-folded={tradeFolded ? "true" : "false"}>
           <div>
-            <div className="flex items-start justify-between gap-2 mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                 <PieChart className="w-4 h-4 text-blue-600" aria-hidden="true" />
                 공종별 검측 승인 현황
               </h3>
-              <select
-                aria-label="동 선택"
-                data-testid="trade-building"
-                value={buildingFilter}
-                onChange={(e) => setBuildingFilter(e.target.value)}
-                className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">전체 동</option>
-                {buildings.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-1.5 ml-auto">
+                <select
+                  aria-label="동 선택"
+                  data-testid="trade-building"
+                  value={buildingFilter}
+                  onChange={(e) => setBuildingFilter(e.target.value)}
+                  className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">전체 동</option>
+                  {buildings.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+                <FoldToggle folded={tradeFolded} onToggle={toggleTradeFolded} label="공종별 검측 승인 현황" controls="dash-trade-body" testId="trade-fold" />
+              </div>
             </div>
-            <div className="space-y-4 text-xs" data-testid="trade-progress">
-              {byCategory.map((c) => (
-                <div key={c.id} data-testid={`trade-${c.id}`}>
-                  <div className="flex justify-between mb-1">
-                    <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }} aria-hidden="true" />
-                      {c.name}
-                      <span className="font-normal text-slate-400">{`${c.approved}/${c.total}건`}</span>
-                    </span>
+            {tradeFolded ? (
+              // 접은 모습: 공종 이름과 승인율만 한 줄로(건수는 펼치면 보인다)
+              <div id="dash-trade-body" className="flex flex-wrap gap-x-4 gap-y-2 text-xs" data-testid="trade-summary">
+                {byCategory.map((c) => (
+                  <span key={c.id} className="inline-flex items-center gap-1.5 font-semibold text-slate-700" data-testid={`trade-sum-${c.id}`}>
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }} aria-hidden="true" />
+                    {c.name}
                     <span className="font-bold" style={{ color: c.color }}>
                       {c.percent}%
                     </span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div id="dash-trade-body" className="space-y-4 text-xs" data-testid="trade-progress">
+                {byCategory.map((c) => (
+                  <div key={c.id} data-testid={`trade-${c.id}`}>
+                    <div className="flex justify-between mb-1">
+                      <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }} aria-hidden="true" />
+                        {c.name}
+                        <span className="font-normal text-slate-400">{`${c.approved}/${c.total}건`}</span>
+                      </span>
+                      <span className="font-bold" style={{ color: c.color }}>
+                        {c.percent}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2">
+                      <div className="h-2 rounded-full transition-all" style={{ width: `${c.percent}%`, backgroundColor: c.color }} />
+                    </div>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2">
-                    <div className="h-2 rounded-full transition-all" style={{ width: `${c.percent}%`, backgroundColor: c.color }} />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-100 bg-slate-50 p-3 rounded-xl" data-testid="attention-box">

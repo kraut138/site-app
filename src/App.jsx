@@ -10,7 +10,6 @@ import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
 import LoginScreen from "./components/LoginScreen.jsx";
-import SafetyOverview from "./components/SafetyOverview.jsx";
 import QrUnitScreen from "./components/QrUnitScreen.jsx";
 import { Toast } from "./components/UI.jsx";
 import { ROLES, isAdminRole, isViewAllowed, normalizeRole, defaultViewFor } from "./data.js";
@@ -59,7 +58,6 @@ export default function App() {
   const [ncrs, setNcrs] = useState([]);
   const [unitNotes, setUnitNotes] = useState([]);
   const [checklistItems, setChecklistItems] = useState([]);
-  const [equipment, setEquipment] = useState([]);
   const [unitFloorPlans, setUnitFloorPlans] = useState([]);
   const [siteSettings, setSiteSettings] = useState({});
   const [loading, setLoading] = useState(true);
@@ -126,7 +124,6 @@ export default function App() {
         setNcrs(data.ncrs || []);
         setUnitNotes(data.unitNotes || []);
         setChecklistItems(data.checklistItems || []);
-        setEquipment(data.equipment || []);
         setUnitFloorPlans(data.unitFloorPlans || []);
         setSiteSettings(data.siteSettings || {});
       })
@@ -216,12 +213,6 @@ export default function App() {
     }
   }
 
-  async function handleUpdateEquipmentStatus(id, data) {
-    const updated = await api.updateEquipmentStatus(id, data);
-    setEquipment((prev) => prev.map((eq) => (eq.id === id ? updated : eq)));
-    return updated;
-  }
-
   async function handleCreateInspection(data) {
     const created = await api.createInspections(data);
     setInspections((prev) => [...prev, ...created]);
@@ -257,12 +248,8 @@ export default function App() {
   const badges = {
     pending: inspections.filter((i) => i.status === "대기").length,
     ncr: ncrs.filter((n) => n.status !== "완료").length,
-    safetyNcr: ncrs.filter((n) => n.categoryId === "safety" && n.status !== "완료").length,
-    equipmentPending: equipment.filter((eq) => eq.status === "대기").length,
   };
   badges.operations = badges.pending + badges.ncr;
-  // 안전 현황 탭에서 처리할 수 있는 것만 센다: 안전 NCR + 승인 대기 건설기계(인력 승인 화면은 메뉴에서 없앴다)
-  badges.safetyTotal = badges.safetyNcr + badges.equipmentPending;
 
   let content;
   if (initialQrBoardId) {
@@ -352,19 +339,6 @@ export default function App() {
             />
           )}
           {activeView === "glossary" && <Glossary adminName={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />}
-          {activeView === "safety" && (
-            <SafetyOverview
-              role={role}
-              buildings={buildings}
-              inspections={inspections}
-              ncrs={ncrs}
-              equipment={equipment}
-              unitFloorPlans={unitFloorPlans}
-              onUpdateNcrStatus={handleUpdateNcrStatus}
-              onUpdateEquipmentStatus={handleUpdateEquipmentStatus}
-              notify={notify}
-            />
-          )}
           {activeView === "unitinfo" && (
             <UnitInfo
               buildings={buildings}

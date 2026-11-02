@@ -3,6 +3,7 @@ import { Map as MapIcon, History as HistoryIcon } from "lucide-react";
 import { CATEGORIES, getCategory, formatDateTime, categoryProgress, itemsForCategory, itemStatusForUnit, findUnitFloorPlan } from "../data.js";
 import { Icon, EmptyState, CategoryTag, StatusBadge } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
+import FoldToggle, { useFolded } from "./FoldToggle.jsx";
 import * as api from "../api.js";
 import { findTrade, tradeName, convertedText } from "../voice.js";
 import { analyzeProgress } from "../progressText.js";
@@ -223,6 +224,7 @@ function UnitProgressCards({ building, buildingId, floor, unit, inspections, che
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [tab, setTab] = useState("unit"); // unit(이 호실) | floor(이 층 전체)
   const [shown, setShown] = useState(REC_PAGE);
+  const [progressFolded, toggleProgressFolded] = useFolded("unitProgress"); // '공종별 진행도'를 접어 두었는지(이 기기에 기억)
   const unitsPerFloor = building ? building.unitsPerFloor : 0;
   const unitKey = unitKeyOf(buildingId, floor, unit);
   const selfUnit = canonUnit(unit, floor);
@@ -283,12 +285,14 @@ function UnitProgressCards({ building, buildingId, floor, unit, inspections, che
     state: voice.status === "error" ? "error" : waiting ? "loading" : gaugePercent === null ? "none" : "ready",
   };
 
+  // 접으면 공종마다 한 줄(감리 승인 막대와 % · 상태 · 음성 보고 %)만 보이고, 항목별 목록은 펼쳤을 때만 보인다.
   const progressCard = (
-    <div className="card card-pad" style={{ marginBottom: gap }}>
+    <div className="card card-pad" style={{ marginBottom: gap }} data-testid="up-progress-card" data-folded={progressFolded ? "true" : "false"}>
       <div className="section-head">
         <div className="section-title">
           {building ? building.name : ""} {floor}층 {unit}호 · 공종별 진행도
         </div>
+        <FoldToggle folded={progressFolded} onToggle={toggleProgressFolded} label="공종별 진행도" controls="up-progress-body" testId="up-progress-fold" />
       </div>
       <div className="up-legend" data-testid="up-voice-legend">
         <span className="up-legend-item">
@@ -311,63 +315,90 @@ function UnitProgressCards({ building, buildingId, floor, unit, inspections, che
           아직 음성 보고에서 읽은 진행이 없어요. 음성 검측에서 ‘도배 완료’처럼 항목과 상태를 말하면 여기에 표시돼요.
         </div>
       )}
-      {CATEGORIES.map((c) => {
-        const prog = categoryProgress(inspections, checklistItems, buildingId, floor, unit, c.id);
-        const items = itemsForCategory(checklistItems, c.id);
-        const vc = voiceProgress.byCategory[c.id];
-        return (
-          <div key={c.id} style={{ marginBottom: 18 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <CategoryTag category={c} />
-              <StatusBadge status={prog.status} />
-            </div>
-            <div className="bar-track" style={{ marginBottom: vc.done + vc.doing > 0 ? 6 : 10 }}>
-              <div className="bar-fill" style={{ width: `${prog.percent}%`, background: BAR_COLOR[prog.status] }} />
-            </div>
-            {vc.done + vc.doing > 0 && (
-              <div className="up-voice" data-testid={`up-voice-row-${c.id}`}>
-                <span className="up-voice-label">음성 보고</span>
-                <div className="bar-track up-voice-track">
-                  <div className="bar-fill up-voice-fill" style={{ width: `${vc.percent}%` }} />
+      <div id="up-progress-body" className="up-progress-body">
+        {CATEGORIES.map((c) => {
+          const prog = categoryProgress(inspections, checklistItems, buildingId, floor, unit, c.id);
+          const items = itemsForCategory(checklistItems, c.id);
+          const vc = voiceProgress.byCategory[c.id];
+          if (progressFolded) {
+            return (
+              <div key={c.id} className="up-fold-row" data-testid={`up-fold-row-${c.id}`}>
+                <span className="up-fold-tag">
+                  <CategoryTag category={c} />
+                </span>
+                <div className="bar-track up-fold-track">
+                  <div className="bar-fill" style={{ width: `${prog.percent}%`, background: BAR_COLOR[prog.status] }} />
                 </div>
-                <span className="up-voice-pct" data-testid={`up-voice-pct-${c.id}`}>
-                  {vc.percent}%
+                <span className="up-fold-pct" data-testid={`up-fold-pct-${c.id}`}>
+                  {prog.percent}%
                 </span>
-                <span className="up-voice-count">
-                  완료 {vc.done}/{vc.total}
-                  {vc.doing > 0 ? ` · 진행중 ${vc.doing}` : ""}
+                <span className="up-fold-state">
+                  <StatusBadge status={prog.status} />
+                </span>
+                <span className="up-fold-voice">
+                  {vc.done + vc.doing > 0 && (
+                    <span className={`up-chip ${vc.percent >= 100 ? "is-done" : "is-doing"}`} data-testid={`up-fold-voice-${c.id}`}>
+                      음성 {vc.percent}%
+                    </span>
+                  )}
                 </span>
               </div>
-            )}
-            {items.length === 0 ? (
-              <div style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>등록된 세부 항목이 없습니다.</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 2 }}>
-                {items.map((item) => {
-                  const st = itemStatusForUnit(inspections, buildingId, floor, unit, item.id);
-                  const vi = voiceProgress.byItem[item.id];
-                  return (
-                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <ItemStatusIcon status={st} />
-                      <span
-                        style={{
-                          fontSize: 12.5,
-                          color: st === "승인" ? "var(--ink)" : "var(--ink-soft)",
-                          textDecoration: st === "승인" ? "none" : "none",
-                        }}
-                      >
-                        {item.text}
-                      </span>
-                      {st === "반려" && <span style={{ fontSize: 10.5, color: "var(--fail)", fontWeight: 700 }}>반려</span>}
-                      {vi && <VoiceChip value={vi} testId={`up-voice-chip-${item.id}`} />}
-                    </div>
-                  );
-                })}
+            );
+          }
+          return (
+            <div key={c.id} style={{ marginBottom: 18 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <CategoryTag category={c} />
+                <StatusBadge status={prog.status} />
               </div>
-            )}
-          </div>
-        );
-      })}
+              <div className="bar-track" style={{ marginBottom: vc.done + vc.doing > 0 ? 6 : 10 }}>
+                <div className="bar-fill" style={{ width: `${prog.percent}%`, background: BAR_COLOR[prog.status] }} />
+              </div>
+              {vc.done + vc.doing > 0 && (
+                <div className="up-voice" data-testid={`up-voice-row-${c.id}`}>
+                  <span className="up-voice-label">음성 보고</span>
+                  <div className="bar-track up-voice-track">
+                    <div className="bar-fill up-voice-fill" style={{ width: `${vc.percent}%` }} />
+                  </div>
+                  <span className="up-voice-pct" data-testid={`up-voice-pct-${c.id}`}>
+                    {vc.percent}%
+                  </span>
+                  <span className="up-voice-count">
+                    완료 {vc.done}/{vc.total}
+                    {vc.doing > 0 ? ` · 진행중 ${vc.doing}` : ""}
+                  </span>
+                </div>
+              )}
+              {items.length === 0 ? (
+                <div style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>등록된 세부 항목이 없습니다.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 2 }}>
+                  {items.map((item) => {
+                    const st = itemStatusForUnit(inspections, buildingId, floor, unit, item.id);
+                    const vi = voiceProgress.byItem[item.id];
+                    return (
+                      <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <ItemStatusIcon status={st} />
+                        <span
+                          style={{
+                            fontSize: 12.5,
+                            color: st === "승인" ? "var(--ink)" : "var(--ink-soft)",
+                            textDecoration: st === "승인" ? "none" : "none",
+                          }}
+                        >
+                          {item.text}
+                        </span>
+                        {st === "반려" && <span style={{ fontSize: 10.5, color: "var(--fail)", fontWeight: 700 }}>반려</span>}
+                        {vi && <VoiceChip value={vi} testId={`up-voice-chip-${item.id}`} />}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 
