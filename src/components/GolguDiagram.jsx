@@ -1,12 +1,12 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { Grid3x3, Info } from "lucide-react";
 import { CATEGORIES, itemsForCategory, unitOptions } from "../data.js";
 import { createStatus, voiceTotals } from "../golguStatus.js";
+import { BASE_RADIUS, PERSPECTIVE, cardMetrics, extremesOf, fitScale, stageHeightFor } from "../golguSize.js";
 import { Icon } from "./UI.jsx";
 
 const VISIBLE_CATEGORIES = CATEGORIES.filter((c) => c.id !== "safety"); // 공사진행 탭과 동일하게 안전/환경 제외
-const RADIUS = 190;
 const NO_DOCS = []; // 음성 완료를 아직 못 읽었을 때(기본값을 매번 새 배열로 만들면 판정을 계속 다시 만들게 된다)
 
 function firstItemIdFor(categoryId, checklistItems) {
@@ -27,15 +27,11 @@ function normalizeAngle(a) {
 // 동 하나의 골구도(입면) - 층별로 쌓인 벽돌 그리드가 그대로 건물 정면이 된다.
 // 골조공사가 이 호실에서 아직 다 끝나지 않았으면(선택한 항목이 골조가 아닌 경우), 승인된 항목은 색을 채우지 않고
 // 호수만 표시한다 - 골조가 없는데 마감·설비 진행도를 색으로 보여주는 건 의미가 없기 때문. (음성으로 완료라고 보고한 항목은 말한 그대로 줄무늬로 보여 준다)
-function GolguCard({ building, itemId, categoryId, status, onBrickClick }) {
+function GolguCard({ building, itemId, categoryId, status, onBrickClick, scale }) {
   const floors = Math.max(1, building.floors || 1);
   const floorNumsAsc = Array.from({ length: floors }, (_, i) => i + 1); // 1층부터 오름차순 - column-reverse와 맞물려 1층이 맨 아래로 감
   const units = unitOptions(building.unitsPerFloor);
-  const brickW = Math.max(32, Math.min(46, 190 / units.length));
-  const brickH = Math.max(9, Math.min(24, 300 / floors));
-  const width = Math.round(brickW * units.length);
-  const height = Math.round(brickH * floors);
-  const fontSize = Math.max(7, Math.min(10.5, brickH * 0.46));
+  const { width, height, brickH, fontSize } = cardMetrics(building, scale); // 칸·글자 크기는 화면 너비에 맞춘 배율(scale)을 곱해 키운다(golguSize.js)
 
   const cellData = floorNumsAsc.map((f) =>
     units.map((u) => {
@@ -108,6 +104,29 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
   useEffect(() => {
     setDragRotation(null);
   }, [clampedIndex]);
+
+  // 호실 칸 크기: 화면(무대) 너비를 재서 정면 카드가 들어가는 가장 큰 배율을 정한다(넓은 PC 화면은 1.5배, 휴대폰은 그 폭에 맞춰). 화면 폭이 바뀌면 다시 잰다.
+  // 너비는 높이가 0인 얇은 띠(golgu-measure)로 잰다 - 무대 높이가 바뀌어도 이 띠의 크기는 변하지 않아서 크기 변화 알림이 끝없이 되풀이되지 않는다.
+  const measureRef = useRef(null);
+  const [stageWidth, setStageWidth] = useState(0);
+  const hasBuildings = n > 0;
+  useLayoutEffect(() => {
+    const el = measureRef.current;
+    if (!el) return undefined;
+    const read = () => setStageWidth(Math.round(el.getBoundingClientRect().width));
+    read();
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(read);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+    window.addEventListener("resize", read);
+    return () => window.removeEventListener("resize", read);
+  }, [hasBuildings]);
+  const { widest, tallest } = useMemo(() => extremesOf(buildings), [buildings]);
+  const scale = fitScale(stageWidth, widest);
+  const radius = BASE_RADIUS * scale;
+  const stageHeight = stageHeightFor(tallest, scale);
 
   if (!buildings || buildings.length === 0) return null;
 
@@ -356,9 +375,12 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
         </div>
       )}
       <div className="golgu-carousel-outer">
+        <div ref={measureRef} className="golgu-measure" aria-hidden="true" />
         <div
           ref={stageRef}
           className="golgu-carousel-stage"
+          data-scale={scale}
+          style={{ height: stageHeight, perspective: PERSPECTIVE * scale, "--gk": scale, "--gl": Math.min(scale, 1.3) }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -376,10 +398,10 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
                 <div
                   key={b.id}
                   className="golgu-carousel-item"
-                  style={{ transform: `rotateY(${angle}deg) translateZ(${RADIUS}px)`, pointerEvents: isFocused ? "auto" : "none" }}
+                  style={{ transform: `rotateY(${angle}deg) translateZ(${radius}px)`, pointerEvents: isFocused ? "auto" : "none" }}
                 >
                   <div className="golgu-card-wrap">
-                    <GolguCard building={b} itemId={itemId} categoryId={categoryId} status={status} onBrickClick={handleBrickClick} />
+                    <GolguCard building={b} itemId={itemId} categoryId={categoryId} status={status} onBrickClick={handleBrickClick} scale={scale} />
                     <div className="golgu-card-name" style={{ transform: `rotateY(${-(angle + currentRotation)}deg)` }}>
                       {b.name}
                     </div>

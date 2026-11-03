@@ -994,12 +994,20 @@ textarea.input {
   align-items: center;
 }
 
+/* 무대 높이·원근 거리와 아래 회전판 등의 크기는 화면 너비에 맞춘 배율(--gk)로 정해진다(GolguDiagram.jsx · golguSize.js). 아래 숫자는 배율을 모를 때의 기본값이다. */
+.golgu-measure {
+  width: 100%;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .golgu-carousel-stage {
   position: relative;
   width: 100%;
   height: 480px;
   perspective: 1500px;
-  touch-action: none;
+  touch-action: pan-y; /* 좌우로 끄는 것은 동 돌리기에 쓰고, 위아래로 미는 것은 화면 스크롤로 넘긴다(무대가 커져 화면 대부분을 덮어도 화면이 내려가도록) */
   cursor: grab;
   user-select: none;
   overflow: hidden;
@@ -1011,10 +1019,10 @@ textarea.input {
 
 .golgu-carousel-turntable {
   position: absolute;
-  bottom: 22px;
+  bottom: calc(22px * var(--gk, 1));
   left: 50%;
-  width: 280px;
-  height: 48px;
+  width: calc(280px * var(--gk, 1));
+  height: calc(48px * var(--gk, 1));
   transform: translateX(-50%);
   border-radius: 50%;
   background: radial-gradient(ellipse at 50% 40%, var(--surface-alt) 0%, var(--bg) 78%);
@@ -1024,7 +1032,7 @@ textarea.input {
 
 .golgu-carousel-ring {
   position: absolute;
-  bottom: 46px;
+  bottom: calc(46px * var(--gk, 1));
   left: 50%;
   width: 0;
   height: 0;
@@ -1077,7 +1085,7 @@ textarea.input {
   justify-content: center;
   font-family: var(--font-mono);
   font-weight: 700;
-  color: rgba(74, 58, 41, 0.6);
+  color: rgba(74, 58, 41, 0.78);
   line-height: 1;
   padding: 0;
   margin: 0;
@@ -1090,7 +1098,7 @@ textarea.input {
 
 .golgu-card-brick.unfilled {
   background: transparent;
-  color: rgba(74, 58, 41, 0.35);
+  color: rgba(74, 58, 41, 0.5);
   border-top: 0.5px solid rgba(0, 0, 0, 0.1);
   border-right: 0.5px solid rgba(0, 0, 0, 0.1);
 }
@@ -1106,8 +1114,8 @@ textarea.input {
 }
 
 .golgu-card-name {
-  margin-top: 10px;
-  font-size: 12.5px;
+  margin-top: calc(10px * var(--gk, 1));
+  font-size: calc(12.5px * var(--gl, 1));
   font-weight: 700;
   color: var(--ink-soft);
   font-family: var(--font-mono);
