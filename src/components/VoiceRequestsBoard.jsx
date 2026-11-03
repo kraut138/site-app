@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Icon, EmptyState } from "./UI.jsx";
+import { VoiceRecordMeta } from "./VoiceAudio.jsx";
 import { formatDateTime } from "../data.js";
 import { findTrade, tradeName, convertedText } from "../voice.js";
 import { resolveUnit } from "../unitProgress.js";
@@ -189,6 +190,7 @@ function VoiceRequestCard({ report }) {
         </div>
       )}
       {r.summary && <div className="vl-card-summary">{r.summary}</div>}
+      <VoiceRecordMeta report={r} prefix="vr" />
     </article>
   );
 }

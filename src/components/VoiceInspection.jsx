@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, EmptyState } from "./UI.jsx";
 import { useLanguage } from "../LanguageContext.jsx";
 import { formatDateTime, getCategory, itemsForCategory } from "../data.js";
-import { QR_LIMITS } from "../qr.js";
+import { QR_LIMITS, formatDuration } from "../qr.js";
 import * as api from "../api.js";
 import {
   VOICE_TRADES,
@@ -21,6 +21,9 @@ import {
 import { getGlossaryTerms, getGlossaryOnlyDb, getGlossaryFuzzy, getGlossaryPending, refreshGlossary } from "../glossaryStore.js";
 import { analyzeReport, hasEffect, doneItemIdsOf } from "../unitProgress.js";
 import { resolveSpokenPlace, resolveSpokenAddress, spokenExample } from "../spokenUnit.js";
+import { parseSpeakerIntro } from "../speakerIntro.js";
+import { canRecordAudio, startVoiceCapture, primeVoiceAudio, audioNoteKey } from "../voiceAudio.js";
+import { SpeakerLine, VoiceAudioPlayer, VoiceRecordMeta } from "./VoiceAudio.jsx";
 
 // "음성 검측" (시안 index.html의 기능). 두 곳에서 쓴다.
 //  1) 하도급사 전용 "음성 검측" 탭: 공종(관리자 '표준 공종' 탭의 분류 + 그 아래 세부 공종)을 고르고 위치(동·층·부재)를 정한 뒤 마이크로 말한다.
@@ -36,11 +39,16 @@ import { resolveSpokenPlace, resolveSpokenAddress, spokenExample } from "../spok
 // 호실 QR 화면에서 "102동 502호 도배 완료"처럼 다른 호실을 분명하게 말하면, 그 보고는 말한 호실의 기록(동·층·호실을 말한 곳으로 바꿔)으로 저장한다(spokenUnit.js).
 // 그러면 그 호실의 '음성 기록'과 진행도에 그대로 쌓이고, 어느 화면에서 말했는지는 fromUnit에 남는다. 호실을 애매하게 말했거나 이 현장에 없는 곳이면 옮기지 않고 이 호실의 기록으로만 저장하며 이유를 알려 준다.
 // 음성 인식이 안 되는 기기(앱 안의 브라우저 등)를 위해 직접 입력으로도 같은 과정을 거치게 했다.
+// 말한 글 맨 앞(또는 끝)에 "OOO(협력업체) 소속 OOO(이름)"을 말하면 그 소속·이름을 읽어 음성 기록 아래에 "말한 사람"으로 보여 준다(speakerIntro.js).
+// 소개 말은 은어 변환·호실 읽기·진행도 계산에서는 빼고(회사 이름이 작업 내용으로 읽히지 않게), 말한 그대로의 글(rawText)에는 남긴다. 소개 말만 하고 작업 내용이 없으면 저장하지 않고 안내한다.
+// 말하는 동안 마이크로 소리도 함께 녹음해(voiceAudio.js) 글 기록을 저장한 뒤 따로 저장한다 - 그래서 음성 기록에서 실제 말한 소리를 다시 들을 수 있다.
+// 소리는 곁들이는 것이라, 녹음이 안 되거나 비어 있어도 글 기록은 그대로 저장되고 이유만 알려 준다. 일부 휴대폰은 음성 인식과 녹음을 함께 못 하므로 기기마다 끌 수 있다(기본 켜짐).
 // 화면 문구는 하도급사가 외국인 근로자일 수 있어 번역 사전(voice.*)을 쓴다. 저장되는 발화 원문·요약은 말한 그대로(한국어)다.
 
 const STORAGE_KEY = "voiceInspectionSelection";
 const UNIT_STORAGE_KEY = "voiceUnitSelection"; // 호실 QR 화면에서는 공종(과 세부 공종)만 기억한다(탭의 위치 선택과 섞이지 않게 따로 둔다)
 const AUTHOR_KEY = "qrBoardAuthor"; // QR 기록판과 같은 키 - 한 번 적은 이름을 두 화면에서 함께 쓴다
+const KEEP_AUDIO_KEY = "voiceKeepAudio"; // "내 목소리도 녹음해 저장" 선택(이 기기에 기억한다, 기본 켜짐). "off"일 때만 끈 것.
 const PAGE_SIZE = 20;
 const UNIT_PAGE_SIZE = 3; // 호실 화면은 길어지지 않도록 처음에는 최근 3건만 보여 준다
 const UNIT_PAGE_STEP = 10;
@@ -60,6 +68,22 @@ function readSaved(key) {
 function writeSaved(key, value) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // 선택을 기억해 두지 못해도 보고를 남기는 데에는 영향이 없다.
+  }
+}
+
+function readKeepAudio() {
+  try {
+    return window.localStorage.getItem(KEEP_AUDIO_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+function writeKeepAudio(on) {
+  try {
+    window.localStorage.setItem(KEEP_AUDIO_KEY, on ? "on" : "off");
   } catch {
     // 선택을 기억해 두지 못해도 보고를 남기는 데에는 영향이 없다.
   }
@@ -216,6 +240,10 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   const [showText, setShowText] = useState(!supported);
   const [textValue, setTextValue] = useState("");
 
+  const audioOk = canRecordAudio(); // 이 기기(브라우저)에서 목소리를 함께 녹음할 수 있는지
+  const [keepAudio, setKeepAudio] = useState(() => readKeepAudio());
+  const [audioHint, setAudioHint] = useState(false); // 음성 인식이 계속 안 될 때 '녹음 저장 끄기'를 권하는 안내
+
   const [reports, setReports] = useState([]);
   const [feedState, setFeedState] = useState("loading"); // loading | ready | error
   const [visible, setVisible] = useState(compactFeed ? UNIT_PAGE_SIZE : PAGE_SIZE);
@@ -255,17 +283,24 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     fixedUnit: unitMode ? unitName : "",
     placeMode,
     allBuildings: allBuildings || buildings,
+    keepAudio: audioOk && keepAudio,
   };
   const mounted = useRef(true);
   const recRef = useRef(null);
   const gotResult = useRef(false);
   const gotError = useRef(false);
+  const lastError = useRef(""); // 이번 인식에서 받은 오류 코드(없으면 "")
+  const failStreak = useRef(0); // 글을 얻지 못하고 끝난 인식이 연달아 몇 번인지(녹음이 인식을 방해하는 기기인지 가늠한다)
+  const captureRef = useRef(null); // 지금 하는 소리 녹음({ finish, cancel })
+  const clipJobs = useRef(new Map()); // 보고 id → 소리 녹음 결과(약속). 글 저장을 다시 보낼 때도 같은 소리를 쓰려고 둔다
+  const pendingClips = useRef(new Map()); // 보고 id → 아직 저장하지 못한 소리 { dataUrl, sec }(마지막 하나만)
   const resultRef = useRef(null);
 
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      dropCapture();
       const rec = recRef.current;
       if (rec) {
         rec.onstart = rec.onresult = rec.onerror = rec.onend = null;
@@ -303,6 +338,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   useEffect(() => {
     if (status !== "stopping") return undefined;
     const timer = setTimeout(() => {
+      dropCapture();
       setStatus((s) => (s === "stopping" ? "idle" : s));
       setMessage({ kind: "error", key: "voice.err.generic" });
     }, 8000);
@@ -355,24 +391,105 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     }
   }, [resultId]);
 
+  // ---------------- 소리 녹음(글 기록에 곁들인다) ----------------
+  // 말하기 시작할 때 녹음을 시작하고(beginCapture), 인식이 글을 돌려주면 녹음을 마무리해 그 결과(약속)를 받는다(takeCapture).
+  // 글 기록이 저장된 뒤에 소리를 따로 저장한다(saveClip) - 소리가 크거나 연결이 느려도 글 기록이 막히지 않는다.
+  function beginCapture() {
+    dropCapture();
+    if (!latest.current.keepAudio) return;
+    try {
+      captureRef.current = startVoiceCapture();
+    } catch {
+      captureRef.current = null; // 소리 녹음은 곁들이는 것이라, 시작하지 못해도 글 인식은 그대로 한다
+    }
+  }
+
+  function takeCapture() {
+    const cap = captureRef.current;
+    captureRef.current = null;
+    return cap ? cap.finish() : null;
+  }
+
+  function dropCapture() {
+    const cap = captureRef.current;
+    captureRef.current = null;
+    if (cap) cap.cancel();
+  }
+
+  function changeKeepAudio(on) {
+    setKeepAudio(on);
+    writeKeepAudio(on);
+    if (!on) {
+      setAudioHint(false);
+      failStreak.current = 0;
+      dropCapture();
+    }
+  }
+
+  // 방금 보고(result)의 소리 저장 상태를 바꾼다. 그 사이 다른 보고로 바뀌었으면 건드리지 않는다.
+  function patchResult(id, fields) {
+    if (mounted.current) setResult((r) => (r && r.id === id ? { ...r, ...fields } : r));
+  }
+
+  async function uploadClip(id, clip) {
+    pendingClips.current.clear(); // 저장하지 못한 소리는 마지막 하나만 들고 있는다
+    pendingClips.current.set(id, clip);
+    patchResult(id, { audio: "saving", audioReason: "" });
+    try {
+      await api.saveVoiceAudio(id, clip);
+      pendingClips.current.delete(id);
+      primeVoiceAudio(id, clip); // 방금 저장한 소리는 다시 읽지 않고 바로 들을 수 있게
+      patchResult(id, { audio: "saved", audioSec: clip.sec });
+      if (mounted.current) setReports((prev) => prev.map((r) => (r.id === id ? { ...r, hasAudio: true, audioSec: clip.sec } : r)));
+    } catch {
+      patchResult(id, { audio: "error" });
+    }
+  }
+
+  // 글 기록을 저장한 뒤 부른다: 녹음 결과를 기다려, 쓸 만한 소리면 저장하고 아니면 이유를 알려 준다.
+  async function saveClip(id, job) {
+    patchResult(id, { audio: "saving", audioReason: "" });
+    let outcome;
+    try {
+      outcome = await job;
+    } catch {
+      outcome = { ok: false, reason: "error" };
+    }
+    clipJobs.current.delete(id);
+    if (!outcome || !outcome.ok) {
+      patchResult(id, { audio: "none", audioReason: outcome ? outcome.reason : "error" });
+      return;
+    }
+    await uploadClip(id, outcome.clip);
+  }
+
+  function retryAudio() {
+    if (!result) return;
+    const clip = pendingClips.current.get(result.id);
+    if (clip) uploadClip(result.id, clip);
+  }
+
   // ---------------- 보고 만들기·저장 ----------------
-  async function sendReport(entry) {
-    setResult({ ...entry, state: "saving" });
+  async function sendReport(entry, audioJob = null) {
+    if (audioJob) clipJobs.current.set(entry.id, audioJob);
+    const job = audioJob || clipJobs.current.get(entry.id) || null; // 글 저장을 다시 보낼 때는 처음 녹음한 소리를 그대로 쓴다
+    setResult({ ...entry, state: "saving", audio: "", audioReason: "" });
     setStatus("saving");
     setMessage(null);
     try {
       const saved = await api.createVoiceReport(entry);
       if (!mounted.current) return;
-      setResult({ ...entry, state: "saved" });
+      setResult({ ...entry, state: "saved", audio: job ? "saving" : "", audioReason: "" });
       setMessage({ kind: "ok", key: "voice.status.done" });
       // 이 화면의 목록에는 이 위치(호실)의 보고만 넣는다 - 같은 층의 다른 호실로 옮겨 저장한 보고(말한 호실의 기록)는 넣지 않는다.
       const only = latest.current.elemFilter;
       // (공종별 QR 화면의 목록은 이 기기에서 방금 남긴 보고들이라, 어느 호실로 저장됐든 모두 넣는다)
       if (latest.current.placeMode || (latest.current.zone === entry.zone && (!only || entry.elem === only))) setReports((prev) => [saved, ...prev.filter((r) => r.id !== saved.id)]);
       latest.current.notify(latest.current.t("voice.sent"));
+      if (job) saveClip(saved.id, job); // 글 기록이 저장된 뒤에 소리를 따로 저장한다(기다리지 않는다)
     } catch {
       if (!mounted.current) return;
-      setResult({ ...entry, state: "error" });
+      setResult({ ...entry, state: "error", audio: "", audioReason: "" });
       setMessage({ kind: "error", key: "voice.err.save" });
     } finally {
       if (mounted.current) setStatus("idle");
@@ -381,7 +498,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
 
   // 말한(또는 입력한) 내용 하나를 보고로 만든다: 은어 변환(용어 DB 표대로) → 공종별 요약 → 저장.
   // 용어 표를 새로 읽는 중이면(녹음을 시작할 때 읽기 시작한다) 최대 2초까지 기다렸다가 최신 표로 바꾼다. 읽는 중이 아니면 기다림 없이 바로 진행한다.
-  function handleTranscript(raw, via) {
+  function handleTranscript(raw, via, audioJob = null) {
     const cur = latest.current;
     if (!cur.building && !cur.placeMode) return;
     const rawText = String(raw || "").trim().slice(0, VOICE_LIMITS.rawText);
@@ -390,9 +507,20 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
       setMessage({ kind: "error", key: "voice.err.noSpeech" });
       return;
     }
+    // 말한 글 맨 앞(또는 끝)의 "OOO 소속 OOO"에서 말한 사람을 읽고, 소개 말을 뗀 글로 분석한다(말한 그대로의 글은 rawText에 그대로 남는다).
+    const intro = parseSpeakerIntro(rawText);
+    if (intro.found && !intro.rest) {
+      // 소개 말만 하고 작업 내용이 없으면 저장하지 않는다(내용 없는 기록이 쌓이지 않게). 말한 글은 입력칸에 남겨 이어서 쓸 수 있게 한다.
+      setStatus("idle");
+      setMessage({ kind: "error", key: "voice.speaker.only" });
+      setShowText(true);
+      setTextValue(rawText);
+      return;
+    }
+    const heard = { body: intro.found ? intro.rest : rawText, speaker: intro.found ? { name: intro.name, company: intro.company } : null, audioJob };
     const pending = getGlossaryPending();
     if (!pending) {
-      makeReport(cur, rawText, via);
+      makeReport(cur, rawText, via, heard);
       return;
     }
     setStatus("saving");
@@ -403,15 +531,15 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     });
     Promise.race([pending, limit]).then(() => {
       clearTimeout(timer);
-      if (mounted.current) makeReport(cur, rawText, via);
+      if (mounted.current) makeReport(cur, rawText, via, heard);
     });
   }
 
   // 공종별 QR 화면: 말한 글에서 동·층·호실을 읽어 그 호실의 보고로 저장한다. 읽지 못하면 저장하지 않고 이유를 결과 상자에 알려 준다(말한 글은 입력칸에 남겨 고쳐서 다시 보낼 수 있게 한다).
-  function makePlaceReport(cur, rawText, via, fixed) {
+  function makePlaceReport(cur, rawText, via, fixed, heard) {
     let spoken = { kind: "none" };
     try {
-      spoken = resolveSpokenAddress(fixed.normalized || rawText, cur.allBuildings);
+      spoken = resolveSpokenAddress(fixed.normalized || heard.body, cur.allBuildings);
     } catch {
       spoken = { kind: "none" };
     }
@@ -439,7 +567,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     let progress = null;
     try {
       if (Array.isArray(cur.checklistItems) && cur.checklistItems.length > 0) {
-        progress = analyzeReport({ buildingId: b.id, buildingName: b.name, floor: spoken.floor, elem, normalized: fixed.normalized, rawText }, cur.checklistItems, { fixedUnit: spoken.unit, unitsPerFloor: b.unitsPerFloor });
+        progress = analyzeReport({ buildingId: b.id, buildingName: b.name, floor: spoken.floor, elem, normalized: fixed.normalized, rawText: heard.body }, cur.checklistItems, { fixedUnit: spoken.unit, unitsPerFloor: b.unitsPerFloor });
       }
     } catch {
       progress = null;
@@ -449,34 +577,44 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     // 세부 공종은 말한 작업 중 이 공종에 속한 항목의 이름이다(서류 작성이 "마감공사 · 도배"처럼 작업 이름을 적는 데 쓴다)
     const ownItems = progress ? progress.analysis.items.filter((i) => i.categoryId === cur.tradeId).map((i) => i.text) : [];
     const tradeItem = ownItems.join("·").slice(0, VOICE_LIMITS.tradeItem);
-    sendReport({
-      id: api.newVoiceReportId(),
-      trade: cur.tradeId,
-      tradeItem,
-      author: cur.userName,
-      buildingId: b.id,
-      buildingName: b.name,
-      floor: spoken.floor,
-      zone: buildZone(b.name, spoken.floor),
-      elem,
-      place: { kind: "other", buildingName: b.name, floor: spoken.floor, unit: spoken.unit }, // 결과 상자 안내용(저장하지 않는다)
-      rawText,
-      normalized: fixed.normalized,
-      dbText: fixed.dbText,
-      parts: fixed.parts,
-      replacedCount: fixed.replacedCount,
-      fuzzy: fixed.fuzzy,
-      summary: buildSummary(cur.tradeId, fixed.shown, tradeItem),
-      progress,
-      done: doneIds.length > 0 ? { buildingId: b.id, floor: spoken.floor, unit: spoken.unit, itemIds: doneIds } : null,
-      via,
-    });
+    sendReport(
+      {
+        id: api.newVoiceReportId(),
+        trade: cur.tradeId,
+        tradeItem,
+        author: cur.userName,
+        buildingId: b.id,
+        buildingName: b.name,
+        floor: spoken.floor,
+        zone: buildZone(b.name, spoken.floor),
+        elem,
+        place: { kind: "other", buildingName: b.name, floor: spoken.floor, unit: spoken.unit }, // 결과 상자 안내용(저장하지 않는다)
+        rawText,
+        normalized: fixed.normalized,
+        dbText: fixed.dbText,
+        ...speakerFields(heard.speaker),
+        parts: fixed.parts,
+        replacedCount: fixed.replacedCount,
+        fuzzy: fixed.fuzzy,
+        summary: buildSummary(cur.tradeId, fixed.shown, tradeItem),
+        progress,
+        done: doneIds.length > 0 ? { buildingId: b.id, floor: spoken.floor, unit: spoken.unit, itemIds: doneIds } : null,
+        via,
+      },
+      heard.audioJob
+    );
   }
 
-  function makeReport(cur, rawText, via) {
-    const fixed = convertVoiceText(rawText, getGlossaryTerms(), getGlossaryOnlyDb(), getGlossaryFuzzy());
+  // 말한 사람이 있으면 보고에 함께 저장할 필드(없으면 아무것도 넣지 않는다)
+  function speakerFields(speaker) {
+    return speaker && speaker.name ? { speakerName: speaker.name, speakerCompany: speaker.company || "" } : {};
+  }
+
+  // heard: { body(소개 말을 뗀 분석용 글), speaker({ name, company } | null), audioJob(소리 녹음 결과 약속 | null) }
+  function makeReport(cur, rawText, via, heard) {
+    const fixed = convertVoiceText(heard.body, getGlossaryTerms(), getGlossaryOnlyDb(), getGlossaryFuzzy());
     if (cur.placeMode) {
-      makePlaceReport(cur, rawText, via, fixed);
+      makePlaceReport(cur, rawText, via, fixed, heard);
       return;
     }
     const hereElem = cur.elem.trim();
@@ -485,7 +623,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     let spoken = { kind: "none" };
     if (cur.fixedUnit) {
       try {
-        spoken = resolveSpokenPlace(fixed.normalized || rawText, { buildingId: cur.building.id, floor: cur.floor, unit: cur.fixedUnit }, cur.allBuildings);
+        spoken = resolveSpokenPlace(fixed.normalized || heard.body, { buildingId: cur.building.id, floor: cur.floor, unit: cur.fixedUnit }, cur.allBuildings);
       } catch {
         spoken = { kind: "none" };
       }
@@ -501,7 +639,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     try {
       if (Array.isArray(cur.checklistItems) && cur.checklistItems.length > 0) {
         progress = analyzeReport(
-          { buildingId: loc.building.id, buildingName: loc.building.name, floor: loc.floor, elem, normalized: fixed.normalized, rawText },
+          { buildingId: loc.building.id, buildingName: loc.building.name, floor: loc.floor, elem, normalized: fixed.normalized, rawText: heard.body },
           cur.checklistItems,
           { fixedUnit: moved ? spoken.unit : cur.fixedUnit, unitsPerFloor: loc.building.unitsPerFloor }
         );
@@ -509,33 +647,37 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     } catch {
       progress = null;
     }
-    sendReport({
-      id: api.newVoiceReportId(),
-      trade: cur.tradeId,
-      tradeItem: cur.tradeItem,
-      author: cur.userName,
-      buildingId: loc.building.id,
-      buildingName: loc.building.name,
-      floor: loc.floor,
-      zone: loc.zone,
-      elem,
-      ...(moved ? { fromUnit: `${buildZone(cur.building.name, cur.floor)} ${hereElem}` } : {}), // 말한 호실로 옮겨 저장했으면 말한 화면의 호실("101동 3층 301호")
-      place: spoken.kind === "none" || spoken.kind === "same" ? null : moved ? { kind: "other", buildingName: spoken.building.name, floor: spoken.floor, unit: spoken.unit } : spoken, // 말한 호실에 대한 결과 상자 안내용(저장하지 않는다)
-      rawText,
-      normalized: fixed.normalized, // 은어만 바꾼 전체 문장 - 진행도 계산이 읽는다
-      dbText: fixed.dbText, // 용어 DB 단어만 남긴 글(그 방식이 꺼져 있으면 null이라 저장하지 않는다)
-      parts: fixed.parts, // 화면에서 바뀐 부분을 강조하는 데만 쓴다(저장하지 않는다)
-      replacedCount: fixed.replacedCount,
-      fuzzy: fixed.fuzzy, // 비슷한 소리로 찾아 바꾼 말들 - 결과 상자에 알려 주는 용도(저장하지 않는다)
-      summary: buildSummary(cur.tradeId, fixed.shown, cur.tradeItem),
-      progress, // 호실 진행도에 반영된 내용(저장하지 않는다)
-      // 이 호실에서 '완료'라고 말한 항목 - 보고와 함께 모아 두어 골구도에 완료로 보이게 한다(호실을 확인하지 못했으면 모으지 않는다)
-      done:
-        progress && progress.resolved.ok && doneItemIdsOf(progress.analysis, cur.checklistItems).length > 0
-          ? { buildingId: progress.resolved.buildingId, floor: progress.resolved.floor, unit: progress.resolved.unit, itemIds: doneItemIdsOf(progress.analysis, cur.checklistItems) }
-          : null,
-      via,
-    });
+    sendReport(
+      {
+        id: api.newVoiceReportId(),
+        trade: cur.tradeId,
+        tradeItem: cur.tradeItem,
+        author: cur.userName,
+        buildingId: loc.building.id,
+        buildingName: loc.building.name,
+        floor: loc.floor,
+        zone: loc.zone,
+        elem,
+        ...(moved ? { fromUnit: `${buildZone(cur.building.name, cur.floor)} ${hereElem}` } : {}), // 말한 호실로 옮겨 저장했으면 말한 화면의 호실("101동 3층 301호")
+        place: spoken.kind === "none" || spoken.kind === "same" ? null : moved ? { kind: "other", buildingName: spoken.building.name, floor: spoken.floor, unit: spoken.unit } : spoken, // 말한 호실에 대한 결과 상자 안내용(저장하지 않는다)
+        rawText,
+        normalized: fixed.normalized, // 은어만 바꾼 전체 문장 - 진행도 계산이 읽는다
+        dbText: fixed.dbText, // 용어 DB 단어만 남긴 글(그 방식이 꺼져 있으면 null이라 저장하지 않는다)
+        ...speakerFields(heard.speaker), // 말한 글 맨 앞에서 읽은 말한 사람(소개 말이 없었으면 없다)
+        parts: fixed.parts, // 화면에서 바뀐 부분을 강조하는 데만 쓴다(저장하지 않는다)
+        replacedCount: fixed.replacedCount,
+        fuzzy: fixed.fuzzy, // 비슷한 소리로 찾아 바꾼 말들 - 결과 상자에 알려 주는 용도(저장하지 않는다)
+        summary: buildSummary(cur.tradeId, fixed.shown, cur.tradeItem),
+        progress, // 호실 진행도에 반영된 내용(저장하지 않는다)
+        // 이 호실에서 '완료'라고 말한 항목 - 보고와 함께 모아 두어 골구도에 완료로 보이게 한다(호실을 확인하지 못했으면 모으지 않는다)
+        done:
+          progress && progress.resolved.ok && doneItemIdsOf(progress.analysis, cur.checklistItems).length > 0
+            ? { buildingId: progress.resolved.buildingId, floor: progress.resolved.floor, unit: progress.resolved.unit, itemIds: doneItemIdsOf(progress.analysis, cur.checklistItems) }
+            : null,
+        via,
+      },
+      heard.audioJob
+    );
   }
 
   // ---------------- 음성 인식 ----------------
@@ -550,10 +692,13 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     rec.onresult = (event) => {
       gotResult.current = true;
       const transcript = event && event.results && event.results[0] && event.results[0][0] ? event.results[0][0].transcript : "";
-      handleTranscript(transcript, "voice");
+      handleTranscript(transcript, "voice", takeCapture()); // 말이 끝났으니 소리 녹음도 마무리해 글과 함께 넘긴다
     };
     rec.onerror = (event) => {
       gotError.current = true;
+      lastError.current = (event && event.error) || "";
+      // 마이크를 못 잡는다는 오류(audio-capture)는 소리 녹음과 마이크를 다투는 경우일 수 있어, 녹음 저장을 끄는 방법을 알려 준다.
+      if (event && event.error === "audio-capture" && latest.current.keepAudio) setAudioHint(true);
       const key = errorKey(event && event.error);
       if (key) setMessage({ kind: "error", key });
       if (event && (event.error === "not-allowed" || event.error === "service-not-allowed")) setShowText(true); // 마이크를 못 쓰면 직접 입력으로 이어갈 수 있게
@@ -561,6 +706,13 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     rec.onend = () => {
       // 결과도 오류도 없이 끝난 경우(아무 말도 안 했거나 바로 멈춘 경우)에도 안내를 남긴다.
       if (!gotResult.current && !gotError.current) setMessage({ kind: "error", key: "voice.err.noSpeech" });
+      dropCapture(); // 글을 얻지 못하고 끝났으면 녹음한 소리는 버린다(글을 얻었으면 onresult에서 이미 마무리했다)
+      // 글을 얻지 못하고 끝난 인식이 연달아 두 번이면(네트워크·마이크 허용 문제가 아닐 때) 소리 녹음이 인식을 방해하는 기기일 수 있어, 녹음 저장을 끄는 방법을 알려 준다.
+      if (gotResult.current) failStreak.current = 0;
+      else if (latest.current.keepAudio && !["network", "not-allowed", "service-not-allowed"].includes(lastError.current)) {
+        failStreak.current += 1;
+        if (failStreak.current >= 2) setAudioHint(true);
+      }
       setStatus((s) => (s === "listening" || s === "stopping" ? "idle" : s));
     };
     recRef.current = rec;
@@ -586,6 +738,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     refreshGlossary(); // 말하는 동안 최신 용어 표를 읽어 둔다
     gotResult.current = false;
     gotError.current = false;
+    lastError.current = "";
     setMessage(null);
     // 지난 보고의 '저장 완료' 결과는 새 녹음을 시작하면 치운다(저장에 실패한 결과는 다시 보내기 전까지 남겨 둔다).
     setResult((r) => (r && r.state === "saved" ? null : r));
@@ -604,11 +757,14 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
         try {
           rec.start();
         } catch {
+          dropCapture();
           setStatus("idle");
           setMessage({ kind: "error", key: "voice.err.generic" });
         }
       }, 200);
     }
+    // 소리 녹음은 음성 인식을 시작한 뒤에 곁들여 시작한다(인식이 먼저 마이크를 잡게 하고, 녹음이 안 돼도 인식은 그대로 한다)
+    beginCapture();
   }
 
   function submitText(e) {
@@ -826,6 +982,9 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
             <p className="vl-guide" data-testid="vl-guide">
               {placeMode ? t("voice.place.guide", { example }) : itemValue ? t("voice.guide.item", { item: itemValue }) : t(`voice.guide.${trade.id}`)}
             </p>
+            <p className="vl-guide vl-speaker-hint" data-testid="vl-speaker-hint">
+              {t("voice.speaker.hint")}
+            </p>
 
             {!supported && (
               <div className="vl-note" data-testid="vl-unsupported">
@@ -869,11 +1028,17 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
               </div>
             )}
             {result && result.state !== "noplace" && (
+              <>
               <div ref={resultRef} className={`vl-result${result.state === "error" ? " is-error" : ""}`} data-testid="vl-result">
                 <h3>{t("voice.result.raw")}</h3>
                 <div className="vl-result-raw" data-testid="vl-raw">
                   "{result.rawText}"
                 </div>
+                {result.speakerName && (
+                  <div className="vl-meta" data-testid="vl-result-meta">
+                    <SpeakerLine speaker={{ name: result.speakerName, company: result.speakerCompany }} prefix="vl-result" />
+                  </div>
+                )}
                 {(result.replacedCount > 0 || (typeof result.dbText === "string" && result.dbText !== "" && result.dbText !== result.rawText)) && (
                   <>
                     <div className="vl-result-sep" />
@@ -937,6 +1102,60 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
                   </div>
                 )}
               </div>
+              {/* 녹음 저장 상태는 결과 상자 '밖' 바로 아래에 둔다: 소리를 저장하는 동안 상자의 높이가 변하지 않아야 방금 말한 글이 화면 안에 그대로 보인다 */}
+              {result.state === "saved" && result.audio && (
+                <div className={`vl-audio-state is-${result.audio}`} data-testid="vl-audio-state" data-state={result.audio}>
+                  {result.audio === "saving" && <span className="vl-saving">{t("voice.audio.saving")}</span>}
+                  {result.audio === "saved" && (
+                    <>
+                      <span className="vl-audio-ok" data-testid="vl-audio-saved">
+                        <Icon.Mic width="14" height="14" /> {t("voice.audio.saved", { time: formatDuration(result.audioSec) })}
+                      </span>
+                      <VoiceAudioPlayer reportId={result.id} sec={result.audioSec} prefix="vl-result" />
+                    </>
+                  )}
+                  {result.audio === "error" && (
+                    <>
+                      <span className="vl-audio-warn" data-testid="vl-audio-error">
+                        {t("voice.audio.saveError")}
+                      </span>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={retryAudio} data-testid="vl-audio-retry">
+                        {t("voice.audio.retry")}
+                      </button>
+                    </>
+                  )}
+                  {result.audio === "none" && audioNoteKey(result.audioReason) && (
+                    <span className="vl-audio-warn" data-testid="vl-audio-note" data-reason={result.audioReason}>
+                      {t(audioNoteKey(result.audioReason))}
+                    </span>
+                  )}
+                </div>
+              )}
+              </>
+            )}
+
+            {audioOk ? (
+              <div className="vl-keep-wrap">
+                <label className="vl-keep" data-testid="vl-keep">
+                  <input type="checkbox" checked={keepAudio} disabled={busy} onChange={(e) => changeKeepAudio(e.target.checked)} data-testid="vl-keep-input" />
+                  <span className="vl-keep-text">
+                    <span className="vl-keep-label">{t("voice.audio.keep")}</span>
+                    <span className="vl-keep-note">{t("voice.audio.keepNote")}</span>
+                  </span>
+                </label>
+                {keepAudio && audioHint && (
+                  <div className="vl-keep-hint" role="status" data-testid="vl-keep-hint">
+                    <span>{t("voice.audio.hint")}</span>
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => changeKeepAudio(false)} data-testid="vl-keep-off">
+                      {t("voice.audio.hintOff")}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="vl-keep-note vl-keep-unsupported" data-testid="vl-keep-unsupported">
+                {t("voice.audio.unsupported")}
+              </p>
             )}
 
             <div className="vl-text">
@@ -1012,6 +1231,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
                       </div>
                     )}
                     <div className="vl-card-summary">{r.summary}</div>
+                    <VoiceRecordMeta report={r} prefix="vl" />
                   </article>
                 );
               })}

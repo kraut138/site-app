@@ -4282,3 +4282,217 @@ textarea.input {
     margin-left: 26px;
   }
 }
+
+/* ---- 말한 사람(소속·이름) · 녹음 듣기: 음성 기록 카드 아래(음성 검측 화면·호실 정보·음성요청 내역·대시보드 피드가 함께 쓴다) ---- */
+.vl-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px dashed var(--line-strong);
+}
+
+/* 방금 저장한 결과 상자 안에서는 원문 바로 아래에 붙는다 */
+.vl-result > .vl-meta {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.vl-speaker {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.vl-speaker svg {
+  flex: none;
+  color: var(--ink-faint);
+}
+
+.vl-speaker-label {
+  font-weight: 600;
+}
+
+.vl-speaker-name {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.vl-speaker-co {
+  color: var(--ink-soft);
+}
+
+.vl-audio-wrap {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.vl-audio-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 100px;
+  border: 1.5px solid var(--line-blue);
+  background: #f1f7fc;
+  color: var(--blueprint);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vl-audio-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.vl-audio {
+  height: 40px;
+  max-width: 100%;
+}
+
+.vl-audio-error {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fail);
+}
+
+/* 안내 한 줄: 처음에 "OO건설 소속 홍길동"처럼 말하면 이름이 표시된다 */
+.vl-speaker-hint {
+  margin-top: -6px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+/* 호실 QR 화면·공종별 QR 화면은 한국어 전용이라, 낱말 가운데서 줄이 끊기지 않게 한다 */
+.vl-page--unit .vl-speaker,
+.vl-page--compact .vl-speaker,
+.vl-page--unit .vl-speaker-hint,
+.vl-page--compact .vl-speaker-hint,
+.vl-page--unit .vl-keep-text,
+.vl-page--compact .vl-keep-text,
+.vl-page--unit .vl-audio-warn,
+.vl-page--compact .vl-audio-warn {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* "내 목소리도 녹음해 저장" 스위치(이 기기에 기억) */
+.vl-keep-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vl-keep {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.vl-keep input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--vl, var(--blueprint));
+  cursor: pointer;
+}
+
+.vl-keep input:disabled {
+  cursor: not-allowed;
+}
+
+.vl-keep-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vl-keep-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.vl-keep-note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-faint);
+}
+
+.vl-keep-hint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: var(--radius-s);
+  background: var(--pending-bg);
+  color: var(--pending);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.vl-keep-hint > span {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+/* 결과 상자 바로 아래(상자 밖): 녹음 저장 상태(저장 중 · 저장함 + 듣기 · 실패 · 못 남긴 이유).
+   소리를 저장하는 동안 결과 상자의 높이가 변하지 않도록 상자 안이 아니라 따로 둔다. */
+.vl-audio-state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: -6px; /* 위 칸과의 간격(14px)을 8px로 좁혀 결과 상자에 붙어 보이게 */
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--vl);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.vl-audio-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--pass);
+}
+
+.vl-audio-warn {
+  flex: 1 1 200px;
+  min-width: 0;
+  color: var(--pending);
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.vl-audio-state.is-error .vl-audio-warn {
+  color: var(--fail);
+}

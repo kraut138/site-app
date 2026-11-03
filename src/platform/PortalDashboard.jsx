@@ -6,6 +6,7 @@ import { fuzzyLabel } from "../fuzzyTerms.js";
 import * as api from "../api.js";
 import Dashboard from "../components/Dashboard.jsx";
 import FoldToggle, { useFolded } from "../components/FoldToggle.jsx";
+import { VoiceRecordMeta } from "../components/VoiceAudio.jsx";
 
 // 공사현황 대시보드(현장통 시안의 첫 번째 탭): 숫자 카드 4개 → 실시간 음성 보고 피드 + 공종별 현황 → (앱에만 있던) 검측·NCR 분석 카드.
 // 모든 숫자는 실제 데이터에서 나온다. 음성 보고는 화면이 열려 있는 동안만 가장 최근 FEED_COUNT건을 실시간으로 받는다(api.subscribeRecentVoiceReports).
@@ -316,6 +317,7 @@ function FeedItem({ report: r }) {
           <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-600" aria-hidden="true" />
           <span data-testid="feed-refined">{refined || "용어 DB에 있는 단어가 없어 순화한 내용이 비어 있습니다."}</span>
         </p>
+        <VoiceRecordMeta report={r} prefix="feed" />
       </div>
     </div>
   );

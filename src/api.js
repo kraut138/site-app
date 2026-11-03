@@ -20,6 +20,7 @@ import { QR_LIMITS, newQrBoardId, isValidQrBoardId } from "./qr.js";
 import { VOICE_TRADES, VOICE_LIMITS, clockString, defaultGlossary, sanitizeGlossary, checkTerm, convertVoiceText, buildSummary, glossaryHash, GLOSSARY_MESSAGES } from "./voice.js";
 import { FUZZY_LEVELS, normalizeFuzzy } from "./fuzzyTerms.js";
 import { cleanImportEntries, planGlossaryImport, applyGlossaryImport } from "./glossaryImport.js";
+import { analysisText, SPEAKER_LIMITS } from "./speakerIntro.js";
 import { SAMPLE_LIMITS, SAMPLE_MESSAGES, cleanSampleName, newSampleId, sanitizeSamples, sanitizeSegments, splitIntoChunks, joinChunks } from "./audioSamples.js";
 
 function nowIso() {
@@ -586,6 +587,9 @@ export async function deleteQrCode(id) {
 //           없는 기록(그 방식을 쓰기 전에 저장했거나 꺼 둔 채 저장한 기록)은 normalized를 쓴다.
 //   fromUnit: 호실 QR 화면에서 다른 호실을 말해 그 호실의 기록으로 옮겨 저장했을 때만 있는 글. 말한 화면의 호실("101동 3층 301호").
 //           이때 buildingId·buildingName·floor·zone·elem은 말한 호실의 것이다(그래서 그 호실의 '음성 기록'과 진행도에 그대로 쌓인다).
+//   speakerName·speakerCompany: 말한 글 맨 앞의 "OOO(협력업체) 소속 OOO(이름)"에서 읽은 말한 사람(speakerIntro.js). 소개 말이 없었으면 없다.
+//           rawText는 소개 말까지 말한 그대로이고, normalized·dbText·summary는 소개 말을 뗀 나머지 글로 만든다(회사 이름이 작업 내용으로 읽히지 않게).
+//   hasAudio·audioSec: 말한 소리를 함께 녹음해 저장했을 때만 있다. 소리 자체는 voiceAudio/{보고 id} 문서에 따로 담는다(saveVoiceAudio) - 목록 문서가 무거워지지 않게.
 //   (공종을 철근·설비·형틀·품질 승인 중에서 고르던 때 저장된 기록은 trade가 "rebar"·"formwork"·"qc"(설비는 "mep")이고 tradeItem 항목이 없다 - 읽을 때 그대로 보여 준다)
 //   (공종별 QR 화면에서 남긴 보고는 위치가 말한 동·호실이다: buildingId·buildingName·floor·zone은 말한 동·층, elem은 "02호"처럼 호실. tradeItem은 말한 작업 중 그 공종의 표준 항목 글이다.)
 //   done(저장하지 않는 입력값): { buildingId, floor, unit, itemIds } - 이 보고가 '완료'라고 말한 항목들. 있으면 보고와 함께 그 호실의 '음성 완료'(unitVoiceDone)에도 기록한다(아래).
@@ -629,6 +633,9 @@ export async function createVoiceReport(data) {
     normalized: String(data.normalized || ""),
     ...(typeof data.dbText === "string" ? { dbText: data.dbText } : {}),
     ...(typeof data.fromUnit === "string" && data.fromUnit.trim() ? { fromUnit: data.fromUnit.trim().slice(0, 60) } : {}),
+    ...(typeof data.speakerName === "string" && data.speakerName.trim()
+      ? { speakerName: data.speakerName.trim().slice(0, SPEAKER_LIMITS.name), speakerCompany: String(data.speakerCompany || "").trim().slice(0, SPEAKER_LIMITS.company) }
+      : {}),
     summary: String(data.summary || ""),
     via: data.via === "text" ? "text" : "voice",
     createdAt: now.toISOString(),
@@ -648,6 +655,35 @@ export async function createVoiceReport(data) {
     await withTimeout(batch.commit(), VOICE_SAVE_TIMEOUT_MS, "voice/timeout");
   }
   return { id, ...payload };
+}
+
+// 음성 보고에 곁들인 '말한 소리'를 저장한다. 글 보고를 먼저 저장한 뒤에 따로 부른다(소리가 크거나 연결이 느려도 글 보고가 막히지 않게).
+//   voiceAudio/{보고 id}: { reportId, audio(data URL), sec, createdAt } - 소리 문서와 보고의 hasAudio·audioSec 표시를 한 묶음으로 쓴다(둘 다 저장되거나 둘 다 안 된다).
+//   같은 id에 같은 값을 쓸 뿐이라 다시 보내도 중복되지 않는다. 사진·음성을 base64 문자열로 담는 방식은 QR 기록판과 같다(문서 1MiB 제한 안에서).
+const VOICE_AUDIO_SAVE_TIMEOUT_MS = 30000;
+const VOICE_AUDIO_READ_TIMEOUT_MS = 20000;
+
+export async function saveVoiceAudio(reportId, clip) {
+  const id = String(reportId || "");
+  const dataUrl = clip && typeof clip.dataUrl === "string" ? clip.dataUrl : "";
+  if (!id || !/^data:audio\/[a-z0-9.+-]+;base64,/i.test(dataUrl)) throw new Error("녹음 소리가 올바르지 않습니다.");
+  if (dataUrl.length > QR_LIMITS.mediaDocMaxChars) {
+    const err = new Error("녹음 용량이 너무 큽니다.");
+    err.code = "voice/audio-too-large";
+    throw err;
+  }
+  const sec = Math.max(0, Math.round(Number(clip.sec) || 0));
+  const batch = writeBatch(db);
+  batch.set(doc(db, "voiceAudio", id), { reportId: id, audio: dataUrl, sec, createdAt: nowIso() });
+  batch.update(doc(db, "voiceReports", id), { hasAudio: true, audioSec: sec });
+  await withTimeout(batch.commit(), VOICE_AUDIO_SAVE_TIMEOUT_MS, "voice/timeout");
+  return { id, hasAudio: true, audioSec: sec };
+}
+
+// 저장한 소리를 읽는다(듣기를 눌렀을 때만 - 목록에는 소리가 없다). 없으면 null.
+export async function fetchVoiceAudio(reportId) {
+  const snap = await withTimeout(getDoc(doc(db, "voiceAudio", String(reportId || ""))), VOICE_AUDIO_READ_TIMEOUT_MS, "voice/timeout");
+  return snap.exists() ? snap.data() : null;
 }
 
 // 한 위치(동+층)의 보고를 최신순으로 가져온다. (인덱스 없이 쓰려고 정렬은 화면에서 한다)
@@ -1085,7 +1121,8 @@ export async function planGlossaryReapply() {
       noText += 1;
       return;
     }
-    const conv = convertVoiceText(rawText, current.terms, current.onlyDb, current.fuzzy);
+    // 말한 글 맨 앞의 '소속·이름' 소개 말은 저장할 때와 똑같이 떼고 변환한다(안 떼면 다시 적용할 때 소개 말이 변환 글에 섞여 들어온다)
+    const conv = convertVoiceText(analysisText(rawText), current.terms, current.onlyDb, current.fuzzy);
     // tradeItem이 없는 기록은 세부 공종 칸이 없던 예전 기록이다 - buildSummary가 예전 문장 틀로 같은 요약을 만든다.
     const summary = buildSummary(String(data.trade || ""), conv.shown, typeof data.tradeItem === "string" ? data.tradeItem : undefined);
     const beforeFull = typeof data.normalized === "string" ? data.normalized : "";

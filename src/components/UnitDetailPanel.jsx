@@ -3,6 +3,7 @@ import { Map as MapIcon, History as HistoryIcon } from "lucide-react";
 import { CATEGORIES, getCategory, formatDateTime, categoryProgress, itemsForCategory, itemStatusForUnit, findUnitFloorPlan } from "../data.js";
 import { Icon, EmptyState, CategoryTag, StatusBadge } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
+import { VoiceRecordMeta } from "./VoiceAudio.jsx";
 import FoldToggle, { useFolded } from "./FoldToggle.jsx";
 import * as api from "../api.js";
 import { findTrade, tradeName, convertedText } from "../voice.js";
@@ -209,6 +210,7 @@ function RecordRow({ report, related, view }) {
         </div>
       )}
       {r.summary && <div className="vl-card-summary">{r.summary}</div>}
+      <VoiceRecordMeta report={r} prefix="up" />
       {status}
     </article>
   );
