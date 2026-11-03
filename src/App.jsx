@@ -7,6 +7,7 @@ import VoiceInspection from "./components/VoiceInspection.jsx";
 import QrBoardScreen from "./components/QrBoardScreen.jsx";
 import Glossary from "./components/Glossary.jsx";
 import VoiceRequestsBoard from "./components/VoiceRequestsBoard.jsx";
+import Paperwork from "./components/Paperwork.jsx";
 import Buildings from "./components/Buildings.jsx";
 import SiteLayout from "./components/SiteLayout.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
@@ -341,6 +342,7 @@ export default function App() {
           )}
           {activeView === "glossary" && <Glossary adminName={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />}
           {activeView === "voicerequests" && <VoiceRequestsBoard buildings={buildings} notify={notify} />}
+          {activeView === "paperwork" && <Paperwork notify={notify} />}
           {activeView === "unitinfo" && (
             <UnitInfo
               buildings={buildings}

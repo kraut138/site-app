@@ -4009,3 +4009,205 @@ textarea.input {
   gap: 10px;
   margin-top: 12px;
 }
+
+/* ---- 7. 서류 작성 : 하루치 음성 기록으로 작업일보·TBM 일지·검측요청서 채우기 ---- */
+.pw-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pw-head,
+.pw-doc {
+  padding: 16px 20px;
+}
+
+.pw-date-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.pw-date-input {
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.pw-summary {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pw-note {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-faint);
+}
+
+.pw-warn {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--pending-bg);
+  color: var(--pending);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.pw-doc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pw-doc-desc {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.pw-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.pw-tag {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.pw-tag-fill {
+  background: var(--pass-bg);
+  color: var(--pass);
+}
+
+.pw-tag-blank {
+  background: var(--surface-alt);
+  color: var(--ink-faint);
+}
+
+.pw-table {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12.5px;
+}
+
+.pw-table th,
+.pw-table td {
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.pw-table th {
+  background: var(--surface-alt);
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.pw-table tbody th {
+  width: 84px;
+}
+
+.pw-blank {
+  color: var(--ink-faint);
+}
+
+.pw-empty {
+  margin-top: 12px;
+  padding: 18px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-m);
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.pw-ins-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+}
+
+.pw-ins-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.pw-ins-row:first-child {
+  border-top: 0;
+}
+
+.pw-ins-row input[type="checkbox"] {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.pw-ins-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.pw-ins-title {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.pw-ins-line {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.pw-ins-line > span:first-child {
+  display: inline-block;
+  min-width: 56px;
+  color: var(--ink-faint);
+  font-weight: 700;
+}
+
+.pw-ins-meta {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+@media (max-width: 720px) {
+  .pw-head,
+  .pw-doc {
+    padding: 14px 14px;
+  }
+  .pw-doc-head .btn {
+    width: 100%;
+  }
+  .pw-ins-row {
+    flex-wrap: wrap;
+  }
+  .pw-ins-row .btn {
+    margin-left: 26px;
+  }
+}

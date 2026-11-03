@@ -17,7 +17,8 @@ src/                       앱 코드는 전부 여기에만 둡니다
   main.jsx                   앱 시작점
   App.jsx                    로그인 확인 · 데이터 불러오기 · 어떤 탭을 보여줄지 결정
   platform/                  현장통 화면의 뼈대: 상단바, 탭 목록(tabs.js), 대시보드, 공종별 QR 생성소
-  components/                각 탭의 안쪽 화면: 동.호수, 호실 정보, 골구도, 용어 DB, 음성 검측, 검측·NCR …
+  components/                각 탭의 안쪽 화면: 동.호수, 호실 정보, 골구도, 용어 DB, 음성 검측, 서류 작성, 검측·NCR …
+  paperwork/                 서류 작성 탭의 계산: 하루치 음성 기록을 모아 정리하고, 양식 파일(워드·한글)의 빈 칸에 채웁니다
   api.js                     Firestore에 읽고 쓰는 곳 (데이터 저장은 모두 여기를 지납니다)
   auth.js · firebase.js      로그인 · Firebase 설정값
   data.js                    역할 · 공종 · 화면별 권한 같은 기본 정보
@@ -26,6 +27,8 @@ src/                       앱 코드는 전부 여기에만 둡니다
 public/                    손대지 않고 그대로 복사되는 파일
   logo-kwangwoon.png · site-background.svg
   app/index.html             옛 QR 주소 안내 (고칠 필요 없음)
+  templates/                 서류 작성 탭이 채우는 양식 3개: work-log.docx(작업일보) · tbm-log.docx(TBM 일지) · inspection-request.hwp(검측요청서)
+                               양식을 바꿀 때는 같은 이름으로 교체합니다. 칸은 '작성일'·'작업 장소' 같은 이름표 글자로 찾으니 이름표는 지우지 마세요.
   sitesystem.html.html       따로 보관 중인 정적 시안 페이지 (앱과 관계없음)
 .github/workflows/deploy.yml  main에 올리면 자동으로 구조를 확인하고 배포합니다
 firestore.rules            Firebase 콘솔의 Firestore 규칙에 붙여 넣는 규칙 파일

@@ -639,6 +639,23 @@ export async function fetchFloorVoiceReports(buildingId, floor) {
   return snapToArray(snap).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 }
 
+// 한 구간(밀리초 시각 start 이상 end 미만)에 남긴 음성 보고를 시간순(오래된 것부터)으로 가져온다. 서류 탭이 "하루치"를 읽을 때 쓴다.
+// timestamp 한 필드의 범위 조건과 같은 필드의 정렬뿐이라 별도 색인 없이 조회되고, 그날의 문서만 읽으므로 무료 요금제의 읽기 한도도 아낀다.
+const VOICE_RANGE_READ_TIMEOUT_MS = 20000;
+const VOICE_RANGE_MAX = 3000;
+
+export async function fetchVoiceReportsInRange(startMs, endMs) {
+  const q = query(
+    collection(db, "voiceReports"),
+    where("timestamp", ">=", Number(startMs)),
+    where("timestamp", "<", Number(endMs)),
+    orderBy("timestamp", "asc"),
+    limit(VOICE_RANGE_MAX)
+  );
+  const snap = await withTimeout(getDocs(q), VOICE_RANGE_READ_TIMEOUT_MS, "voice/timeout");
+  return snapToArray(snap);
+}
+
 // 관리자 대시보드의 "실시간 음성 보고 피드": 화면이 열려 있는 동안만 가장 최근 보고 count건을 실시간으로 받는다(onSnapshot).
 // 처음에 count건을 읽고 그 뒤로는 새로 생기거나 바뀐 보고만 읽으므로 무료 요금제의 읽기 한도를 거의 쓰지 않는다.
 // timestamp 한 필드의 정렬은 Firestore가 자동으로 만들어 두는 색인으로 처리되어 따로 색인을 만들 필요가 없다.
