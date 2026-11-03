@@ -13,19 +13,22 @@ import SiteLayout from "./components/SiteLayout.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
 import LoginScreen from "./components/LoginScreen.jsx";
 import QrUnitScreen from "./components/QrUnitScreen.jsx";
+import QrTradeScreen from "./components/QrTradeScreen.jsx";
 import { Toast } from "./components/UI.jsx";
 import { ROLES, isAdminRole, isViewAllowed, normalizeRole, defaultViewFor } from "./data.js";
 import * as api from "./api.js";
 import { subscribeAuth, fetchUserProfile, logOut, updateUserLanguage } from "./auth.js";
 import { LanguageProvider } from "./LanguageContext.jsx";
 import { DEFAULT_LANGUAGE } from "./i18n.js";
-import { readUnitDeepLink, clearUnitDeepLinkFromUrl, readQrBoardLink } from "./qr.js";
+import { readUnitDeepLink, clearUnitDeepLinkFromUrl, readQrBoardLink, readTradeLink } from "./qr.js";
 
 // 페이지가 처음 로드될 때 딱 한 번만 읽는다 - QR 스캔으로 들어온 경우 여기에 값이 담긴다.
 // 이 값이 있으면 로그인/사이드바 전체를 건너뛰고 QrUnitScreen(모바일 전용 화면)을 바로 보여준다.
 // QR 기록판 QR(?qr=코드)로 들어온 경우도 같은 방식으로 로그인 없이 전용 화면만 보여준다. 두 QR이 함께 있으면 기록판이 우선이다.
+// 공종별 QR(?trade=골조·마감·설비전기)도 로그인 없이 그 공종의 음성 보고 화면만 보여준다(지금 쓰는 QR). 호실 QR(예전 QR)이나 기록판 QR과 함께 있으면 그쪽이 우선이다.
 const initialQrBoardId = readQrBoardLink();
 const initialDeepLink = initialQrBoardId ? null : readUnitDeepLink();
+const initialTradeId = initialQrBoardId || initialDeepLink ? null : readTradeLink();
 
 export default function App() {
   // authUser: Firebase Auth 로그인 여부. userProfile: Firestore에 저장된 이름/역할.
@@ -81,8 +84,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // QR 스캔으로 들어온 경우엔 로그인 없이 바로 QrUnitScreen / QrBoardScreen을 보여주므로 인증 상태를 볼 필요가 없다.
-    if (initialDeepLink || initialQrBoardId) {
+    // QR 스캔으로 들어온 경우엔 로그인 없이 바로 QrUnitScreen / QrBoardScreen / QrTradeScreen을 보여주므로 인증 상태를 볼 필요가 없다.
+    if (initialDeepLink || initialQrBoardId || initialTradeId) {
       setAuthChecked(true);
       return;
     }
@@ -111,8 +114,8 @@ export default function App() {
   const activeView = role ? (view && isViewAllowed(view, role) ? view : defaultViewFor(role)) : view;
 
   useEffect(() => {
-    // QR 기록판 화면은 공사 데이터가 필요 없으니, 스캔한 사람의 기기에서 전체 데이터를 읽어오지 않는다.
-    if (initialQrBoardId) {
+    // QR 기록판 화면은 공사 데이터가 필요 없고, 공종별 QR 화면은 필요한 것(동 목록·표준 공종)을 스스로 읽으니, 스캔한 사람의 기기에서 전체 데이터를 읽어오지 않는다.
+    if (initialQrBoardId || initialTradeId) {
       setLoading(false);
       return undefined;
     }
@@ -256,6 +259,8 @@ export default function App() {
   let content;
   if (initialQrBoardId) {
     content = <QrBoardScreen qrId={initialQrBoardId} />;
+  } else if (initialTradeId) {
+    content = <QrTradeScreen tradeId={initialTradeId} />;
   } else if (!authChecked) {
     content = <CenterMessage>불러오는 중…</CenterMessage>;
   } else if (!initialDeepLink && !authUser) {
@@ -342,7 +347,7 @@ export default function App() {
           )}
           {activeView === "glossary" && <Glossary adminName={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />}
           {activeView === "voicerequests" && <VoiceRequestsBoard buildings={buildings} notify={notify} />}
-          {activeView === "paperwork" && <Paperwork notify={notify} />}
+          {activeView === "paperwork" && <Paperwork notify={notify} checklistItems={checklistItems} />}
           {activeView === "unitinfo" && (
             <UnitInfo
               buildings={buildings}

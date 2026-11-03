@@ -1,30 +1,21 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { Grid3x3, Info } from "lucide-react";
-import { CATEGORIES, itemsForCategory, unitOptions, isCategoryCompleteForUnit } from "../data.js";
+import { CATEGORIES, itemsForCategory, unitOptions } from "../data.js";
+import { createStatus, voiceTotals } from "../golguStatus.js";
 import { Icon } from "./UI.jsx";
 
 const VISIBLE_CATEGORIES = CATEGORIES.filter((c) => c.id !== "safety"); // 공사진행 탭과 동일하게 안전/환경 제외
 const RADIUS = 190;
+const NO_DOCS = []; // 음성 완료를 아직 못 읽었을 때(기본값을 매번 새 배열로 만들면 판정을 계속 다시 만들게 된다)
 
 function firstItemIdFor(categoryId, checklistItems) {
   const first = itemsForCategory(checklistItems, categoryId)[0];
   return first ? first.id : "";
 }
 
-// 특정 동/층/호실에서, 선택한 "세부 공종 항목 하나"가 감리단 승인을 받았는지 여부.
-// 하도급사의 자체 진행 표시(공사진행 탭)와는 별개로, 실제 "공사 확인 요청"이 승인된 이력이 있어야 완료로 본다.
-function isUnitApproved(building, floor, unit, itemId, inspections) {
-  return inspections.some(
-    (i) =>
-      i.buildingId === building.id &&
-      String(i.floor) === String(floor) &&
-      i.unit === unit &&
-      i.status === "승인" &&
-      Array.isArray(i.checkedItemIds) &&
-      i.checkedItemIds.includes(itemId)
-  );
-}
+// 호실의 선택한 "세부 공종 항목 하나"가 완료인지는 golguStatus.js가 판정한다:
+// 감리단이 "공사 확인 요청"을 승인했거나(하도급사의 자체 진행 표시와는 별개), 공종별 QR 등에서 음성으로 "OO동 OO호 OOO 완료"라고 보고한 항목이 완료다.
 
 function normalizeAngle(a) {
   let x = a % 360;
@@ -34,9 +25,9 @@ function normalizeAngle(a) {
 }
 
 // 동 하나의 골구도(입면) - 층별로 쌓인 벽돌 그리드가 그대로 건물 정면이 된다.
-// 골조공사가 이 호실에서 아직 다 끝나지 않았으면(선택한 항목이 골조가 아닌 경우), 색을 채우지 않고
-// 호수만 표시한다 - 골조가 없는데 마감·설비 진행도를 색으로 보여주는 건 의미가 없기 때문.
-function GolguCard({ building, itemId, categoryId, checklistItems, inspections, onBrickClick }) {
+// 골조공사가 이 호실에서 아직 다 끝나지 않았으면(선택한 항목이 골조가 아닌 경우), 승인된 항목은 색을 채우지 않고
+// 호수만 표시한다 - 골조가 없는데 마감·설비 진행도를 색으로 보여주는 건 의미가 없기 때문. (음성으로 완료라고 보고한 항목은 말한 그대로 줄무늬로 보여 준다)
+function GolguCard({ building, itemId, categoryId, status, onBrickClick }) {
   const floors = Math.max(1, building.floors || 1);
   const floorNumsAsc = Array.from({ length: floors }, (_, i) => i + 1); // 1층부터 오름차순 - column-reverse와 맞물려 1층이 맨 아래로 감
   const units = unitOptions(building.unitsPerFloor);
@@ -48,12 +39,10 @@ function GolguCard({ building, itemId, categoryId, checklistItems, inspections, 
 
   const cellData = floorNumsAsc.map((f) =>
     units.map((u) => {
-      const frameDone = isCategoryCompleteForUnit(inspections, checklistItems, building.id, f, u, "frame");
-      // 골조 항목을 보는 중이면 그 항목 자체의 승인 여부를 그대로 보여주고,
-      // 다른 공종을 보는 중인데 골조가 아직 안 끝났으면 "색 없음"(골조 대기) 상태로 표시한다.
-      const unfilled = categoryId !== "frame" && !frameDone;
-      const complete = !unfilled && itemId ? isUnitApproved(building, f, u, itemId, inspections) : false;
-      return { floor: f, unit: u, complete, unfilled };
+      // 골조 항목을 보는 중이면 그 항목 자체의 승인·음성 완료를 그대로 보여주고,
+      // 다른 공종을 보는 중인데 골조가 아직 안 끝났으면 승인된 항목은 "색 없음"(골조 대기) 상태로 표시한다.
+      const c = status.cell(building.id, f, u, categoryId, itemId);
+      return { floor: f, unit: u, kind: c.kind, unfilled: c.unfilled, by: c.voiceBy };
     })
   );
 
@@ -65,10 +54,18 @@ function GolguCard({ building, itemId, categoryId, checklistItems, inspections, 
             <button
               type="button"
               key={cell.unit}
-              className={`golgu-card-brick${cell.complete ? " complete" : ""}${cell.unfilled ? " unfilled" : ""}`}
+              className={`golgu-card-brick${cell.kind === "approved" ? " complete" : ""}${cell.kind === "voice" ? " voice" : ""}${cell.unfilled ? " unfilled" : ""}`}
               style={{ fontSize }}
+              data-unit={`${cell.floor}${cell.unit}`}
+              data-state={cell.kind === "approved" ? "approved" : cell.kind === "voice" ? "voice" : cell.unfilled ? "waiting" : "todo"}
               title={`${building.name} ${cell.floor}층 ${cell.unit}호 · ${
-                cell.unfilled ? "골조공사 진행 중(마감·설비 확인 전)" : cell.complete ? "완료" : "미완료"
+                cell.unfilled
+                  ? "골조공사 진행 중(마감·설비 확인 전)"
+                  : cell.kind === "approved"
+                  ? "완료(감리단 승인)"
+                  : cell.kind === "voice"
+                  ? `완료(음성 보고${cell.by ? ` · ${cell.by}` : ""}, 감리단 승인 전)`
+                  : "미완료"
               } · 클릭하면 호실 정보로 이동`}
               onClick={() => onBrickClick(building.id, cell.floor, cell.unit)}
             >
@@ -84,10 +81,12 @@ function GolguCard({ building, itemId, categoryId, checklistItems, inspections, 
 /**
  * props:
  * - buildings: 전체 동 목록
- * - inspections: 검측(공사 확인 요청) 목록 - 감리단이 승인한 항목만 완료로 집계
+ * - inspections: 검측(공사 확인 요청) 목록 - 감리단이 승인한 항목은 완료로 집계
  * - checklistItems
+ * - voiceDocs / voiceStatus: 음성 보고로 완료라고 말한 항목(unitVoiceDone) 문서들과 읽기 상태("loading" | "ready" | "error") - 이것도 완료로 집계하고 줄무늬로 구분해 보여 준다
+ * - onRetryVoice: 읽기에 실패했을 때 다시 시도 / onRecompute: 음성 보고 전체를 다시 읽어 '음성 완료'를 새로 만든다(결과 {reports, units, removed}를 돌려주는 async 함수)
  */
-export default function GolguDiagram({ buildings, inspections, checklistItems, onNavigateToUnit }) {
+export default function GolguDiagram({ buildings, inspections, checklistItems, onNavigateToUnit, voiceDocs = NO_DOCS, voiceStatus = "ready", onRetryVoice = null, onRecompute = null }) {
   const [categoryId, setCategoryId] = useState(VISIBLE_CATEGORIES[0].id);
   const [itemId, setItemId] = useState(firstItemIdFor(VISIBLE_CATEGORIES[0].id, checklistItems));
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -96,6 +95,9 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
   const dragMoved = useRef(false); // 드래그로 조금이라도 움직였으면, 뗄 때 브릭 클릭(호실 이동)으로 오인하지 않도록
   const [dragging, setDragging] = useState(false);
   const [dragRotation, setDragRotation] = useState(null);
+  const [recompute, setRecompute] = useState({ state: "idle", message: "" }); // idle | confirm | running | done | error
+  const status = useMemo(() => createStatus({ checklistItems, inspections, voiceDocs }), [checklistItems, inspections, voiceDocs]);
+  const totals = useMemo(() => voiceTotals(voiceDocs), [voiceDocs]);
 
   const n = buildings ? buildings.length : 0;
   const step = n > 0 ? 360 / n : 0;
@@ -137,7 +139,8 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
         units.forEach((u) => {
           const row = [b.name, f, u];
           allItems.forEach((it) => {
-            row.push(isUnitApproved(b, f, u, it.id, inspections) ? "완료" : "");
+            const kind = status.itemKind(b.id, f, u, it.id);
+            row.push(kind === "approved" ? "완료" : kind === "voice" ? "완료(음성)" : "");
           });
           rows.push(row);
         });
@@ -199,15 +202,31 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
     if (onNavigateToUnit) onNavigateToUnit(buildingId, floor, unit);
   }
 
-  // 완료 세대 집계는 현재 정면을 보고 있는 동 기준
-  let completeCount = 0;
+  // 완료 세대 집계는 현재 정면을 보고 있는 동 기준 (승인된 세대 + 음성 보고로만 완료인 세대)
+  let approvedCount = 0;
+  let voiceOnlyCount = 0;
   const focusedUnits = focusedBuilding ? unitOptions(focusedBuilding.unitsPerFloor).length * Math.max(1, focusedBuilding.floors || 1) : 0;
   if (focusedBuilding && itemId) {
     const units = unitOptions(focusedBuilding.unitsPerFloor);
     for (let f = 1; f <= (focusedBuilding.floors || 1); f++) {
       units.forEach((u) => {
-        if (isUnitApproved(focusedBuilding, f, u, itemId, inspections)) completeCount += 1;
+        const kind = status.cell(focusedBuilding.id, f, u, categoryId, itemId).kind;
+        if (kind === "approved") approvedCount += 1;
+        else if (kind === "voice") voiceOnlyCount += 1;
       });
+    }
+  }
+  const completeCount = approvedCount + voiceOnlyCount;
+
+  async function runRecompute() {
+    if (!onRecompute) return;
+    setRecompute({ state: "running", message: "" });
+    try {
+      const res = await onRecompute();
+      const removed = res.removed > 0 ? ` 더는 해당되지 않는 ${res.removed}호실은 뺐어요.` : "";
+      setRecompute({ state: "done", message: `음성 보고 ${res.reports}건을 읽어 ${res.units}호실을 반영했어요.${removed}` });
+    } catch {
+      setRecompute({ state: "error", message: "다시 계산하지 못했어요. 연결을 확인하고 다시 시도해 주세요. (기존 값은 그대로예요)" });
     }
   }
 
@@ -219,7 +238,7 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
             <Grid3x3 className="w-4 h-4 text-blue-600" aria-hidden="true" />
             골구도 및 공정 히트맵 (Structural Framing Grid)
           </h3>
-          <p className="text-xs text-slate-400 mt-0.5">전체 동 · 승인된 세대를 층·호수별 바둑판으로 보여 줘요. 호실을 누르면 호실 정보로 이동합니다.</p>
+          <p className="text-xs text-slate-400 mt-0.5">전체 동 · 승인되었거나 음성으로 완료 보고된 세대를 층·호수별 바둑판으로 보여 줘요. 호실을 누르면 호실 정보로 이동합니다.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium text-slate-600" data-testid="golgu-legend">
           <span className="inline-flex items-center gap-1.5">
@@ -228,7 +247,11 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="golgu-brick complete" style={{ width: 14, height: 14 }} />
-            완료
+            완료(승인)
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="golgu-brick voice" style={{ width: 14, height: 14 }} />
+            완료(음성 보고)
           </span>
         </div>
       </div>
@@ -268,14 +291,70 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8, fontSize: 12, flexWrap: "wrap" }}>
-        <span style={{ color: "var(--ink-soft)" }}>
+        <span style={{ color: "var(--ink-soft)" }} data-testid="golgu-count">
           {focusedBuilding?.name} · {focusedUnits}세대 중 <strong style={{ color: "var(--pass)" }}>{completeCount}세대</strong> 완료
+          {voiceOnlyCount > 0 && (
+            <span style={{ color: "var(--ink-faint)" }}>
+              {" "}
+              (승인 {approvedCount} · 음성 보고 {voiceOnlyCount})
+            </span>
+          )}
         </span>
         <button type="button" className="btn btn-ghost btn-sm" style={{ marginLeft: "auto" }} onClick={handleDownloadExcel}>
           <Icon.Download width="14" height="14" />
           엑셀 다운로드
         </button>
       </div>
+      <div className="golgu-voice-row" data-testid="golgu-voice">
+        <span className="golgu-voice-status" data-testid="golgu-voice-status" data-state={voiceStatus}>
+          {voiceStatus === "loading"
+            ? "음성 보고로 완료된 호실을 불러오는 중…"
+            : voiceStatus === "error"
+            ? voiceDocs.length > 0
+              ? "음성 보고 완료를 새로 불러오지 못했어요. 마지막으로 받은 내용만 표시돼요."
+              : "음성 보고 완료를 불러오지 못했어요. 지금은 승인된 호실만 표시돼요."
+            : totals.units > 0
+            ? `음성 보고로 완료된 호실 ${totals.units}곳(항목 ${totals.items}개)이 반영돼 있어요.`
+            : "아직 음성으로 완료 보고된 호실이 없어요. 이 기능이 생기기 전의 음성 보고는 ‘다시 계산’으로 반영할 수 있어요."}
+        </span>
+        {voiceStatus === "error" && onRetryVoice && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onRetryVoice} data-testid="golgu-voice-retry">
+            다시 불러오기
+          </button>
+        )}
+        {onRecompute && recompute.state !== "confirm" && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setRecompute({ state: "confirm", message: "" })}
+            disabled={recompute.state === "running"}
+            data-testid="golgu-recompute"
+          >
+            {recompute.state === "running" ? "계산 중…" : "다시 계산"}
+          </button>
+        )}
+      </div>
+      {recompute.state === "confirm" && (
+        <div className="golgu-recompute-confirm" data-testid="golgu-recompute-confirm" role="alertdialog" aria-label="음성 완료 다시 계산">
+          <div>
+            저장된 음성 보고를 모두 다시 읽어서 ‘음성 완료’를 새로 만들어요. 보고가 많으면 시간이 걸리고 데이터 읽기 횟수가 늘어요.
+            호실 정보에서 진행도에서 뺀 보고는 반영되지 않아요. 계속할까요?
+          </div>
+          <div className="golgu-recompute-actions">
+            <button type="button" className="btn btn-primary btn-sm" onClick={runRecompute} data-testid="golgu-recompute-go">
+              다시 계산 시작
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRecompute({ state: "idle", message: "" })} data-testid="golgu-recompute-cancel">
+              취소
+            </button>
+          </div>
+        </div>
+      )}
+      {recompute.message && (
+        <div className={`golgu-recompute-msg${recompute.state === "error" ? " is-error" : ""}`} data-testid="golgu-recompute-msg" role="status">
+          {recompute.message}
+        </div>
+      )}
       <div className="golgu-carousel-outer">
         <div
           ref={stageRef}
@@ -300,7 +379,7 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
                   style={{ transform: `rotateY(${angle}deg) translateZ(${RADIUS}px)`, pointerEvents: isFocused ? "auto" : "none" }}
                 >
                   <div className="golgu-card-wrap">
-                    <GolguCard building={b} itemId={itemId} categoryId={categoryId} checklistItems={checklistItems} inspections={inspections} onBrickClick={handleBrickClick} />
+                    <GolguCard building={b} itemId={itemId} categoryId={categoryId} status={status} onBrickClick={handleBrickClick} />
                     <div className="golgu-card-name" style={{ transform: `rotateY(${-(angle + currentRotation)}deg)` }}>
                       {b.name}
                     </div>
@@ -328,8 +407,9 @@ export default function GolguDiagram({ buildings, inspections, checklistItems, o
       <div className="mt-5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-start gap-2" data-testid="golgu-note">
         <Info className="w-4 h-4 text-blue-600 shrink-0 mt-px" aria-hidden="true" />
         <span>
-          감리단이 "공사 확인 요청"을 승인한 호실만 완료로 표시됩니다. 호실 정보에서 음성 보고로 읽은 진행도와는 별개입니다.
-          {categoryId !== "frame" && " 골조공사가 끝나지 않은 호실은 마감·설비 공종에서 색 없이(호수만) 표시됩니다."}
+          감리단이 "공사 확인 요청"을 승인한 호실과, 공종별 QR에서 음성으로 “OO동 OO호 OOO 완료”라고 보고한 호실이 완료로 표시됩니다(줄무늬는 음성 보고만 있는 완료).
+          호실 정보에서 보고를 진행도에서 뺀 경우에는 여기서도 빠집니다.
+          {categoryId !== "frame" && " 골조공사가 끝나지 않은 호실은 마감·설비 공종에서 승인된 항목이 색 없이(호수만) 표시됩니다."}
         </span>
       </div>
     </div>

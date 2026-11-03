@@ -3,14 +3,15 @@
 // 순수 함수(화면·저장소와 무관)라 Node에서 그대로 시험한다.
 import { VOICE_TRADES, tradeName } from "../voice.js";
 import { stampOf } from "./dayTools.js";
-import { oneLine, sameKey, statementOf, placeOf, buildingNumber, unitsAndElem, hazardText, floorText, joinUnits } from "./textRules.js";
+import { oneLine, sameKey, statementOf, progressStatement, placeOf, buildingNumber, unitsAndElem, hazardText, floorText, joinUnits } from "./textRules.js";
+import { convertedText } from "../voice.js";
 
 function tradeRank(id) {
   const i = VOICE_TRADES.findIndex((t) => t.id === id);
   return i < 0 ? VOICE_TRADES.length : i;
 }
 
-function toEntry(report) {
+function toEntry(report, checklistItems) {
   const { building, floor } = placeOf(report);
   const { units, structural } = unitsAndElem(report, floor);
   const trade = String(report.trade || "");
@@ -22,7 +23,8 @@ function toEntry(report) {
     trade,
     tradeLabel: tradeName(trade),
     item: oneLine(report.tradeItem),
-    statement: statementOf(report),
+    // 용어 DB 단어가 없는 말은 표준 공종 항목으로 읽은 "도배 완료" 같은 글로 적는다(공종별 QR로 말한 "101동 502호 도배 완료" 등)
+    statement: statementOf(report, oneLine(convertedText(report)) ? "" : progressStatement(report, checklistItems)),
     units,
     structural,
     hazard: hazardText(report),
@@ -121,11 +123,13 @@ function hazardsOf(entries) {
   return out;
 }
 
-// reports: 하루치 음성 기록(voiceReports 문서들, id 포함). 반환: { total, entries, groups, places, workNames, hazards }
-export function digestDay(reports) {
+// reports: 하루치 음성 기록(voiceReports 문서들, id 포함). options.checklistItems: 표준 공종 항목(말한 작업을 "도배 완료"처럼 읽는 데 쓴다, 없으면 읽지 않는다)
+// 반환: { total, entries, groups, places, workNames, hazards }
+export function digestDay(reports, options = {}) {
   const list = (Array.isArray(reports) ? reports : []).filter((r) => r && typeof r === "object");
+  const items = options && Array.isArray(options.checklistItems) ? options.checklistItems : [];
   const entries = list
-    .map(toEntry)
+    .map((r) => toEntry(r, items))
     .sort((a, b) => {
       const ta = Number.isFinite(a.ts) ? a.ts : 0;
       const tb = Number.isFinite(b.ts) ? b.ts : 0;

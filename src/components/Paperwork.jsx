@@ -73,7 +73,7 @@ function Blank({ children }) {
   return children ? children : <span className="pw-blank">(공란)</span>;
 }
 
-export default function Paperwork({ notify }) {
+export default function Paperwork({ notify, checklistItems = [] }) {
   const [dayKey, setDayKey] = useState(() => dayKeyOf());
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [reports, setReports] = useState([]);
@@ -104,7 +104,7 @@ export default function Paperwork({ notify }) {
     };
   }, [dayKey, tick, notify]);
 
-  const digest = useMemo(() => digestDay(reports), [reports]);
+  const digest = useMemo(() => digestDay(reports, { checklistItems }), [reports, checklistItems]);
   const workLog = useMemo(() => workLogModel(digest, dayKey), [digest, dayKey]);
   const tbm = useMemo(() => tbmModel(digest, dayKey), [digest, dayKey]);
   const inspections = useMemo(() => inspectionModels(digest, dayKey), [digest, dayKey]);

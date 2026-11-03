@@ -123,6 +123,19 @@ export async function fetchBootstrap() {
   };
 }
 
+// 공종별 QR 화면이 쓰는 가벼운 읽기: 말한 동·호실을 찾는 데 필요한 동 목록과, 말한 작업을 읽는 데 필요한 표준 공종 항목만 읽는다.
+// (검측·NCR·특이사항처럼 이 화면에 필요 없는 컬렉션은 읽지 않아 스캔할 때마다 드는 읽기 수가 적다)
+export async function fetchSiteCore() {
+  const readBoth = () => Promise.all([getDocs(collection(db, "buildings")), getDocs(collection(db, "checklistItems"))]);
+  let [buildingsSnap, checklistItemsSnap] = await readBoth();
+  if (buildingsSnap.empty || checklistItemsSnap.empty) {
+    // 처음 쓰는 현장이면 기본 동·표준 공종을 채운 뒤 다시 읽는다(보통은 한 번만 읽는다 - 스캔할 때마다 드는 읽기 수를 줄이려는 것).
+    await ensureSeeded();
+    [buildingsSnap, checklistItemsSnap] = await readBoth();
+  }
+  return { buildings: snapToArray(buildingsSnap), checklistItems: snapToArray(checklistItemsSnap) };
+}
+
 // ---------------- buildings ----------------
 
 export async function createBuilding(data) {
@@ -574,6 +587,8 @@ export async function deleteQrCode(id) {
 //   fromUnit: 호실 QR 화면에서 다른 호실을 말해 그 호실의 기록으로 옮겨 저장했을 때만 있는 글. 말한 화면의 호실("101동 3층 301호").
 //           이때 buildingId·buildingName·floor·zone·elem은 말한 호실의 것이다(그래서 그 호실의 '음성 기록'과 진행도에 그대로 쌓인다).
 //   (공종을 철근·설비·형틀·품질 승인 중에서 고르던 때 저장된 기록은 trade가 "rebar"·"formwork"·"qc"(설비는 "mep")이고 tradeItem 항목이 없다 - 읽을 때 그대로 보여 준다)
+//   (공종별 QR 화면에서 남긴 보고는 위치가 말한 동·호실이다: buildingId·buildingName·floor·zone은 말한 동·층, elem은 "02호"처럼 호실. tradeItem은 말한 작업 중 그 공종의 표준 항목 글이다.)
+//   done(저장하지 않는 입력값): { buildingId, floor, unit, itemIds } - 이 보고가 '완료'라고 말한 항목들. 있으면 보고와 함께 그 호실의 '음성 완료'(unitVoiceDone)에도 기록한다(아래).
 const VOICE_SAVE_TIMEOUT_MS = 12000;
 
 // 연결이 불안한 현장(지하 등)에서는 Firestore 쓰기가 에러 없이 한참 대기 상태로 남을 수 있다.
@@ -619,7 +634,19 @@ export async function createVoiceReport(data) {
     createdAt: now.toISOString(),
     timestamp: now.getTime(),
   };
-  await withTimeout(setDoc(doc(db, "voiceReports", id), payload), VOICE_SAVE_TIMEOUT_MS, "voice/timeout");
+  const reportRef = doc(db, "voiceReports", id);
+  const done = cleanDone(data.done);
+  if (!done) {
+    await withTimeout(setDoc(reportRef, payload), VOICE_SAVE_TIMEOUT_MS, "voice/timeout");
+  } else {
+    // 보고와 그 호실의 '음성 완료'를 한 묶음으로 쓴다 - 둘 다 저장되거나 둘 다 저장되지 않는다(다시 보내도 같은 문서에 같은 값을 쓸 뿐이라 중복되지 않는다).
+    const items = {};
+    for (const itemId of done.itemIds) items[itemId] = { at: payload.createdAt, by: payload.author, report: id };
+    const batch = writeBatch(db);
+    batch.set(reportRef, payload);
+    batch.set(unitDoneRef(done.buildingId, done.floor, done.unit), { buildingId: done.buildingId, floor: done.floor, unit: done.unit, updatedAt: payload.createdAt, items }, { merge: true });
+    await withTimeout(batch.commit(), VOICE_SAVE_TIMEOUT_MS, "voice/timeout");
+  }
   return { id, ...payload };
 }
 
@@ -679,6 +706,120 @@ export async function setVoiceReportProgressOff(id, off, by) {
     : { progressOff: false, progressOffBy: "", progressOffAt: "" };
   await withTimeout(updateDoc(ref, data), VOICE_SAVE_TIMEOUT_MS, "voice/timeout");
   return data;
+}
+
+// ---------------- 골구도용 '음성 완료' (호실마다 모아 둔 값) ----------------
+// 골구도는 "이 호실의 이 항목을 음성 보고로 완료라고 말했는지"를 모든 호실에 대해 알아야 한다. 보고를 전부 읽어 계산하면 보고가 쌓일수록 읽기가 늘어나(무료 요금제의 하루 읽기 한도),
+// 보고를 저장할 때 그 호실의 완료 항목을 함께 모아 둔다. 호실 하나가 문서 하나라서, 골구도를 열 때 읽는 양은 보고 수가 아니라 '완료가 나온 호실 수'만큼이다.
+//   unitVoiceDone/{동id~층~호(02)}: { buildingId, floor, unit("02"), updatedAt, items: { [표준 공종 항목 id]: { at(말한 때), by(말한 사람), report(보고 id) } } }
+// 보고가 원본이고 이 값은 거기서 만든 사본이다. 호실 정보에서 보고를 진행도에서 제외/복구하면 그 호실의 값을 다시 맞추고(replaceUnitVoiceDone),
+// 용어 표를 다시 적용했거나 이 기능이 생기기 전의 보고를 반영하려면 골구도의 '다시 계산'이 보고 전체를 읽어 처음부터 다시 만든다(rebuildUnitVoiceDone).
+const DONE_COLLECTION = "unitVoiceDone";
+const DONE_READ_TIMEOUT_MS = 20000;
+const DONE_WRITE_TIMEOUT_MS = 30000;
+const DONE_BATCH = 400;
+const DONE_MAX_ITEMS = 80;
+const ALL_REPORTS_TIMEOUT_MS = 60000;
+
+function validItemId(id) {
+  return typeof id === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(id);
+}
+
+function validUnitText(unit) {
+  return /^\d{1,3}$/.test(String(unit == null ? "" : unit).trim());
+}
+
+function unitDoneRef(buildingId, floor, unit) {
+  return doc(db, DONE_COLLECTION, `${buildingId}~${Number(floor)}~${String(unit).trim().padStart(2, "0")}`);
+}
+
+// 보고와 함께 모아 둘 완료 항목을 확인한다. 올바르지 않으면 null - 그러면 보고만 저장한다.
+function cleanDone(done) {
+  if (!done || typeof done !== "object") return null;
+  const buildingId = String(done.buildingId || "");
+  const floor = Number(done.floor);
+  const itemIds = Array.from(new Set((Array.isArray(done.itemIds) ? done.itemIds : []).filter(validItemId))).slice(0, DONE_MAX_ITEMS);
+  if (!buildingId || buildingId.includes("/") || !Number.isInteger(floor) || floor < 1 || !validUnitText(done.unit) || itemIds.length === 0) return null;
+  return { buildingId, floor, unit: String(done.unit).trim().padStart(2, "0"), itemIds };
+}
+
+function cleanDoneItems(items) {
+  const out = {};
+  const src = items && typeof items === "object" ? items : {};
+  for (const itemId of Object.keys(src)) {
+    if (!validItemId(itemId)) continue;
+    const v = src[itemId] && typeof src[itemId] === "object" ? src[itemId] : {};
+    out[itemId] = { at: typeof v.at === "string" ? v.at : "", by: typeof v.by === "string" ? v.by.slice(0, 60) : "", report: typeof v.report === "string" ? v.report : "" };
+  }
+  return out;
+}
+
+// 모아 둔 '음성 완료' 전부(호실마다 한 건)를 실시간으로 받는다: 골구도가 열려 있는 동안 현장에서 새로 보고한 완료가 바로 보인다.
+// 처음에 전부 읽고(호실 수만큼), 그 뒤로는 바뀐 호실만 읽으므로 읽기 한도를 거의 쓰지 않는다. 돌려주는 함수를 부르면 구독이 끝난다.
+//   onData: [{ id, buildingId, floor, unit, items: { [itemId]: { at, by, report } } }]
+export function subscribeUnitVoiceDone(onData, onError) {
+  return onSnapshot(
+    collection(db, DONE_COLLECTION),
+    (snap) =>
+      onData(
+        snapToArray(snap)
+          .map((d) => ({ id: d.id, buildingId: String(d.buildingId || ""), floor: Number(d.floor), unit: String(d.unit == null ? "" : d.unit), items: cleanDoneItems(d.items) }))
+          .filter((d) => d.buildingId && Number.isInteger(d.floor) && d.floor >= 1 && validUnitText(d.unit) && Object.keys(d.items).length > 0)
+      ),
+    (err) => {
+      if (onError) onError(err);
+    }
+  );
+}
+
+// 한 호실의 값을 통째로 바꾼다(items가 비어 있으면 그 호실의 문서를 지운다). 호실 정보에서 보고를 제외/복구한 뒤 그 호실의 진행도에 맞출 때 쓴다.
+//   items: { [itemId]: { at, by, report } } (unitProgress.js doneMapOf)
+export async function replaceUnitVoiceDone(buildingId, floor, unit, items) {
+  const target = cleanDone({ buildingId, floor, unit, itemIds: ["x"] });
+  if (!target) throw new Error("호실이 올바르지 않습니다.");
+  const ref = unitDoneRef(target.buildingId, target.floor, target.unit);
+  const clean = cleanDoneItems(items);
+  if (Object.keys(clean).length === 0) {
+    await withTimeout(deleteDoc(ref), DONE_WRITE_TIMEOUT_MS, "voice/timeout");
+    return { items: 0 };
+  }
+  await withTimeout(setDoc(ref, { buildingId: target.buildingId, floor: target.floor, unit: target.unit, updatedAt: nowIso(), items: clean }), DONE_WRITE_TIMEOUT_MS, "voice/timeout");
+  return { items: Object.keys(clean).length };
+}
+
+// 음성 보고 전부(골구도 '다시 계산'이 쓴다). 보고가 많으면 읽는 양이 많으므로 눌렀을 때만 읽는다.
+export async function fetchAllVoiceReports() {
+  const snap = await withTimeout(getDocs(collection(db, "voiceReports")), ALL_REPORTS_TIMEOUT_MS, "voice/timeout");
+  return snapToArray(snap);
+}
+
+// 모아 둔 값 전체를 주어진 값으로 바꾼다: 주어진 호실은 통째로 쓰고, 주어졌지 않은 호실의 문서는 지운다. 한 번에 400건씩 묶어 쓴다.
+//   docs: [{ buildingId, floor, unit, items }]   반환: { written, removed }
+export async function rebuildUnitVoiceDone(docs) {
+  const want = new Map();
+  for (const d of Array.isArray(docs) ? docs : []) {
+    const target = cleanDone({ buildingId: d && d.buildingId, floor: d && d.floor, unit: d && d.unit, itemIds: ["x"] });
+    const items = cleanDoneItems(d && d.items);
+    if (!target || Object.keys(items).length === 0) continue;
+    want.set(`${target.buildingId}~${target.floor}~${target.unit}`, { buildingId: target.buildingId, floor: target.floor, unit: target.unit, items });
+  }
+  const existing = await withTimeout(getDocs(collection(db, DONE_COLLECTION)), DONE_READ_TIMEOUT_MS, "voice/timeout");
+  const ops = [];
+  const at = nowIso();
+  for (const [id, d] of want) ops.push({ type: "set", ref: doc(db, DONE_COLLECTION, id), data: { ...d, updatedAt: at } });
+  let removed = 0;
+  existing.docs.forEach((e) => {
+    if (!want.has(e.id)) {
+      ops.push({ type: "delete", ref: doc(db, DONE_COLLECTION, e.id) });
+      removed += 1;
+    }
+  });
+  for (let i = 0; i < ops.length; i += DONE_BATCH) {
+    const batch = writeBatch(db);
+    ops.slice(i, i + DONE_BATCH).forEach((o) => (o.type === "set" ? batch.set(o.ref, o.data) : batch.delete(o.ref)));
+    await withTimeout(batch.commit(), DONE_WRITE_TIMEOUT_MS, "voice/timeout");
+  }
+  return { written: want.size, removed };
 }
 
 // ---------------- 용어 DB (현장 은어 → 표준 용어) ----------------

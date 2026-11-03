@@ -2,6 +2,8 @@
 // 원칙: 기록에 적힌 것만 쓰고, 기록에서 알 수 없는 것은 만들어 내지 않는다.
 import { tradeName, convertedText } from "../voice.js";
 import { findUnitMentions } from "../unitProgress.js";
+import { analyzeProgress } from "../progressText.js";
+import { getCategory } from "../data.js";
 
 // ---------------- 글 다듬기 ----------------
 
@@ -19,11 +21,39 @@ export function sameKey(text) {
     .replace(/[^\p{L}\p{N}%]/gu, "");
 }
 
+// 말한 글을 표준 공종 항목으로 읽어(호실 진행도·골구도와 같은 읽기, progressText.js) 적을 글을 만든다:
+// "도배 완료", "바닥마감 70% 진행"(숫자로 말했을 때만 %를 적는다), "도배 진행중", "마감공사 전체 완료". 항목이 여럿이면 쉼표로 잇는다.
+// 읽을 수 있는 작업이 없거나 표준 공종 항목(checklistItems)을 모르면 "". 부정·예정·문제 낱말이 섞인 말("아직 안 함")은 읽지 않는다(진행도와 같은 규칙).
+export function progressStatement(report, checklistItems) {
+  if (!Array.isArray(checklistItems) || checklistItems.length === 0) return "";
+  const text = oneLine((report && (report.normalized || report.rawText)) || "");
+  if (!text) return "";
+  let a;
+  try {
+    a = analyzeProgress(text, checklistItems);
+  } catch {
+    return "";
+  }
+  const parts = [];
+  for (const c of a.categories) {
+    const cat = getCategory(c.categoryId);
+    parts.push(`${cat ? cat.name : c.categoryId} 전체 완료`);
+  }
+  for (const it of a.items) {
+    if (it.state === "done") parts.push(`${it.text} 완료`);
+    else parts.push(/\d\s*(?:%|퍼센트|프로|퍼)/.test(it.phrase || "") ? `${it.text} ${it.percent}% 진행` : `${it.text} 진행중`);
+  }
+  return parts.join(", ");
+}
+
 // 기록 하나의 "한 일" 문장. 화면의 '순화한 내용'(용어 DB에 있는 단어로 이룬 글)을 쓴다.
-// 그 글이 비어 있으면(용어 DB 단어가 하나도 없던 말) 말한 글은 쓰지 않고, 고른 공종·세부 공종으로 "마감공사 · 도배 검측 접수"처럼 적는다.
-export function statementOf(report) {
+// 그 글이 비어 있으면(용어 DB 단어가 하나도 없던 말) 말한 글은 쓰지 않고, 말한 작업을 표준 공종 항목으로 읽은 글(progress, progressStatement)이 있으면 그것을
+// ("도배 완료"), 그것도 없으면 고른 공종·세부 공종으로 "마감공사 · 도배 검측 접수"처럼 적는다.
+export function statementOf(report, progress = "") {
   const text = oneLine(convertedText(report));
   if (text) return text;
+  const read = oneLine(progress);
+  if (read) return read;
   const where = [tradeName(report && report.trade), oneLine(report && report.tradeItem)].filter(Boolean).join(" · ");
   return `${where ? `${where} ` : ""}검측 접수`;
 }

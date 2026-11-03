@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { LanguageProvider, useLanguage } from "../LanguageContext.jsx";
-import { LANGUAGES, DEFAULT_LANGUAGE } from "../i18n.js";
+import { useQrLanguage, QrLangSwitch } from "./QrLanguage.jsx";
 import BrandFrame from "../platform/BrandFrame.jsx";
 import * as api from "../api.js";
 import QrComposer from "./QrComposer.jsx";
@@ -9,22 +9,8 @@ import QrEntryList from "./QrEntryList.jsx";
 /**
  * 관리자가 만든 QR 코드를 스캔했을 때 열리는 독립된 모바일 화면(로그인·사이드바 없음).
  * 메모·사진·음성을 남기고, 같은 QR에 남겨진 다른 사람의 기록도 볼 수 있다.
- * 스캔하는 사람이 외국인 근로자일 수 있어 이 화면에서만 언어를 바로 고를 수 있다(계정과 무관, 이 기기에 기억).
+ * 스캔하는 사람이 외국인 근로자일 수 있어 이 화면에서는 언어를 바로 고를 수 있다(계정과 무관, 이 기기에 기억 - QrLanguage.jsx).
  */
-
-const LANG_KEY = "qrBoardLang";
-
-function initialLanguage() {
-  try {
-    const saved = window.localStorage.getItem(LANG_KEY);
-    if (saved && LANGUAGES.some((l) => l.code === saved)) return saved;
-  } catch {
-    // 저장된 언어를 못 읽으면 아래의 기기 언어 설정을 따른다.
-  }
-  const nav = ((typeof navigator !== "undefined" && navigator.language) || "").toLowerCase();
-  const hit = LANGUAGES.find((l) => nav.startsWith(l.code));
-  return hit ? hit.code : DEFAULT_LANGUAGE;
-}
 
 function Board({ qrId, lang, onChangeLang }) {
   const { t } = useLanguage();
@@ -65,23 +51,7 @@ function Board({ qrId, lang, onChangeLang }) {
     return created;
   }
 
-  const langSwitch = (
-    <div className="qr-lang flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700" role="group" aria-label="Language">
-      {LANGUAGES.map((l) => (
-        <button
-          key={l.code}
-          type="button"
-          className={`qr-lang-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all${
-            lang === l.code ? " active bg-blue-600 text-white shadow" : " text-slate-400 hover:text-white"
-          }`}
-          onClick={() => onChangeLang(l.code)}
-          data-testid={`qr-lang-${l.code}`}
-        >
-          {l.label}
-        </button>
-      ))}
-    </div>
-  );
+  const langSwitch = <QrLangSwitch lang={lang} onChange={onChangeLang} />;
 
   return (
     <BrandFrame narrow testId="qr-board" rootClass="qr-screen" right={langSwitch}>
@@ -135,16 +105,7 @@ function Board({ qrId, lang, onChangeLang }) {
 }
 
 export default function QrBoardScreen({ qrId }) {
-  const [lang, setLang] = useState(initialLanguage);
-
-  const changeLang = useCallback((next) => {
-    setLang(next);
-    try {
-      window.localStorage.setItem(LANG_KEY, next);
-    } catch {
-      // 기억해 두지 못해도 이번 화면에서는 선택한 언어로 보인다.
-    }
-  }, []);
+  const [lang, changeLang] = useQrLanguage();
 
   return (
     <LanguageProvider lang={lang} onChange={changeLang}>

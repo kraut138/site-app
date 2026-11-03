@@ -1,21 +1,27 @@
-// 호실 QR 코드 딥링크 유틸리티.
-// URL에 동/층/호를 쿼리 파라미터로 담아두면, 카메라로 QR을 스캔했을 때
-// 이 앱이 로드되자마자 App.jsx가 해당 파라미터를 읽어 호실 정보 화면으로 바로 이동시킨다.
-
-// 쿼리 파라미터 이름은 짧게(b/f/u) 유지 - QR 코드에 담기는 URL이 짧을수록
-// 코드 패턴이 단순해져 스캔이 더 잘 되고 인쇄 크기도 작아진다.
-// t(공종)는 "공종별 QR 생성소"에서 만든 QR에만 붙는다: 스캔하면 음성 검측의 공종이 그 공종으로 미리 골라져 있다(frame·finish·mep).
-// t가 없거나 알 수 없는 값이면 예전 QR과 똑같이 동작한다.
+// QR 코드 링크 유틸리티.
+//
+// 1) 공종별 QR (지금 쓰는 QR): ?trade=<공종>. "1. 공종별 QR 생성소"에서 골조·마감·설비/전기 한 장씩 만든다.
+//    스캔하면 로그인 없이 그 공종의 음성 보고 화면이 열리고, 위치는 말한 내용("101동 502호 도배 완료")에서 읽는다.
+// 2) 호실 QR (예전 QR): ?b=<동 id>&f=<층>&u=<호>[&t=<공종>]. 더 이상 만들지 않지만, 이미 인쇄해 붙인 QR이 계속 열리도록 읽는 기능은 남겨 둔다.
+//    이 앱이 로드되자마자 App.jsx가 파라미터를 읽어 그 호실의 화면으로 바로 이동시킨다.
+//    파라미터 이름은 짧게(b/f/u/t) 두었다 - QR에 담기는 주소가 짧을수록 코드 패턴이 단순해져 스캔이 더 잘 된다.
+//    t(공종)는 스캔했을 때 음성 검측의 공종이 미리 골라지게 한다(frame·finish·mep). 없거나 알 수 없는 값이면 고르지 않은 상태로 열린다.
 export const QR_TRADE_IDS = ["frame", "finish", "mep"];
 
-export function buildUnitDeepLink(buildingId, floor, unit, trade = "") {
-  const base = `${window.location.origin}${window.location.pathname}`;
-  const params = new URLSearchParams({ b: buildingId, f: String(floor), u: unit });
-  if (QR_TRADE_IDS.includes(trade)) params.set("t", trade);
-  return `${base}?${params.toString()}`;
+// 공종별 QR에 담는 주소. 현재 페이지 주소(사이트 첫 주소)에 ?trade=<공종>만 붙인다. 모르는 공종이면 빈 글자.
+export function buildTradeLink(trade) {
+  if (!QR_TRADE_IDS.includes(trade)) return "";
+  return `${window.location.origin}${window.location.pathname}?trade=${trade}`;
 }
 
-// 현재 페이지 URL에서 딥링크 파라미터를 읽는다. 없으면 null. 공종(t)이 올바르게 들어 있을 때만 trade가 붙는다.
+// 현재 주소에서 공종별 QR의 공종(frame·finish·mep)을 읽는다. 없거나 알 수 없는 값이면 null.
+// 주소를 지우지 않는다 - 새로고침하거나 홈 화면에 추가해 두어도 같은 공종 화면이 열리도록.
+export function readTradeLink() {
+  const t = new URLSearchParams(window.location.search).get("trade");
+  return QR_TRADE_IDS.includes(t) ? t : null;
+}
+
+// 현재 페이지 URL에서 예전 호실 QR의 딥링크 파라미터를 읽는다. 없으면 null. 공종(t)이 올바르게 들어 있을 때만 trade가 붙는다.
 export function readUnitDeepLink() {
   const params = new URLSearchParams(window.location.search);
   const b = params.get("b");
@@ -38,7 +44,7 @@ export function clearUnitDeepLinkFromUrl() {
 // ---------------- QR 기록판 (관리자가 만든 "임의의 QR 코드") ----------------
 // 관리자가 "QR코드" 탭에서 만든 QR에는 ?qr=<코드> 링크가 담긴다. 스캔한 사람은 로그인 없이
 // 메모·사진·음성을 남기고, 같은 QR을 스캔한 다른 사람도 남겨진 기록을 볼 수 있다.
-// 호실 QR(b/f/u)과는 파라미터 이름이 달라 서로 영향을 주지 않는다.
+// 호실 QR(b/f/u)·공종별 QR(trade)과는 파라미터 이름이 달라 서로 영향을 주지 않는다.
 
 // 사진·음성은 Storage 없이 base64 문자열로 Firestore 문서에 직접 저장한다(문서 1개당 1MiB 제한).
 // 그래서 올리기 전에 용량을 줄이고, 아래 한도를 넘으면 저장하지 않는다.

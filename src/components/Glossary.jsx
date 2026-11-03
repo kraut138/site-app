@@ -10,7 +10,7 @@ import { FUZZY_LEVELS, FUZZY_ORDER, FUZZY_LABELS, fuzzyLabel, normalizeFuzzy } f
 import { GLOSSARY_LIMITS, GLOSSARY_MESSAGES, applyGlossary, applyGlossaryOnly, checkTerm, slangKey } from "../voice.js";
 
 // 관리자 "용어 DB" 탭: 현장 은어 → 표준 용어 표를 보고 고치는 화면.
-// 하도급사의 "음성 검측"(탭과 호실 QR 화면)은 말한 내용을 이 표대로 바꿔서 저장한다. 표는 Firestore 문서 1개(meta/glossary)에 들어 있다.
+// 하도급사의 "음성 검측"(탭과 공종별 QR 화면)은 말한 내용을 이 표대로 바꿔서 저장한다. 표는 Firestore 문서 1개(meta/glossary)에 들어 있다.
 // 같은 문서에 변환 방식도 들어 있다: '용어 DB에 있는 단어만 남기기'(기본 켜짐) - 켜면 은어는 표준 용어로 바꾸고 표에 없는 말은 변환된 문장에서 뺀다.
 // 그 방식이 켜져 있을 때 '비슷한 용어 찾기'(끔·엄격 85%·보통 80%, 기본 보통)도 고를 수 있다: 음성이 잘못 들려 표에 없는 말이 되었을 때(예: "나라씨"),
 // 소리(자모)를 견주는 레벤슈타인 거리로 표의 단어 중 가장 비슷한 것("나라시")으로 보고 그 단어로 바꿔 남긴다(fuzzyTerms.js).
@@ -419,7 +419,7 @@ export default function Glossary({ adminName, notify }) {
                     </span>
                   </div>
                   <p className="gl-table-sub">
-                    하도급사의 <strong>음성 검측</strong>(탭과 호실 QR 화면)에서 말하거나 입력한 내용이 이 표대로 표준 용어로 바뀌어 저장됩니다.
+                    하도급사의 <strong>음성 검측</strong>(탭과 공종별 QR 화면)에서 말하거나 입력한 내용이 이 표대로 표준 용어로 바뀌어 저장됩니다.
                   </p>
                 </div>
                 <input

@@ -1166,6 +1166,60 @@ textarea.input {
   color: rgba(255, 255, 255, 0.92);
 }
 
+/* 음성 보고로만 완료된 호실(감리단 승인 전): 연한 초록 줄무늬 - 승인된 완료(진한 초록)와 색의 밝기와 무늬로 구분한다 */
+.golgu-card-brick.voice {
+  background: repeating-linear-gradient(135deg, #6ee7b7 0 4px, #34d399 4px 8px);
+  color: #064e3b;
+}
+
+.golgu-brick.voice {
+  background: repeating-linear-gradient(135deg, #6ee7b7 0 3px, #34d399 3px 6px);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.4), inset -1px -1px 0 rgba(0, 0, 0, 0.22);
+  color: #064e3b;
+}
+
+.golgu-voice-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.golgu-voice-status[data-state="error"] {
+  color: var(--fail);
+}
+
+.golgu-recompute-confirm {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-alt);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+.golgu-recompute-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.golgu-recompute-msg {
+  margin-bottom: 12px;
+  font-size: 12.5px;
+  color: var(--pass);
+}
+
+.golgu-recompute-msg.is-error {
+  color: var(--fail);
+}
+
 .unit-picker-row {
   display: flex;
   flex-wrap: wrap;
@@ -3899,7 +3953,7 @@ textarea.input {
   }
 }
 
-/* ============ 인쇄: 공종별 QR 생성소의 스티커만 종이에 나오게 한다 ============ */
+/* ============ 인쇄: 공종별 QR 생성소의 스티커(공종마다 한 장씩)만 종이에 나오게 한다 ============ */
 @media print {
   body {
     background: #fff !important;
@@ -3907,18 +3961,27 @@ textarea.input {
   body * {
     visibility: hidden;
   }
-  #printable-qr-sticker,
-  #printable-qr-sticker * {
+  #printable-qr-sheet,
+  #printable-qr-sheet * {
     visibility: visible;
   }
-  #printable-qr-sticker {
-    position: fixed;
-    left: 50%;
-    top: 24px;
-    transform: translateX(-50%);
-    box-shadow: none;
+  #printable-qr-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    padding: 16px;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  #printable-qr-sheet .qrgen-sticker {
+    box-shadow: none;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }
 

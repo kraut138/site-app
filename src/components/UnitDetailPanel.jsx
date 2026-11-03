@@ -7,7 +7,7 @@ import FoldToggle, { useFolded } from "./FoldToggle.jsx";
 import * as api from "../api.js";
 import { findTrade, tradeName, convertedText } from "../voice.js";
 import { analyzeProgress } from "../progressText.js";
-import { progressForUnit, resolveUnit, relatedUnits, hasEffect, canonUnit, unitKeyOf } from "../unitProgress.js";
+import { progressForUnit, resolveUnit, relatedUnits, hasEffect, canonUnit, unitKeyOf, doneMapOf } from "../unitProgress.js";
 
 const BAR_COLOR = {
   미시작: "var(--line-strong)",
@@ -248,13 +248,31 @@ function UnitProgressCards({ building, buildingId, floor, unit, inspections, che
     setShown(REC_PAGE);
   }, [buildingId, floor, unit, tab]);
 
+  // 보고를 진행도에서 빼거나 다시 넣으면, 골구도가 쓰는 그 호실의 '음성 완료'(api.js unitVoiceDone)도 같은 기준으로 다시 맞춘다.
+  // 이 보고가 가리키는 호실(지금 보고 있는 호실이 아닐 수도 있다)의 보고들로 완료 항목을 다시 구해 그 호실의 값을 통째로 바꾼다.
+  async function syncGolguDone(id, off) {
+    const target = merged.find((r) => r.id === id);
+    const res = target ? resolveUnit(target, { unitsPerFloor }) : null;
+    if (!res || !res.ok) return; // 어느 호실인지 알 수 없는 보고는 골구도에 올라가 있지도 않다
+    const next = merged.map((r) => (r.id === id ? { ...r, progressOff: off } : r));
+    const folded = progressForUnit(next, { buildingId: res.buildingId, floor: res.floor, unit: res.unit }, checklistItems, unitsPerFloor);
+    await api.replaceUnitVoiceDone(res.buildingId, res.floor, res.unit, doneMapOf(folded));
+  }
+
   async function toggleVoiceReport(id, off) {
     setVoiceBusy(true);
     try {
       const fields = await api.setVoiceReportProgressOff(id, off, userName);
       voice.patch(id, fields);
       setOffMap((prev) => ({ ...prev, [id]: off }));
-      notify(off ? "이 보고를 호실 진행도에서 제외했습니다." : "이 보고를 호실 진행도에 다시 반영했습니다.");
+      let golguSynced = true;
+      try {
+        await syncGolguDone(id, off);
+      } catch {
+        golguSynced = false;
+      }
+      const base = off ? "이 보고를 호실 진행도에서 제외했습니다." : "이 보고를 호실 진행도에 다시 반영했습니다.";
+      notify(golguSynced ? base : `${base} 골구도에는 반영하지 못했어요. 골구도 탭의 ‘다시 계산’을 눌러 주세요.`);
     } catch {
       notify("변경하지 못했습니다. 연결을 확인하고 다시 시도해 주세요.");
     } finally {
@@ -483,7 +501,7 @@ function UnitProgressCards({ building, buildingId, floor, unit, inspections, che
  * - onCreateNote, onDeleteNote, notify
  * - layout: "split"(기본, 좌우 2열: 평면도·진행도 | 음성 기록·특이사항) | "stacked"(세로로 순서대로, 모바일 화면용)
  * - toolbar: split 배치에서 카드들 위에 놓을 줄을 그리는 함수. ({ gauge }) => 화면. gauge = { percent, state } ('통합 호실 공정률')
- * - showProgress: false면 공종별 진행도·음성 기록 카드를 빼고(음성 보고도 읽지 않는다) 특이사항·평면도만 보여 준다. 호실 QR 화면이 이렇게 쓴다.
+ * - showProgress: false면 공종별 진행도·음성 기록 카드를 빼고(음성 보고도 읽지 않는다) 특이사항·평면도만 보여 준다. 예전 호실 QR 화면(QrUnitScreen)이 이렇게 쓴다.
  * - canEdit: 관리자만 true - 잘못 반영된 음성 보고를 진행도에서 제외/복구할 수 있다. userName: 그때 기록해 둘 이름.
  */
 export default function UnitDetailPanel({

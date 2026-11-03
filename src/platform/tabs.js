@@ -36,7 +36,7 @@ export const SUB_TABS = [
 // 탭 위쪽에 보여 주는 화면 제목·설명. 키가 있으면 번역 사전에서, text가 있으면 그대로 쓴다.
 export const PAGE_META = {
   dashboard: { title: "공사현황 대시보드", desc: "현장 음성 보고, 검측 승인율, NCR 현황을 한눈에 확인합니다" },
-  qrgen: { title: "공종별 QR 생성소", desc: "동·층·호실과 공종을 고르면 현장에 붙일 QR 스티커를 만들어 줍니다" },
+  qrgen: { title: "공종별 QR 생성소", desc: "공종(골조·마감·설비전기)마다 QR 하나씩 만들어 현장에 붙입니다. 스캔해서 '101동 502호 도배 완료'처럼 말하면 그 호실에 반영돼요" },
   buildings: { titleKey: "page.buildings.title", descKey: "page.buildings.desc" },
   unitinfo: { titleKey: "page.unitinfo.title", descKey: "page.unitinfo.desc" },
   sitelayout: { titleKey: "page.sitelayout.title", descKey: "page.sitelayout.desc" },

@@ -2,7 +2,7 @@
 //
 // 진행도는 저장해 두지 않고 보고에 저장된 글(normalized)과 지금의 체크리스트 항목으로 그때그때 계산한다.
 // 그래서 용어 표를 다시 적용하거나(글이 바뀜) 관리자가 항목 이름을 고쳐도 진행도가 알아서 맞춰진다.
-// 감리 승인(inspections)으로 계산하는 기존 진행도와는 따로 보여 주는 '음성 보고' 층이다. (골구도는 승인된 것만 쓰는 기존 규칙 그대로)
+// 감리 승인(inspections)으로 계산하는 기존 진행도와는 따로 보여 주는 '음성 보고' 층이다. 골구도는 승인된 호실에 더해, 음성 보고로 '완료'라고 말한 항목도 완료로 보여 준다(아래 '골구도에 쓰는 음성 완료').
 
 import { CATEGORIES, itemsForCategory } from "./data.js";
 import { analyzeProgress, koreanNumber } from "./progressText.js";
@@ -196,4 +196,59 @@ export function progressForUnit(reports, unit, checklistItems, unitsPerFloor) {
   }
   const folded = foldUnitProgress(mine, checklistItems);
   return { ...folded, entries: mine };
+}
+
+// ---------------- 골구도에 쓰는 '음성 완료' ----------------
+// 골구도는 호실마다 "음성 보고로 완료라고 말한 항목"을 알아야 한다. 보고를 저장할 때 그 호실의 완료 항목을 함께 모아 두고(api.js unitVoiceDone),
+// 골구도는 그 값만 읽는다(보고 전체를 매번 읽지 않는다). 아래는 그 값을 만드는 계산이다.
+
+// 분석 결과에서 '완료'로 말한 항목 id들. "도배 완료"는 그 항목, "마감공사 완료"처럼 공종 전체를 말했으면 그 공종의 모든 항목이다. 중복 없음.
+export function doneItemIdsOf(analysis, checklistItems) {
+  const ids = [];
+  const add = (id) => {
+    if (id && !ids.includes(id)) ids.push(id);
+  };
+  const a = analysis || {};
+  for (const it of Array.isArray(a.items) ? a.items : []) if (it && it.state === "done") add(it.itemId);
+  for (const cat of Array.isArray(a.categories) ? a.categories : []) for (const item of itemsForCategory(checklistItems, cat.categoryId)) add(item.id);
+  return ids;
+}
+
+// 한 호실의 진행도(foldUnitProgress 결과)에서 완료 항목만 저장하는 모양으로: { [itemId]: { at, by, report } }
+export function doneMapOf(folded) {
+  const out = {};
+  const byItem = (folded && folded.byItem) || {};
+  for (const itemId of Object.keys(byItem)) {
+    const v = byItem[itemId];
+    if (v && v.state === "done") out[itemId] = { at: String(v.at || ""), by: String(v.author || ""), report: String(v.reportId || "") };
+  }
+  return out;
+}
+
+// 보고 전체를 한 번에 읽어 호실마다 진행도를 만든다(저장해 둔 '음성 완료'를 처음부터 다시 만들 때 쓴다).
+//   reports: voiceReports 문서들, buildings: 현장의 모든 동(층당 세대수로 호수 범위를 확인한다), checklistItems: 표준 공종 항목
+// 반환: Map(호실 키 → { buildingId, floor, unit, byItem, byCategory, effects })  - 반영할 내용이 있는 호실만 들어 있다. 제외(progressOff)된 보고는 읽지 않는다.
+export function progressByUnit(reports, buildings, checklistItems) {
+  const perFloor = new Map();
+  for (const b of Array.isArray(buildings) ? buildings : []) if (b && b.id) perFloor.set(b.id, b.unitsPerFloor);
+  const groups = new Map();
+  for (const r of Array.isArray(reports) ? reports : []) {
+    if (!r || !perFloor.has(r.buildingId)) continue;
+    const resolved = resolveUnit(r, { unitsPerFloor: perFloor.get(r.buildingId) });
+    if (!resolved.ok) continue;
+    const analysis = analyzeProgress(String(r.normalized || r.rawText || ""), checklistItems);
+    if (!hasEffect(analysis)) continue;
+    let g = groups.get(resolved.key);
+    if (!g) {
+      g = { buildingId: resolved.buildingId, floor: resolved.floor, unit: resolved.unit, entries: [] };
+      groups.set(resolved.key, g);
+    }
+    g.entries.push({ id: r.id, timestamp: r.timestamp || 0, createdAt: r.createdAt || "", author: r.author || "", off: !!r.progressOff, analysis });
+  }
+  const out = new Map();
+  for (const [key, g] of groups) {
+    const folded = foldUnitProgress(g.entries, checklistItems);
+    out.set(key, { buildingId: g.buildingId, floor: g.floor, unit: g.unit, ...folded });
+  }
+  return out;
 }

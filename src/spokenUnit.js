@@ -154,3 +154,65 @@ export function resolveSpokenPlace(text, here, buildings) {
   }
   return { kind: "other", building: b, floor: t.floor, unit: t.unitText };
 }
+
+// ---------------- 공종별 QR 화면: 이 화면의 호실이 없다 ----------------
+// 공종별 QR(?trade=)은 위치를 정해 주지 않는다. 하도급사가 "101동 502호 도배 완료"처럼 동·호실을 함께 말하면, 그 말에서 동·층·호실을 읽어 그 호실의 보고로 저장한다.
+// 위의 resolveSpokenPlace와 같은 표현을 같은 규칙으로 읽되, 기준이 되는 '이 화면의 호실'이 없으므로 훨씬 보수적이다 - 동·층·호실이 모두 분명할 때만 정하고, 아니면 저장하지 않고 이유를 알려 준다.
+//  - 층까지 말해야 한다("502호", "5층 2호"). "2호"처럼 호수만 말한 것은 어느 층인지 알 수 없다.
+//  - 동을 말해야 한다. 동이 하나뿐인 현장만 동을 빼고 말해도 그 동으로 읽는다.
+//  - 지하층은 호실 번호로 부를 수 없으므로 "지하"가 들어 있으면 정하지 않는다.
+//  - 호실이나 동을 둘 이상 말했으면 정하지 않는다(한 번에 한 호실씩 말한다).
+//  - 이 현장에 없는 동·층·호실이면 정하지 않는다.
+//   text: 말한 글(은어를 표준 용어로 바꾼 전체 문장), buildings: 현장의 모든 동 [{ id, name, floors, unitsPerFloor }]
+// 반환:
+//   { kind: "found", building, floor, unit }  동·층·호실을 분명하게 말했고 이 현장에 있다(unit은 "02"처럼 두 자리)
+//   { kind: "none" }                          동도 호실도 말하지 않았다
+//   { kind: "partial" }                       동만 말했거나, 층·동 없이 호수만 말해 어느 호실인지 알 수 없다
+//   { kind: "multiple" }                      호실이나 동을 둘 이상 말했다
+//   { kind: "unknown", place }                이 현장에 없는 동·층·호실을 말했다(place: "999동 5층 02호")
+export function resolveSpokenAddress(text, buildings) {
+  const list = (Array.isArray(buildings) ? buildings : []).filter(Boolean);
+  const { dongs, places } = findSpokenPlaces(text);
+  if (dongs.length > 1) return { kind: "multiple" };
+  const spokenDong = dongs.length === 1 ? dongs[0] : null;
+  if (places.length === 0) return spokenDong !== null ? { kind: "partial" } : { kind: "none" };
+  if (/지하/.test(String(text == null ? "" : text))) return { kind: "partial" };
+
+  const loneNo = list.length === 1 ? buildingNo(list[0]) : NaN; // 동이 하나뿐인 현장은 동을 빼고 말해도 그 동이다
+  let sawPartial = false;
+  const targets = [];
+  for (const p of places) {
+    const dong = p.dong !== null ? p.dong : spokenDong !== null ? spokenDong : Number.isInteger(loneNo) ? loneNo : null;
+    if (p.floor === null || dong === null) {
+      sawPartial = true;
+      continue;
+    }
+    const key = `${dong}|${p.floor}|${p.unit}`;
+    if (!targets.some((t) => t.key === key)) targets.push({ key, dong, floor: p.floor, unit: p.unit });
+  }
+  if (targets.length === 0) return { kind: "partial" };
+  if (targets.length > 1 || sawPartial) return { kind: "multiple" };
+
+  const t = targets[0];
+  const unitText = String(t.unit).padStart(2, "0");
+  const b = findBuilding(list, t.dong);
+  if (!b || !floorChoices(b.floors).includes(t.floor) || t.floor < 1 || !validUnit(b, t.unit)) {
+    return { kind: "unknown", place: `${t.dong}동 ${t.floor}층 ${unitText}호` };
+  }
+  return { kind: "found", building: b, floor: t.floor, unit: unitText };
+}
+
+// 공종별 QR 화면 안내문에 넣는 말하기 예시: 이 현장의 첫 번째 동의 5층 02호(층수·호수가 모자라면 가능한 가장 가까운 호실)와, 공종에 맞는 작업 하나.
+// 예: "101동 502호 도배 완료". 동 이름에 번호가 없으면 동 이름을 그대로 쓴다. 동이 하나도 없으면 "101동 502호 …"로 대신한다.
+const EXAMPLE_WORK = { frame: "철근 배근 완료", finish: "도배 완료", mep: "분전반 결선 완료" };
+
+export function spokenExample(buildings, tradeId) {
+  const work = EXAMPLE_WORK[tradeId] || EXAMPLE_WORK.finish;
+  const b = (Array.isArray(buildings) ? buildings : []).find(Boolean);
+  if (!b) return `101동 502호 ${work}`;
+  const no = buildingNo(b);
+  const dong = Number.isInteger(no) ? `${no}동` : String(b.name || "");
+  const floor = Math.max(1, Math.min(5, Math.floor(Number(b.floors)) || 1));
+  const unit = Math.max(1, Math.min(2, Math.floor(Number(b.unitsPerFloor)) || 1));
+  return `${dong} ${floor * 100 + unit}호 ${work}`;
+}
