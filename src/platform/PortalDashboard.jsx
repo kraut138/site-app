@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Mic, Activity, ClipboardCheck, BookA, TrendingUp, PieChart, Sparkles, RefreshCw } from "lucide-react";
+import { Mic, Activity, ClipboardCheck, BookA, TrendingUp, PieChart, Sparkles, RefreshCw, Grid3x3 } from "lucide-react";
 import { CATEGORIES } from "../data.js";
 import { findTrade, tradeName } from "../voice.js";
 import { fuzzyLabel } from "../fuzzyTerms.js";
 import * as api from "../api.js";
 import Dashboard from "../components/Dashboard.jsx";
+import SiteLayout from "../components/SiteLayout.jsx";
 import FoldToggle, { useFolded } from "../components/FoldToggle.jsx";
 import { VoiceRecordMeta } from "../components/VoiceAudio.jsx";
 
@@ -26,7 +27,7 @@ function refinedText(r) {
   return r.normalized || r.summary || "";
 }
 
-export default function PortalDashboard({ buildings, inspections, ncrs }) {
+export default function PortalDashboard({ buildings, inspections, ncrs, checklistItems, onNavigateToUnit }) {
   const [feed, setFeed] = useState(null); // null = 아직 못 받음
   const [feedError, setFeedError] = useState(false);
   const [glossary, setGlossary] = useState(null);
@@ -144,41 +145,12 @@ export default function PortalDashboard({ buildings, inspections, ncrs }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className={`lg:col-span-2 ${CARD} p-5 flex flex-col`}>
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 gap-3">
-            <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${feedError ? "bg-rose-500" : "bg-emerald-500 animate-pulse"}`} aria-hidden="true" />
-              <h3 className="font-bold text-slate-900 text-sm">실시간 현장 음성 보고 피드 (Live Feed)</h3>
-            </div>
-            {feedError ? (
-              <button
-                type="button"
-                data-testid="feed-retry"
-                onClick={() => setReloadKey((k) => k + 1)}
-                className="text-xs text-blue-600 font-semibold flex items-center gap-1 hover:text-blue-700"
-              >
-                <RefreshCw className="w-3 h-3" aria-hidden="true" /> 다시 연결
-              </button>
-            ) : (
-              <span className="text-xs text-slate-400 font-medium" data-testid="feed-state">
-                {feed === null ? "연결 중…" : "자동 갱신 중"}
-              </span>
-            )}
+        <div className="lg:col-span-2 flex flex-col gap-3" data-testid="dash-golgu">
+          <div className="flex items-center gap-2 px-1">
+            <Grid3x3 className="w-4 h-4 text-blue-600" aria-hidden="true" />
+            <h3 className="font-bold text-slate-900 text-sm">건물 골구도 뷰어</h3>
           </div>
-
-          <div className="space-y-3 overflow-y-auto max-h-[460px] pr-1" data-testid="feed-list">
-            {feedError && feed === null ? (
-              <p className="text-xs text-rose-600 py-8 text-center">실시간 보고를 불러오지 못했습니다. 인터넷 연결을 확인하고 '다시 연결'을 눌러주세요.</p>
-            ) : feed === null ? (
-              <p className="text-xs text-slate-400 py-8 text-center">불러오는 중…</p>
-            ) : feed.length === 0 ? (
-              <p className="text-xs text-slate-400 py-8 text-center" data-testid="feed-empty">
-                아직 접수된 음성 보고가 없습니다. 하도급 반장님이 음성으로 보고하면 여기에 바로 나타납니다.
-              </p>
-            ) : (
-              feed.slice(0, FEED_SHOWN).map((r) => <FeedItem key={r.id} report={r} />)
-            )}
-          </div>
+          <SiteLayout buildings={buildings} checklistItems={checklistItems} inspections={inspections} onNavigateToUnit={onNavigateToUnit} />
         </div>
 
         {/* 접어 두면 카드가 내용만큼만 차지한다(self-start). 펼쳐 둘 때는 옆 카드와 높이를 맞춘다. */}
@@ -254,6 +226,43 @@ export default function PortalDashboard({ buildings, inspections, ncrs }) {
               {latest ? ` 가장 최근 음성 보고는 ${latest.zone} ${latest.time ? String(latest.time).slice(0, 5) : ""}입니다.` : ""}
             </p>
           </div>
+        </div>
+      </div>
+
+      <div className={`${CARD} p-5 flex flex-col`} data-testid="dash-livefeed">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 gap-3">
+          <div className="flex items-center gap-2">
+            <span className={`w-2.5 h-2.5 rounded-full ${feedError ? "bg-rose-500" : "bg-emerald-500 animate-pulse"}`} aria-hidden="true" />
+            <h3 className="font-bold text-slate-900 text-sm">실시간 현장 음성 보고 피드 (Live Feed)</h3>
+          </div>
+          {feedError ? (
+            <button
+              type="button"
+              data-testid="feed-retry"
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="text-xs text-blue-600 font-semibold flex items-center gap-1 hover:text-blue-700"
+            >
+              <RefreshCw className="w-3 h-3" aria-hidden="true" /> 다시 연결
+            </button>
+          ) : (
+            <span className="text-xs text-slate-400 font-medium" data-testid="feed-state">
+              {feed === null ? "연결 중…" : "자동 갱신 중"}
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-3 overflow-y-auto max-h-[460px] pr-1" data-testid="feed-list">
+          {feedError && feed === null ? (
+            <p className="text-xs text-rose-600 py-8 text-center">실시간 보고를 불러오지 못했습니다. 인터넷 연결을 확인하고 '다시 연결'을 눌러주세요.</p>
+          ) : feed === null ? (
+            <p className="text-xs text-slate-400 py-8 text-center">불러오는 중…</p>
+          ) : feed.length === 0 ? (
+            <p className="text-xs text-slate-400 py-8 text-center" data-testid="feed-empty">
+              아직 접수된 음성 보고가 없습니다. 하도급 반장님이 음성으로 보고하면 여기에 바로 나타납니다.
+            </p>
+          ) : (
+            feed.slice(0, FEED_SHOWN).map((r) => <FeedItem key={r.id} report={r} />)
+          )}
         </div>
       </div>
 

@@ -312,7 +312,7 @@ export default function App() {
           badges={badges}
         >
           {activeView === "dashboard" && (
-            <PortalDashboard buildings={buildings} inspections={inspections} ncrs={ncrs} notify={notify} />
+            <PortalDashboard buildings={buildings} inspections={inspections} ncrs={ncrs} notify={notify} checklistItems={checklistItems} onNavigateToUnit={handleNavigateToUnit} />
           )}
           {activeView === "qrgen" && <QrGenerator buildings={buildings} notify={notify} onGoBuildings={() => setView("buildings")} />}
           {activeView === "operations" && (
