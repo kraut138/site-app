@@ -4149,6 +4149,18 @@ textarea.input {
   color: var(--ink-faint);
 }
 
+.pw-doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pw-ins-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
 .pw-tags {
   display: flex;
   flex-wrap: wrap;
@@ -4272,14 +4284,232 @@ textarea.input {
   .pw-doc {
     padding: 14px 14px;
   }
-  .pw-doc-head .btn {
+  .pw-doc-actions {
     width: 100%;
+  }
+  .pw-doc-actions .btn {
+    flex: 1 1 0;
   }
   .pw-ins-row {
     flex-wrap: wrap;
   }
-  .pw-ins-row .btn {
+  .pw-ins-actions {
     margin-left: 26px;
+  }
+}
+
+/* ---- 서류 미리보기: 내려받을 서류를 종이 모양으로 화면에 그려 보여 주는 전체 화면 창(7. 서류 작성) ---- */
+.pwv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3500; /* 토스트(200)·인쇄 미리보기(3000)보다 위, 사진 크게 보기(4000)보다 아래 */
+  display: flex;
+  flex-direction: column;
+  background: #5b6064;
+}
+
+.pwv-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 8px 14px;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
+}
+
+.pwv-bar-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pwv-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pwv-sub {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pwv-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pwv-zbtn,
+.pwv-zfit {
+  height: 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pwv-zbtn {
+  width: 34px;
+  font-size: 19px;
+  line-height: 1;
+}
+
+.pwv-zfit {
+  padding: 0 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pwv-zbtn:hover:not(:disabled),
+.pwv-zfit:hover:not(:disabled) {
+  background: var(--surface-alt);
+}
+
+.pwv-zbtn:disabled,
+.pwv-zfit:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pwv-zlabel {
+  min-width: 46px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
+.pwv-dl {
+  min-height: 34px;
+}
+
+.pwv-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-alt);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.pwv-close:hover {
+  background: var(--line);
+}
+
+.pwv-notice {
+  flex: none;
+  padding: 8px 14px;
+  background: var(--pending-bg);
+  color: var(--pending);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.pwv-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable both-edges; /* 세로 스크롤바가 생기고 없어져도 너비가 변하지 않게 해서 "화면에 맞춤" 배율이 흔들리지 않는다 */
+}
+
+.pwv-scroll:focus {
+  outline: none;
+}
+
+.pwv-scroll:focus-visible {
+  outline: 2px solid var(--line-blue);
+  outline-offset: -2px;
+}
+
+/* 종이 한 장: 크기는 화면 배율을 곱한 값으로 정하고, 안의 종이(.pwv-host)를 같은 배율로 줄이거나 키운다 */
+.pwv-sheet {
+  position: relative;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
+}
+
+.pwv-host {
+  transform-origin: 0 0;
+}
+
+.pwv-paper {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.pwv-error {
+  max-width: 520px;
+  margin: 24px auto;
+  padding: 16px 18px;
+  border-radius: var(--radius-m);
+  background: #fff;
+  color: var(--ink);
+}
+
+.pwv-error-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--fail);
+}
+
+.pwv-error-text {
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.pwv-foot {
+  flex: none;
+  padding: 6px 14px calc(6px + env(safe-area-inset-bottom, 0px));
+  background: rgba(15, 23, 42, 0.45);
+  color: #e2e8f0;
+  font-size: 11.5px;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .pwv-bar {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+  }
+  .pwv-bar-title {
+    flex: 1 1 calc(100% - 60px);
+  }
+  .pwv-close {
+    order: 2;
+  }
+  .pwv-zoom {
+    order: 3;
+    flex: 1 1 auto;
+  }
+  .pwv-dl {
+    order: 4;
+  }
+  .pwv-scroll {
+    padding: 12px 8px;
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { zipSync } from "fflate";
 import { Icon, EmptyState } from "./UI.jsx";
 import * as api from "../api.js";
@@ -7,10 +7,12 @@ import { digestDay } from "../paperwork/digestReports.js";
 import { workLogModel, tbmModel, inspectionModels, inspectionZipName, INSPECTION_FILLED, INSPECTION_BLANK } from "../paperwork/formModels.js";
 import { fillWorkLog, fillTbmLog } from "../paperwork/docxFill.js";
 import { fillInspectionRequest } from "../paperwork/hwpFill.js";
+import PaperworkPreview, { EyeIcon } from "./PaperworkPreview.jsx";
 
 // "7. 서류 작성" - 하루치 음성 기록(voiceReports)을 읽어 작업일보·TBM 일지(워드)와 검측요청서(한글)의 양식 파일을 자동으로 채워 내려받게 한다.
 // 기록에서 알 수 없는 칸(현장명·날씨·출역 인원·서명 등)은 값을 만들지 않고 양식의 빈 칸 그대로 둔다. 어떻게 채우는지는 src/paperwork/ 에 있다.
 // 양식 원본은 public/templates/ 에 있고, 내려받을 때마다 이 브라우저 안에서 채운다(서버로 보내는 것은 없다).
+// "미리보기" 단추는 내려받을 파일과 똑같은 바이트를 만들어(같은 채우기 함수) 내려받지 않고 화면에 종이 모양으로 보여 준다(PaperworkPreview.jsx).
 
 const BASE = import.meta.env.BASE_URL || "/";
 const TEMPLATE_URLS = {
@@ -52,6 +54,11 @@ function saveFile(bytes, fileName, mime) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+// 내려받은 뒤(또는 미리보기에서) 알려 주는 글. 칸에 다 못 넣어 줄인 것이 있을 때만 글이 있다.
+const workLogWarnText = (report) => (report.omitted ? `기록이 많아 ${report.omitted}건은 표에 다 넣지 못하고 "외 ${report.omitted}건"으로 줄였어요.` : "");
+const inspectionWarnText = (shortened) => (shortened ? `${shortened}건은 칸이 좁아 일부 글을 "…"로 줄였어요. 한글에서 열어 확인해 주세요.` : "");
+const countShortened = (report) => (Object.values(report.fields).some((f) => f.truncated) ? 1 : 0);
+
 function Tags({ filled, blank }) {
   return (
     <div className="pw-tags">
@@ -81,6 +88,8 @@ export default function Paperwork({ notify, checklistItems = [] }) {
   const [busy, setBusy] = useState("");
   const [unchecked, setUnchecked] = useState({}); // 검측요청서 목록에서 체크를 푼 것(key → true)
   const [warn, setWarn] = useState({}); // 서류별로 내려받은 뒤의 안내 글
+  const [preview, setPreview] = useState(null); // 열어 둔 미리보기 { kind, title, fileName, bytes, notice }
+  const openerRef = useRef(null); // 미리보기를 연 단추(닫으면 그 단추로 돌아온다)
 
   useEffect(() => {
     if (!isDayKey(dayKey)) return undefined;
@@ -122,13 +131,18 @@ export default function Paperwork({ notify, checklistItems = [] }) {
     }
   };
 
+  // 서류 파일 만들기: 내려받기와 미리보기가 같은 함수를 써서, 미리보기에 보이는 것 = 내려받는 파일의 내용이 되게 한다.
+  const makeWorkLog = async () => fillWorkLog(await loadTemplate("workLog"), workLog);
+  const makeTbm = async () => fillTbmLog(await loadTemplate("tbm"), tbm);
+  const makeInspection = async (m) => fillInspectionRequest(await loadTemplate("inspection"), m.values);
+
   const downloadWorkLog = () =>
     run(
       "worklog",
       async () => {
-        const { bytes, report } = fillWorkLog(await loadTemplate("workLog"), workLog);
+        const { bytes, report } = await makeWorkLog();
         saveFile(bytes, workLog.fileName, MIME_DOCX);
-        setWarn((w) => ({ ...w, worklog: report.omitted ? `기록이 많아 ${report.omitted}건은 표에 다 넣지 못하고 "외 ${report.omitted}건"으로 줄였어요.` : "" }));
+        setWarn((w) => ({ ...w, worklog: workLogWarnText(report) }));
         if (notify) notify("작업일보를 내려받았습니다.");
       },
       "작업일보를 만들지 못했습니다."
@@ -138,7 +152,7 @@ export default function Paperwork({ notify, checklistItems = [] }) {
     run(
       "tbm",
       async () => {
-        const { bytes } = fillTbmLog(await loadTemplate("tbm"), tbm);
+        const { bytes } = await makeTbm();
         saveFile(bytes, tbm.fileName, MIME_DOCX);
         setWarn((w) => ({ ...w, tbm: "" }));
         if (notify) notify("TBM 일지를 내려받았습니다.");
@@ -151,21 +165,58 @@ export default function Paperwork({ notify, checklistItems = [] }) {
     run(
       models.length === 1 ? `hwp:${models[0].key}` : "hwp-zip",
       async () => {
-        const template = await loadTemplate("inspection");
         const files = {};
         let shortened = 0;
         for (const m of models) {
-          const { bytes, report } = fillInspectionRequest(template, m.values);
+          const { bytes, report } = await makeInspection(m);
           files[m.fileName] = bytes;
-          if (Object.values(report.fields).some((f) => f.truncated)) shortened += 1;
+          shortened += countShortened(report);
         }
         if (models.length === 1) saveFile(files[models[0].fileName], models[0].fileName, MIME_HWP);
         else saveFile(zipSync(files, { level: 6 }), inspectionZipName(dayKey), MIME_ZIP);
-        setWarn((w) => ({ ...w, inspection: shortened ? `${shortened}건은 칸이 좁아 일부 글을 "…"로 줄였어요. 한글에서 열어 확인해 주세요.` : "" }));
+        setWarn((w) => ({ ...w, inspection: inspectionWarnText(shortened) }));
         if (notify) notify(models.length === 1 ? "검측요청서를 내려받았습니다." : `검측요청서 ${models.length}장을 압축 파일로 내려받았습니다.`);
       },
       "검측요청서를 만들지 못했습니다."
     );
+
+  // 미리보기: 파일을 내려받지 않고 화면에서 본다. 열기만 하고, 내려받는 일은 미리보기 창의 「받기」에서 한다.
+  const openPreview = (id, trigger, build) => {
+    openerRef.current = trigger || null;
+    return run(
+      `pv:${id}`,
+      async () => {
+        setPreview(await build());
+      },
+      "미리보기를 만들지 못했습니다."
+    );
+  };
+
+  const previewWorkLog = (trigger) =>
+    openPreview("worklog", trigger, async () => {
+      const { bytes, report } = await makeWorkLog();
+      return { kind: "docx", title: "작업일보", fileName: workLog.fileName, bytes, notice: workLogWarnText(report) };
+    });
+
+  const previewTbm = (trigger) =>
+    openPreview("tbm", trigger, async () => {
+      const { bytes } = await makeTbm();
+      return { kind: "docx", title: "TBM 일지", fileName: tbm.fileName, bytes, notice: "" };
+    });
+
+  const previewInspection = (m, trigger) =>
+    openPreview(`hwp:${m.key}`, trigger, async () => {
+      const { bytes, report } = await makeInspection(m);
+      return { kind: "hwp", title: "검측요청서", fileName: m.fileName, bytes, notice: inspectionWarnText(countShortened(report)) };
+    });
+
+  const closePreview = () => {
+    setPreview(null);
+    const opener = openerRef.current;
+    if (opener) setTimeout(() => document.body.contains(opener) && !opener.disabled && opener.focus(), 0);
+  };
+
+  const downloadPreview = (p) => saveFile(p.bytes, p.fileName, p.kind === "hwp" ? MIME_HWP : MIME_DOCX);
 
   const today = dayKeyOf();
   const changeDay = (key) => {
@@ -227,10 +278,16 @@ export default function Paperwork({ notify, checklistItems = [] }) {
                 <div className="section-title">작업일보 (.docx)</div>
                 <div className="pw-doc-desc">공종 · 위치 · 작업 내용은 같은 동·층·공종끼리 묶어 한 줄씩 적어요.</div>
               </div>
-              <button type="button" className="btn btn-primary" onClick={downloadWorkLog} disabled={status !== "ready" || !!busy} data-testid="pw-worklog-dl">
-                <Icon.Download width="15" height="15" />
-                {busy === "worklog" ? "만드는 중…" : "작업일보 받기"}
-              </button>
+              <div className="pw-doc-actions">
+                <button type="button" className="btn btn-ghost" onClick={(e) => previewWorkLog(e.currentTarget)} disabled={status !== "ready" || !!busy} data-testid="pw-worklog-pv">
+                  <EyeIcon width="15" height="15" />
+                  {busy === "pv:worklog" ? "여는 중…" : "미리보기"}
+                </button>
+                <button type="button" className="btn btn-primary" onClick={downloadWorkLog} disabled={status !== "ready" || !!busy} data-testid="pw-worklog-dl">
+                  <Icon.Download width="15" height="15" />
+                  {busy === "worklog" ? "만드는 중…" : "작업일보 받기"}
+                </button>
+              </div>
             </div>
             <Tags filled={workLog.filled} blank={workLog.blank} />
             <table className="pw-table" data-testid="pw-worklog-table">
@@ -273,10 +330,16 @@ export default function Paperwork({ notify, checklistItems = [] }) {
                 <div className="section-title">작업 전 안전점검회의(TBM) 일지 (.docx)</div>
                 <div className="pw-doc-desc">위험요인은 기록에 위험 낱말(추락·개구부·감전·미설치 등)이 들어 있을 때만 옮겨 적어요.</div>
               </div>
-              <button type="button" className="btn btn-primary" onClick={downloadTbm} disabled={status !== "ready" || !!busy} data-testid="pw-tbm-dl">
-                <Icon.Download width="15" height="15" />
-                {busy === "tbm" ? "만드는 중…" : "TBM 일지 받기"}
-              </button>
+              <div className="pw-doc-actions">
+                <button type="button" className="btn btn-ghost" onClick={(e) => previewTbm(e.currentTarget)} disabled={status !== "ready" || !!busy} data-testid="pw-tbm-pv">
+                  <EyeIcon width="15" height="15" />
+                  {busy === "pv:tbm" ? "여는 중…" : "미리보기"}
+                </button>
+                <button type="button" className="btn btn-primary" onClick={downloadTbm} disabled={status !== "ready" || !!busy} data-testid="pw-tbm-dl">
+                  <Icon.Download width="15" height="15" />
+                  {busy === "tbm" ? "만드는 중…" : "TBM 일지 받기"}
+                </button>
+              </div>
             </div>
             <Tags filled={tbm.filled} blank={tbm.blank} />
             <table className="pw-table" data-testid="pw-tbm-table">
@@ -352,16 +415,28 @@ export default function Paperwork({ notify, checklistItems = [] }) {
                         기록 {m.count}건 · {m.fileName}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => downloadInspections([m])}
-                      disabled={status !== "ready" || !!busy}
-                      data-testid={`pw-ins-dl-${i}`}
-                    >
-                      <Icon.Download width="14" height="14" />
-                      {busy === `hwp:${m.key}` ? "만드는 중…" : "받기"}
-                    </button>
+                    <div className="pw-ins-actions">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={(e) => previewInspection(m, e.currentTarget)}
+                        disabled={status !== "ready" || !!busy}
+                        data-testid={`pw-ins-pv-${i}`}
+                      >
+                        <EyeIcon width="14" height="14" />
+                        {busy === `pv:hwp:${m.key}` ? "여는 중…" : "미리보기"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => downloadInspections([m])}
+                        disabled={status !== "ready" || !!busy}
+                        data-testid={`pw-ins-dl-${i}`}
+                      >
+                        <Icon.Download width="14" height="14" />
+                        {busy === `hwp:${m.key}` ? "만드는 중…" : "받기"}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -373,6 +448,7 @@ export default function Paperwork({ notify, checklistItems = [] }) {
           </div>
         </>
       )}
+      {preview && <PaperworkPreview preview={preview} onClose={closePreview} onDownload={downloadPreview} />}
     </div>
   );
 }
