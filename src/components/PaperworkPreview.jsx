@@ -4,7 +4,7 @@ import { Icon } from "./UI.jsx";
 import { renderDocxPreview } from "../paperwork/docxPreview.js";
 import { renderHwpPreview } from "../paperwork/hwpPreview.js";
 
-// "7. 서류 작성"의 미리보기 창. 내려받을 파일(양식에 글을 채운 결과)의 바이트를 그대로 읽어서 종이 모양으로 화면에 그려 보여 준다.
+// "5. 서류 작성"의 미리보기 창. 내려받을 파일(양식에 글을 채운 결과)의 바이트를 그대로 읽어서 종이 모양으로 화면에 그려 보여 준다.
 // 그래서 여기서 보이는 내용 = 내려받아 워드(.docx)·한글(.hwp)에서 열었을 때의 내용이다. 서버로 보내거나 새로 내려받는 것은 없다.
 // 종이는 원래 크기(1쪽 = 96dpi px)로 그려 두고 화면 너비에 맞게 줄여서(transform) 보여 주며, 확대·축소 단추로 키울 수 있다(이 앱은 손가락 확대를 막아 두었다).
 

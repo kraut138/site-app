@@ -6,7 +6,7 @@ import { findTrade, tradeName, convertedText } from "../voice.js";
 import { resolveUnit } from "../unitProgress.js";
 import * as api from "../api.js";
 
-// "6. 공사 확인 음성요청 내역" - 하도급 반장이 모바일 모드에서 남긴 음성 보고(voiceReports) 전부를,
+// "4. 공사 확인 음성요청 내역" - 하도급 반장이 모바일 모드에서 남긴 음성 보고(voiceReports) 전부를,
 // 말한 글에서 동·호수를 스스로 판별해(resolveUnit, 호실 정보 화면과 같은 로직) 동·호수 칸으로 모아 보여 준다.
 // 칸을 클릭하면 그 호실에 쌓인 모든 기록(원문 · 순화한 문장 · 요약 · 작성자 · 시간)을 한 번에 확인할 수 있다.
 // 동·층·부재만으로는 호실이 판별되지 않는 기록(여러 호실이 함께 언급되었거나 호실 표현이 아예 없는 경우)은

@@ -5,26 +5,22 @@ import {
   QrCode,
   Building2,
   DoorOpen,
-  Grid3x3,
-  BookOpen,
   ClipboardCheck,
   Mic,
   Headphones,
   FileText,
 } from "lucide-react";
 
-// 관리자(시공사 관리자 포털) 탭 - 앞의 6개는 현장통 시안의 탭 순서 그대로이고, 뒤의 2개(서류 작성, 검측·NCR·표준 공종)는 앱에만 있던 기능이다.
+// 관리자(시공사 관리자 포털) 탭 - 앞의 4개는 현장통 시안의 탭 순서 그대로이고(골구도 뷰어는 공사현황 대시보드 안으로, 현장용어/은어 DB는 4번 탭 안의 하위 화면으로 들어갔다), 뒤의 2개(서류 작성, 검측·NCR·표준 공종)는 앱에만 있던 기능이다.
 // 관리자 화면은 한국어로만 보여 주므로 이름은 그대로 적는다(하도급사가 보는 화면만 번역 사전을 쓴다).
 export const ADMIN_TABS = [
   { id: "dashboard", label: "공사현황 대시보드", Icon: LayoutDashboard },
   { id: "qrgen", label: "1. 공종별 QR 생성소", Icon: QrCode },
   { id: "buildings", label: "2. 동.호수 생성", Icon: Building2 },
   { id: "unitinfo", label: "3. 각 호실 정보 & 평면도", Icon: DoorOpen },
-  { id: "sitelayout", label: "4. 건물 골구도 뷰어", Icon: Grid3x3 },
-  { id: "glossary", label: "5. 현장용어/은어 DB", Icon: BookOpen },
-  { id: "voicerequests", label: "6. 공사 확인 음성요청 내역", Icon: Headphones },
-  { id: "paperwork", label: "7. 서류 작성", Icon: FileText },
-  { id: "operations", label: "8. 검측·NCR·표준 공종", Icon: ClipboardCheck, badgeKey: "operations" },
+  { id: "voicerequests", label: "4. 공사 확인 음성요청 내역", Icon: Headphones },
+  { id: "paperwork", label: "5. 서류 작성", Icon: FileText },
+  { id: "operations", label: "6. 검측·NCR·표준 공종", Icon: ClipboardCheck, badgeKey: "operations" },
 ];
 
 // 하도급사(하도급 반장 모바일 모드) 탭 - 번역 사전의 키로 적는다.
@@ -39,8 +35,7 @@ export const PAGE_META = {
   qrgen: { title: "공종별 QR 생성소", desc: "공종(골조·마감·설비전기)마다 QR 하나씩 만들어 현장에 붙입니다. 스캔해서 '101동 502호 도배 완료'처럼 말하면 그 호실에 반영돼요" },
   buildings: { titleKey: "page.buildings.title", descKey: "page.buildings.desc" },
   unitinfo: { titleKey: "page.unitinfo.title", descKey: "page.unitinfo.desc" },
-  sitelayout: { titleKey: "page.sitelayout.title", descKey: "page.sitelayout.desc" },
-  glossary: { titleKey: "page.glossary.title", descKey: "page.glossary.desc" },
+  glossary: { titleKey: "page.glossary.title", descKey: "page.glossary.desc" }, // 4번 탭(음성요청 내역) 안의 하위 화면에서 쓴다
   voicerequests: { title: "공사 확인 음성요청 내역", desc: "하도급 반장이 남긴 음성 보고를 동·호수 칸으로 모아 확인합니다" },
   paperwork: { title: "서류 작성", desc: "음성 기록으로 작업일보·TBM 일지·검측요청서 양식을 자동으로 채워 내려받습니다" },
   operations: { titleKey: "page.operations.title", descKey: "page.operations.desc" },

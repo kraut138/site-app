@@ -170,12 +170,12 @@ export const VIEW_ROLES = {
   qrgen: [ROLES.SUPER],
   voice: [ROLES.SUB],
   buildings: [ROLES.SUPER],
-  sitelayout: [ROLES.SUPER],
-  glossary: [ROLES.SUPER],
   unitinfo: [ROLES.SUPER],
   voicerequests: [ROLES.SUPER],
   paperwork: [ROLES.SUPER],
-  // 메뉴에서 없앤 탭: 안전 현황(safety), 인력 등록(workers), 건설기계 등록(equipment), 인력 현황(workerRoster), QR코드(qrcodes), 현장 3D(site3d), 서류(documents)
+  // 메뉴에서 없앤 탭: 건물 골구도 뷰어(sitelayout, 공사현황 대시보드 안으로 이동), 현장용어/은어 DB(glossary, 음성요청 내역 탭 안의 하위 화면으로 이동), 안전 현황(safety), 인력 등록(workers), 건설기계 등록(equipment), 인력 현황(workerRoster), QR코드(qrcodes), 현장 3D(site3d), 서류(documents)
+  sitelayout: [],
+  glossary: [],
   safety: [],
   workers: [],
   equipment: [],

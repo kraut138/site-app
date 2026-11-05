@@ -9,7 +9,6 @@ import Glossary from "./components/Glossary.jsx";
 import VoiceRequestsBoard from "./components/VoiceRequestsBoard.jsx";
 import Paperwork from "./components/Paperwork.jsx";
 import Buildings from "./components/Buildings.jsx";
-import SiteLayout from "./components/SiteLayout.jsx";
 import UnitInfo from "./components/UnitInfo.jsx";
 import LoginScreen from "./components/LoginScreen.jsx";
 import QrUnitScreen from "./components/QrUnitScreen.jsx";
@@ -57,6 +56,8 @@ export default function App() {
   // 고른 화면(view)을 지금 역할이 볼 수 없으면 그 역할의 첫 화면(관리자: 대시보드, 하도급사: 음성 보고)을 대신 보여 준다.
   // 그래서 모드를 바꿨다가 돌아와도 빈 화면이 되지 않는다.
   const [view, setView] = useState(null);
+  // "4. 공사 확인 음성요청 내역" 탭 안의 하위 화면: requests(음성요청 내역) | glossary(현장용어/은어 DB)
+  const [voiceSub, setVoiceSub] = useState("requests");
   const [unitTarget, setUnitTarget] = useState(null);
   const [buildings, setBuildings] = useState([]);
   const [inspections, setInspections] = useState([]);
@@ -310,6 +311,24 @@ export default function App() {
           view={activeView}
           setView={setView}
           badges={badges}
+          metaKey={activeView === "voicerequests" && voiceSub === "glossary" ? "glossary" : null}
+          headerRight={
+            activeView === "voicerequests" ? (
+              <button
+                type="button"
+                data-testid="voicerequests-sub-toggle"
+                aria-pressed={voiceSub === "glossary"}
+                onClick={() => setVoiceSub((s) => (s === "glossary" ? "requests" : "glossary"))}
+                className={`px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold border transition whitespace-nowrap ${
+                  voiceSub === "glossary"
+                    ? "bg-blue-700 text-white border-blue-700"
+                    : "bg-white text-blue-700 border-blue-200 hover:bg-blue-50"
+                }`}
+              >
+                {voiceSub === "glossary" ? "← 공사 확인 음성요청 내역" : "현장용어/은어 DB"}
+              </button>
+            ) : null
+          }
         >
           {activeView === "dashboard" && (
             <PortalDashboard buildings={buildings} inspections={inspections} ncrs={ncrs} notify={notify} checklistItems={checklistItems} onNavigateToUnit={handleNavigateToUnit} />
@@ -345,8 +364,10 @@ export default function App() {
               checklistItems={checklistItems}
             />
           )}
-          {activeView === "glossary" && <Glossary adminName={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />}
-          {activeView === "voicerequests" && <VoiceRequestsBoard buildings={buildings} notify={notify} />}
+          {activeView === "voicerequests" && voiceSub === "glossary" && (
+            <Glossary adminName={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />
+          )}
+          {activeView === "voicerequests" && voiceSub !== "glossary" && <VoiceRequestsBoard buildings={buildings} notify={notify} />}
           {activeView === "paperwork" && <Paperwork notify={notify} checklistItems={checklistItems} />}
           {activeView === "unitinfo" && (
             <UnitInfo
@@ -379,9 +400,6 @@ export default function App() {
               onUpdateSiteSettings={handleUpdateSiteSettings}
               notify={notify}
             />
-          )}
-          {activeView === "sitelayout" && (
-            <SiteLayout buildings={buildings} checklistItems={checklistItems} inspections={inspections} onNavigateToUnit={handleNavigateToUnit} />
           )}
         </PlatformShell>
         <Toast message={toast} onDone={() => setToast("")} />

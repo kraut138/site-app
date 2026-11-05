@@ -9,7 +9,7 @@ import { fillWorkLog, fillTbmLog } from "../paperwork/docxFill.js";
 import { fillInspectionRequest } from "../paperwork/hwpFill.js";
 import PaperworkPreview, { EyeIcon } from "./PaperworkPreview.jsx";
 
-// "7. 서류 작성" - 하루치 음성 기록(voiceReports)을 읽어 작업일보·TBM 일지(워드)와 검측요청서(한글)의 양식 파일을 자동으로 채워 내려받게 한다.
+// "5. 서류 작성" - 하루치 음성 기록(voiceReports)을 읽어 작업일보·TBM 일지(워드)와 검측요청서(한글)의 양식 파일을 자동으로 채워 내려받게 한다.
 // 기록에서 알 수 없는 칸(현장명·날씨·출역 인원·서명 등)은 값을 만들지 않고 양식의 빈 칸 그대로 둔다. 어떻게 채우는지는 src/paperwork/ 에 있다.
 // 양식 원본은 public/templates/ 에 있고, 내려받을 때마다 이 브라우저 안에서 채운다(서버로 보내는 것은 없다).
 // "미리보기" 단추는 내려받을 파일과 똑같은 바이트를 만들어(같은 채우기 함수) 내려받지 않고 화면에 종이 모양으로 보여 준다(PaperworkPreview.jsx).

@@ -3993,7 +3993,7 @@ textarea.input {
   }
 }
 
-/* ---- 6. 공사 확인 음성요청 내역 : 동·호수 칸 모아보기 ---- */
+/* ---- 4. 공사 확인 음성요청 내역 : 동·호수 칸 모아보기 ---- */
 .vr-board {
   display: flex;
   flex-direction: column;
@@ -4081,7 +4081,7 @@ textarea.input {
   margin-top: 12px;
 }
 
-/* ---- 7. 서류 작성 : 하루치 음성 기록으로 작업일보·TBM 일지·검측요청서 채우기 ---- */
+/* ---- 5. 서류 작성 : 하루치 음성 기록으로 작업일보·TBM 일지·검측요청서 채우기 ---- */
 .pw-wrap {
   display: flex;
   flex-direction: column;
@@ -4298,7 +4298,7 @@ textarea.input {
   }
 }
 
-/* ---- 서류 미리보기: 내려받을 서류를 종이 모양으로 화면에 그려 보여 주는 전체 화면 창(7. 서류 작성) ---- */
+/* ---- 서류 미리보기: 내려받을 서류를 종이 모양으로 화면에 그려 보여 주는 전체 화면 창(5. 서류 작성) ---- */
 .pwv-overlay {
   position: fixed;
   inset: 0;

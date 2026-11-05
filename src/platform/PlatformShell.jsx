@@ -10,11 +10,12 @@ import { useLanguage } from "../LanguageContext.jsx";
  * 관리자는 "시공사 관리자 포털" 탭 전체를, 하도급사는 "하도급 반장 모바일 모드"의 두 탭(음성 보고, 공사 확인·NCR)만 본다.
  * 어떤 탭을 열 수 있는지는 data.js의 VIEW_ROLES가 정하고, 이 틀은 역할에 맞는 탭 줄만 그려 준다.
  */
-export default function PlatformShell({ role, trueRole, onSetViewAsRole, userProfile, onLogout, view, setView, badges = {}, children }) {
+export default function PlatformShell({ role, trueRole, onSetViewAsRole, userProfile, onLogout, view, setView, badges = {}, headerRight = null, metaKey = null, children }) {
   const { t } = useLanguage();
   const isSub = role === ROLES.SUB;
   const tabs = isSub ? SUB_TABS : ADMIN_TABS;
-  const meta = (!isSub && ADMIN_PAGE_META[view]) || PAGE_META[view] || {};
+  const mk = metaKey || view;
+  const meta = (!isSub && ADMIN_PAGE_META[mk]) || PAGE_META[mk] || {};
   const title = meta.titleKey ? t(meta.titleKey) : meta.title || "";
   const desc = meta.descKey ? t(meta.descKey) : meta.desc || "";
   // 모바일 모드의 음성 화면은 시안처럼 좁은 한 줄 화면, 나머지는 넓게 쓴다.
@@ -64,15 +65,18 @@ export default function PlatformShell({ role, trueRole, onSetViewAsRole, userPro
 
         <section className="space-y-4 min-w-0" data-testid="portal-content" data-view={view}>
           {title && (
-            <div className="px-1" data-testid="page-head">
-              <h2 className="text-lg font-black text-slate-900 tracking-tight" data-testid="page-title">
-                {title}
-              </h2>
-              {desc && (
-                <p className="text-xs text-slate-500 mt-0.5" data-testid="page-desc">
-                  {desc}
-                </p>
-              )}
+            <div className="px-1 flex items-start justify-between gap-3" data-testid="page-head">
+              <div className="min-w-0">
+                <h2 className="text-lg font-black text-slate-900 tracking-tight" data-testid="page-title">
+                  {title}
+                </h2>
+                {desc && (
+                  <p className="text-xs text-slate-500 mt-0.5" data-testid="page-desc">
+                    {desc}
+                  </p>
+                )}
+              </div>
+              {headerRight && <div className="shrink-0">{headerRight}</div>}
             </div>
           )}
           {children}
