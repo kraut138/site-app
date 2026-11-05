@@ -4033,6 +4033,12 @@ textarea.input {
   background: var(--surface-alt);
 }
 
+.vr-cell.vr-back {
+  justify-content: center;
+  border-style: dashed;
+  color: var(--blueprint);
+}
+
 .vr-cell.is-unresolved {
   border-style: dashed;
   color: var(--ink-faint);

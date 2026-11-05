@@ -18,6 +18,7 @@ export default function VoiceRequestsBoard({ buildings, notify }) {
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [reports, setReports] = useState([]);
   const [selectedKey, setSelectedKey] = useState(null);
+  const [selectedBuilding, setSelectedBuilding] = useState(null); // 열어 본 동 이름(없으면 동 목록을 보여 준다)
 
   useEffect(() => {
     setStatus("loading");
@@ -67,18 +68,28 @@ export default function VoiceRequestsBoard({ buildings, notify }) {
     });
     const list = Array.from(map.values());
     list.forEach((g) => g.records.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)));
+    // 층(숫자) 순서, 같은 층에서는 호수(숫자) 순서로 정렬한다. 예: 1층 01호 → 1층 02호 → 2층 01호
     list.sort((a, b) => {
-      const byName = String(a.buildingName).localeCompare(String(b.buildingName), "ko");
-      if (byName !== 0) return byName;
       if (a.floor !== b.floor) return a.floor - b.floor;
-      return String(a.unit).localeCompare(String(b.unit));
+      return String(a.unit).localeCompare(String(b.unit), "ko", { numeric: true });
     });
+    // 같은 동끼리 묶는다(동 이름 순서, 숫자는 크기 순서). 각 동 안의 호실은 위에서 정렬한 순서를 그대로 쓴다.
+    const byBuilding = new Map();
+    list.forEach((g) => {
+      const name = g.buildingName || "동 미확인";
+      if (!byBuilding.has(name)) byBuilding.set(name, { name, units: [], count: 0 });
+      const b = byBuilding.get(name);
+      b.units.push(g);
+      b.count += g.records.length;
+    });
+    const buildingList = Array.from(byBuilding.values()).sort((a, b) => a.name.localeCompare(b.name, "ko", { numeric: true }));
     unresolved.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    return { list, unresolved };
+    return { list, buildings: buildingList, unresolved };
   }, [reports, buildingById]);
 
   const selectedGroup = useMemo(() => groups.list.find((g) => g.key === selectedKey) || null, [groups.list, selectedKey]);
   const showUnresolved = selectedKey === "__unresolved__";
+  const openBuilding = useMemo(() => groups.buildings.find((b) => b.name === selectedBuilding) || null, [groups.buildings, selectedBuilding]);
 
   if (status === "loading") {
     return (
@@ -97,10 +108,14 @@ export default function VoiceRequestsBoard({ buildings, notify }) {
     <div className="vr-board">
       <div className="card vr-board-head">
         <div className="section-title">
-          동·호수별 음성요청 내역 ({groups.list.length}개 호실 · 총 {totalCount}건)
+          {openBuilding
+            ? `${openBuilding.name} 음성요청 내역 (${openBuilding.units.length}개 호실 · ${openBuilding.count}건)`
+            : `동별 음성요청 내역 (${groups.buildings.length}개 동 · ${groups.list.length}개 호실 · 총 ${totalCount}건)`}
         </div>
         <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 4 }}>
-          하도급 반장이 남긴 음성 보고를 동·호수 칸으로 모았습니다. 칸을 클릭하면 그 호실의 기록을 모두 확인할 수 있습니다.
+          {openBuilding
+            ? "층과 호수 순서로 정렬했습니다. 호실 칸을 클릭하면 그 호실의 기록을 모두 확인할 수 있습니다."
+            : "하도급 반장이 남긴 음성 보고를 동별로 묶었습니다. 동을 클릭하면 층·호수 순서로 호실이 나옵니다."}
         </div>
       </div>
 
@@ -108,21 +123,55 @@ export default function VoiceRequestsBoard({ buildings, notify }) {
         <EmptyState message="아직 접수된 음성요청이 없습니다." />
       ) : (
         <div className="vr-grid">
-          {groups.list.map((g) => (
-            <button
-              type="button"
-              key={g.key}
-              className={`vr-cell${selectedKey === g.key ? " is-active" : ""}`}
-              onClick={() => setSelectedKey(selectedKey === g.key ? null : g.key)}
-            >
-              <span className="vr-cell-loc">
-                <Icon.Pin width="13" height="13" />
-                {g.buildingName} {g.floor}층 {g.unit}호
-              </span>
-              <span className="vr-cell-count">{g.records.length}건</span>
-            </button>
-          ))}
-          {groups.unresolved.length > 0 && (
+          {openBuilding ? (
+            <>
+              <button
+                type="button"
+                className="vr-cell vr-back"
+                onClick={() => {
+                  setSelectedBuilding(null);
+                  setSelectedKey(null);
+                }}
+              >
+                <span className="vr-cell-loc">← 전체 동 보기</span>
+              </button>
+              {openBuilding.units.map((g) => (
+                <button
+                  type="button"
+                  key={g.key}
+                  className={`vr-cell${selectedKey === g.key ? " is-active" : ""}`}
+                  onClick={() => setSelectedKey(selectedKey === g.key ? null : g.key)}
+                >
+                  <span className="vr-cell-loc">
+                    <Icon.Pin width="13" height="13" />
+                    {g.floor}층 {g.unit}호
+                  </span>
+                  <span className="vr-cell-count">{g.records.length}건</span>
+                </button>
+              ))}
+            </>
+          ) : (
+            groups.buildings.map((b) => (
+              <button
+                type="button"
+                key={b.name}
+                className="vr-cell"
+                onClick={() => {
+                  setSelectedBuilding(b.name);
+                  setSelectedKey(null);
+                }}
+              >
+                <span className="vr-cell-loc">
+                  <Icon.Pin width="13" height="13" />
+                  {b.name}
+                </span>
+                <span className="vr-cell-count">
+                  {b.units.length}개 호실 · {b.count}건
+                </span>
+              </button>
+            ))
+          )}
+          {!openBuilding && groups.unresolved.length > 0 && (
             <button
               type="button"
               className={`vr-cell is-unresolved${showUnresolved ? " is-active" : ""}`}

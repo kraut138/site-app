@@ -37,6 +37,7 @@ export const PAGE_META = {
   unitinfo: { titleKey: "page.unitinfo.title", descKey: "page.unitinfo.desc" },
   glossary: { titleKey: "page.glossary.title", descKey: "page.glossary.desc" }, // 4번 탭(음성요청 내역) 안의 하위 화면에서 쓴다
   voicerequests: { title: "공사 확인 음성요청 내역", desc: "하도급 반장이 남긴 음성 보고를 동·호수 칸으로 모아 확인합니다" },
+  voicelock: { title: "음성 보정 관제", desc: "붙여 쓴 현장 말을 자동으로 끊고, 용어 DB와 소리를 견주어 표준 용어로 바꾸는 과정을 단계별로 확인합니다" },
   paperwork: { title: "서류 작성", desc: "음성 기록으로 작업일보·TBM 일지·검측요청서 양식을 자동으로 채워 내려받습니다" },
   operations: { titleKey: "page.operations.title", descKey: "page.operations.desc" },
   voice: { titleKey: "page.voice.title", descKey: "page.voice.desc" },
