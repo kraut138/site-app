@@ -2,6 +2,8 @@
 //   - startVoiceCapture(): 말하는 동안 마이크로 소리를 함께 녹음한다(MediaRecorder). 글로 바꾸는 음성 인식(Web Speech)은 소리를 남기지 않기 때문에 따로 녹음한다.
 //   - 소리는 "곁들이는" 것이다: 녹음이 안 되거나 비어 있어도 글 기록은 그대로 저장된다. 그래서 이 함수들은 어떤 경우에도 던지지 않고, 결과로 이유를 알려 준다.
 //   - 일부 휴대폰(특히 안드로이드)은 음성 인식과 녹음이 마이크를 함께 쓰지 못해, 소리가 비거나 인식이 안 될 수 있다. 소리가 비어 있으면(디코딩해서 확인) 저장하지 않는다.
+//   - canShareMicWithRecognition(): PC의 Chrome·Edge(135 이상)는 음성 인식에 마이크 소리(트랙)를 넘겨줄 수 있어서, 마이크를 한 번만 열어 인식과 녹음이 같은 소리를 나눠 쓴다(서로 방해하지 않는다).
+//     startVoiceCapture({ onMic })가 그 소리를 넘겨준다. 휴대폰 브라우저는 아직 이 기능이 없어 예전처럼 마이크를 따로 연다.
 //   - loadVoiceAudio(): 저장해 둔 소리를 한 번만 읽어 와 보관한다(목록 문서에는 소리를 싣지 않아 목록이 가볍다).
 // 저장 방식은 QR 기록판의 음성과 같다: Storage 없이 base64 문자열로 Firestore 문서(voiceAudio/{보고 id})에 담는다(api.js saveVoiceAudio).
 import { canRecordAudio, pickAudioMime, blobToDataUrl } from "./qrMedia.js";
@@ -45,6 +47,31 @@ function reasonOfError(err) {
   return "unsupported";
 }
 
+// 음성 인식과 녹음이 마이크 소리 하나를 나눠 쓸 수 있는 브라우저인지.
+// 음성 인식(SpeechRecognition.start)이 마이크 트랙을 넘겨받을 수 있으면, 마이크를 한 번만 열고 그 소리를 인식과 녹음이 함께 쓴다 -
+// 마이크를 두 번 여는 것이 아니라서 서로 방해하지 않는다. 이 기능은 PC(데스크톱)의 Chrome·Edge 135부터 있고, 안드로이드 크롬·삼성 인터넷·웹뷰·사파리·아이폰에는 아직 없다(MDN 호환표).
+// 쓸 수 있는지 미리 물어볼 공식 방법이 없어서(마이크를 여는 시험은 휴대폰에서 소리·권한 창을 띄운다) 브라우저 종류와 버전으로 판단한다.
+// 알 수 없거나 애매하면 false - 그러면 예전처럼 마이크를 따로 연다.
+export const SHARED_MIC_MIN_CHROMIUM = 135;
+
+export function canShareMicWithRecognition() {
+  try {
+    if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+    if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) return false;
+    const data = navigator.userAgentData;
+    if (data && Array.isArray(data.brands)) {
+      if (data.mobile) return false;
+      return data.brands.some((b) => /^(Chromium|Google Chrome|Microsoft Edge)$/.test(String(b.brand)) && Number(b.version) >= SHARED_MIC_MIN_CHROMIUM);
+    }
+    const ua = String(navigator.userAgent || "");
+    if (/Android|iPhone|iPad|iPod|Mobile|CriOS|FxiOS|EdgiOS|SamsungBrowser/i.test(ua)) return false;
+    const m = ua.match(/\b(?:Chrome|Edg)\/(\d+)/);
+    return !!m && Number(m[1]) >= SHARED_MIC_MIN_CHROMIUM;
+  } catch {
+    return false;
+  }
+}
+
 // 녹음한 소리를 디코딩해 가장 큰 값(peak)과 길이를 구한다. OfflineAudioContext는 소리를 내보내지 않아 기기의 오디오 설정을 건드리지 않는다.
 // 디코딩할 수 없는 형식이면 null(= 판단하지 않고 그대로 저장한다).
 async function measureLevel(blob) {
@@ -79,8 +106,23 @@ async function measureLevel(blob) {
 //             { ok: true, clip: { dataUrl, sec, bytes, peak, auto } } 또는 { ok: false, reason }
 //             reason: denied(마이크 허용 안 함) · busy(마이크를 다른 곳이 씀) · unsupported · silent(빈 소리) · toobig · empty · late · timeout · error · cancelled
 //   cancel(): 녹음을 버리고 마이크를 놓는다.
-export function startVoiceCapture() {
+// options.onMic(track): 마이크가 열려 녹음이 시작되면 그 소리 트랙으로, 마이크를 열지 못했으면 null로 딱 한 번 부른다(부르는 즉시가 아니라 한 박자 뒤에).
+//   음성 인식이 이 트랙을 넘겨받게 하려는 쪽(canShareMicWithRecognition)이 쓴다. cancel()한 뒤나 마이크가 열리기 전에 finish()한 뒤에는 부르지 않는다.
+export function startVoiceCapture(options = {}) {
   const st = { phase: "starting", wantStop: false, cancelled: false };
+  let micReported = false;
+  const reportMic = (track) => {
+    if (micReported || typeof options.onMic !== "function") return;
+    micReported = true;
+    Promise.resolve().then(() => {
+      if (st.cancelled) return; // 그 사이 취소됐으면 알릴 필요가 없다
+      try {
+        options.onMic(track);
+      } catch {
+        // 부른 쪽의 오류가 녹음을 깨뜨리지 않게 한다
+      }
+    });
+  };
   const chunks = [];
   let bytes = 0;
   let stream = null;
@@ -156,6 +198,7 @@ export function startVoiceCapture() {
   (async () => {
     if (!canRecordAudio()) {
       settle({ ok: false, reason: "unsupported" });
+      reportMic(null);
       return;
     }
     let s;
@@ -164,6 +207,7 @@ export function startVoiceCapture() {
     } catch (err) {
       st.phase = "done";
       settle({ ok: false, reason: reasonOfError(err) });
+      reportMic(null);
       return;
     }
     // 마이크가 열리기 전에 말이 끝났거나 취소됐으면 바로 놓는다(녹음할 소리가 없다).
@@ -188,6 +232,7 @@ export function startVoiceCapture() {
         st.phase = "done";
         release();
         settle({ ok: false, reason: "unsupported" });
+        reportMic(null);
         return;
       }
     }
@@ -217,6 +262,7 @@ export function startVoiceCapture() {
       st.phase = "done";
       release();
       settle({ ok: false, reason: "error" });
+      reportMic(null);
       return;
     }
     timer = setInterval(() => {
@@ -225,6 +271,14 @@ export function startVoiceCapture() {
         stopRecorder();
       }
     }, 500);
+    // 녹음이 시작됐다 - 음성 인식이 이 마이크 소리를 넘겨받을 수 있게 알린다(트랙이 없으면 null).
+    let micTrack = null;
+    try {
+      micTrack = s.getAudioTracks()[0] || null;
+    } catch {
+      micTrack = null;
+    }
+    reportMic(micTrack);
   })();
 
   return {

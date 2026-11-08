@@ -22,7 +22,7 @@ import { getGlossaryTerms, getGlossaryOnlyDb, getGlossaryFuzzy, getGlossaryPendi
 import { analyzeReport, hasEffect, doneItemIdsOf } from "../unitProgress.js";
 import { resolveSpokenPlace, resolveSpokenAddress, spokenExample } from "../spokenUnit.js";
 import { parseSpeakerIntro } from "../speakerIntro.js";
-import { canRecordAudio, startVoiceCapture, primeVoiceAudio, audioNoteKey } from "../voiceAudio.js";
+import { canRecordAudio, canShareMicWithRecognition, startVoiceCapture, primeVoiceAudio, audioNoteKey } from "../voiceAudio.js";
 import { SpeakerLine, VoiceAudioPlayer, VoiceRecordMeta } from "./VoiceAudio.jsx";
 
 // "음성 검측" (시안 index.html의 기능). 두 곳에서 쓴다.
@@ -43,6 +43,8 @@ import { SpeakerLine, VoiceAudioPlayer, VoiceRecordMeta } from "./VoiceAudio.jsx
 // 소개 말은 은어 변환·호실 읽기·진행도 계산에서는 빼고(회사 이름이 작업 내용으로 읽히지 않게), 말한 그대로의 글(rawText)에는 남긴다. 소개 말만 하고 작업 내용이 없으면 저장하지 않고 안내한다.
 // 말하는 동안 마이크로 소리도 함께 녹음해(voiceAudio.js) 글 기록을 저장한 뒤 따로 저장한다 - 그래서 음성 기록에서 실제 말한 소리를 다시 들을 수 있다.
 // 소리는 곁들이는 것이라, 녹음이 안 되거나 비어 있어도 글 기록은 그대로 저장되고 이유만 알려 준다. 일부 휴대폰은 음성 인식과 녹음을 함께 못 하므로 기기마다 끌 수 있다(기본 켜짐).
+// PC의 Chrome·Edge(135 이상)는 음성 인식이 마이크 소리(트랙)를 넘겨받을 수 있어서, 마이크를 한 번만 열고 그 소리를 인식과 녹음이 함께 쓴다(shareMic · voiceAudio.js canShareMicWithRecognition).
+// 휴대폰 브라우저는 아직 그 기능이 없어 마이크를 따로 열므로, 기기에 따라 서로 방해할 수 있다(안드로이드는 화면이 위에 있는 앱만 소리를 받고 다른 앱은 무음을 받는다).
 // 화면 문구는 하도급사가 외국인 근로자일 수 있어 번역 사전(voice.*)을 쓴다. 저장되는 발화 원문·요약은 말한 그대로(한국어)다.
 
 const STORAGE_KEY = "voiceInspectionSelection";
@@ -243,6 +245,8 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   const audioOk = canRecordAudio(); // 이 기기(브라우저)에서 목소리를 함께 녹음할 수 있는지
   const [keepAudio, setKeepAudio] = useState(() => readKeepAudio());
   const [audioHint, setAudioHint] = useState(false); // 음성 인식이 계속 안 될 때 '녹음 저장 끄기'를 권하는 안내
+  // 이 브라우저가 음성 인식에 마이크 소리를 넘겨받을 수 있는지(PC의 Chrome·Edge 135 이상). 그러면 마이크를 한 번만 열어 인식과 녹음이 같은 소리를 나눠 쓴다.
+  const [shareMic] = useState(() => canShareMicWithRecognition());
 
   const [reports, setReports] = useState([]);
   const [feedState, setFeedState] = useState("loading"); // loading | ready | error
@@ -263,6 +267,10 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   const elemValue = unitMode ? unitLabel : elem;
   // 공종별 QR 화면은 위치를 말한 글에서 읽으므로, 현장에 동이 하나라도 등록되어 있으면 바로 녹음할 수 있다.
   const canRecord = placeMode ? buildings.length > 0 : !!building && !!zone && elemValue.trim().length > 0;
+  // 직접 입력칸은 위치(부재 이름 등)를 정하기 전에도 글을 쓸 수 있게 열어 둔다 - 보내기만 위치를 정한 뒤에 눌린다.
+  // (예전에는 위치가 정해지기 전까지 칸 자체가 잠겨 있어서, 눌러도 글이 안 써지는 고장처럼 보였다.)
+  // 다만 이 화면에서 사용자가 고칠 수 없는 경우(등록된 동이 없음, 잘못된 호실 QR)에는 그대로 잠근다.
+  const canType = unitMode ? canRecord : placeMode ? buildings.length > 0 : !!building;
   const busy = status !== "idle";
 
   // 음성 인식 이벤트 처리기는 한 번만 만들어 두므로, 최신 값은 ref로 읽는다.
@@ -292,6 +300,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   const lastError = useRef(""); // 이번 인식에서 받은 오류 코드(없으면 "")
   const failStreak = useRef(0); // 글을 얻지 못하고 끝난 인식이 연달아 몇 번인지(녹음이 인식을 방해하는 기기인지 가늠한다)
   const captureRef = useRef(null); // 지금 하는 소리 녹음({ finish, cancel })
+  const pendingStart = useRef(false); // 마이크를 나눠 쓰는 방식에서, 마이크가 열리길 기다리느라 음성 인식을 아직 시작하지 못한 동안
   const clipJobs = useRef(new Map()); // 보고 id → 소리 녹음 결과(약속). 글 저장을 다시 보낼 때도 같은 소리를 쓰려고 둔다
   const pendingClips = useRef(new Map()); // 보고 id → 아직 저장하지 못한 소리 { dataUrl, sec }(마지막 하나만)
   const resultRef = useRef(null);
@@ -300,6 +309,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     mounted.current = true;
     return () => {
       mounted.current = false;
+      pendingStart.current = false;
       dropCapture();
       const rec = recRef.current;
       if (rec) {
@@ -394,13 +404,18 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   // ---------------- 소리 녹음(글 기록에 곁들인다) ----------------
   // 말하기 시작할 때 녹음을 시작하고(beginCapture), 인식이 글을 돌려주면 녹음을 마무리해 그 결과(약속)를 받는다(takeCapture).
   // 글 기록이 저장된 뒤에 소리를 따로 저장한다(saveClip) - 소리가 크거나 연결이 느려도 글 기록이 막히지 않는다.
-  function beginCapture() {
+  // onMic(track): 마이크를 나눠 쓰는 방식(shareMic)에서만 준다. 녹음용 마이크가 열리면 그 소리 트랙으로, 열지 못했으면 null로 부르고, 그때 음성 인식을 시작한다.
+  function beginCapture(onMic = null) {
     dropCapture();
-    if (!latest.current.keepAudio) return;
+    if (!latest.current.keepAudio) {
+      if (onMic) onMic(null);
+      return;
+    }
     try {
-      captureRef.current = startVoiceCapture();
+      captureRef.current = startVoiceCapture(onMic ? { onMic } : undefined);
     } catch {
       captureRef.current = null; // 소리 녹음은 곁들이는 것이라, 시작하지 못해도 글 인식은 그대로 한다
+      if (onMic) onMic(null);
     }
   }
 
@@ -719,9 +734,54 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     return rec;
   }
 
+  // 음성 인식을 시작한다. track(녹음과 같이 쓰는 마이크 소리)이 있으면 그 소리로 인식하고, 없으면 인식이 마이크를 직접 연다.
+  // 브라우저가 트랙을 받아 주지 않아 시작하지 못하면 마이크를 직접 여는 방식으로 다시 시도한다(여기서 못 하면 던진다).
+  function startOnce(rec, track) {
+    if (track) {
+      try {
+        rec.start(track);
+        return;
+      } catch {
+        // 아래에서 마이크를 직접 여는 방식으로 시도한다
+      }
+    }
+    rec.start();
+  }
+
+  function startRecognition(rec, track = null) {
+    try {
+      startOnce(rec, track);
+    } catch {
+      // 이미 시작된 상태 등으로 실패하면 한 번 멈췄다가 다시 시작해 본다.
+      try {
+        rec.stop();
+      } catch {
+        // 무시
+      }
+      setTimeout(() => {
+        if (!mounted.current) return;
+        try {
+          startOnce(rec, track);
+        } catch {
+          dropCapture();
+          setStatus("idle");
+          setMessage({ kind: "error", key: "voice.err.generic" });
+        }
+      }, 200);
+    }
+  }
+
   function toggleMic() {
     if (!canRecord) return;
     if (status === "listening") {
+      // 마이크를 나눠 쓰는 방식에서 마이크가 열리길 기다리는 중이면, 인식이 아직 시작되지 않았으니 시작 자체를 취소한다.
+      if (pendingStart.current) {
+        pendingStart.current = false;
+        dropCapture();
+        setStatus("idle");
+        setMessage(null);
+        return;
+      }
       // 말을 끝냈다는 표시 - 지금까지 들은 내용을 결과로 넘겨 달라고 요청한다.
       setStatus("stopping");
       setMessage(null);
@@ -743,26 +803,18 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     // 지난 보고의 '저장 완료' 결과는 새 녹음을 시작하면 치운다(저장에 실패한 결과는 다시 보내기 전까지 남겨 둔다).
     setResult((r) => (r && r.state === "saved" ? null : r));
     setStatus("listening");
-    try {
-      rec.start();
-    } catch {
-      // 이미 시작된 상태 등으로 실패하면 한 번 멈췄다가 다시 시작해 본다.
-      try {
-        rec.stop();
-      } catch {
-        // 무시
-      }
-      setTimeout(() => {
-        if (!mounted.current) return;
-        try {
-          rec.start();
-        } catch {
-          dropCapture();
-          setStatus("idle");
-          setMessage({ kind: "error", key: "voice.err.generic" });
-        }
-      }, 200);
+    if (shareMic && latest.current.keepAudio) {
+      // PC의 Chrome·Edge: 마이크를 한 번만 열어, 그 소리를 녹음과 음성 인식이 함께 쓴다(마이크를 두 번 열어 서로 방해하는 일이 없다).
+      // 녹음용 마이크가 열리면 그 트랙을 넘겨 인식을 시작한다. 마이크를 못 열었으면(허용 안 함 등) 인식이 직접 마이크를 열어 안내를 받는다.
+      pendingStart.current = true;
+      beginCapture((track) => {
+        if (!pendingStart.current || !mounted.current) return; // 마이크가 열리는 사이 취소됐다
+        pendingStart.current = false;
+        startRecognition(rec, track);
+      });
+      return;
     }
+    startRecognition(rec);
     // 소리 녹음은 음성 인식을 시작한 뒤에 곁들여 시작한다(인식이 먼저 마이크를 잡게 하고, 녹음이 안 돼도 인식은 그대로 한다)
     beginCapture();
   }
@@ -1143,6 +1195,11 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
                     <span className="vl-keep-note">{t("voice.audio.keepNote")}</span>
                   </span>
                 </label>
+                {shareMic && keepAudio && (
+                  <p className="vl-keep-note" style={compactFeed ? { wordBreak: "keep-all", overflowWrap: "anywhere" } : undefined} data-testid="vl-keep-shared">
+                    {t("voice.audio.shared")}
+                  </p>
+                )}
                 {keepAudio && audioHint && (
                   <div className="vl-keep-hint" role="status" data-testid="vl-keep-hint">
                     <span>{t("voice.audio.hint")}</span>
@@ -1172,7 +1229,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
                     maxLength={VOICE_LIMITS.typedText}
                     placeholder={t("voice.text.placeholder")}
                     value={textValue}
-                    disabled={!canRecord || busy}
+                    disabled={!canType || busy}
                     onChange={(e) => setTextValue(e.target.value)}
                     onFocus={() => refreshGlossary()}
                     data-testid="vl-text"
@@ -1181,6 +1238,12 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
                     {t("voice.text.send")}
                   </button>
                 </form>
+              )}
+              {/* 글은 썼는데 위치가 아직이라 보내기가 잠겨 있을 때만, 왜 안 눌리는지 칸 바로 아래에서 알려 준다 */}
+              {showText && canType && !canRecord && textValue.trim() && (
+                <div className="vl-note" role="status" data-testid="vl-text-hint">
+                  {t("voice.needLocation")}
+                </div>
               )}
             </div>
           </div>
