@@ -1,3 +1,5 @@
+import { CUSTOM_CATEGORIES } from "./data.js";
+
 // QR 코드 링크 유틸리티.
 //
 // 1) 공종별 QR (지금 쓰는 QR): ?trade=<공종>. "1. 공종별 QR 생성소"에서 골조·마감·설비/전기 한 장씩 만든다.
@@ -8,17 +10,23 @@
 //    t(공종)는 스캔했을 때 음성 검측의 공종이 미리 골라지게 한다(frame·finish·mep). 없거나 알 수 없는 값이면 고르지 않은 상태로 열린다.
 export const QR_TRADE_IDS = ["frame", "finish", "mep"];
 
+// 공종별 QR을 만들 수 있는 공종인지: 기본 3종이거나 "1. 공종별 QR 생성소"에서 직접 추가한 공종(CUSTOM_CATEGORIES)
+export function isTradeQrId(id) {
+  return QR_TRADE_IDS.includes(id) || CUSTOM_CATEGORIES.some((c) => c.id === id);
+}
+
 // 공종별 QR에 담는 주소. 현재 페이지 주소(사이트 첫 주소)에 ?trade=<공종>만 붙인다. 모르는 공종이면 빈 글자.
 export function buildTradeLink(trade) {
-  if (!QR_TRADE_IDS.includes(trade)) return "";
+  if (!isTradeQrId(trade)) return "";
   return `${window.location.origin}${window.location.pathname}?trade=${trade}`;
 }
 
 // 현재 주소에서 공종별 QR의 공종(frame·finish·mep)을 읽는다. 없거나 알 수 없는 값이면 null.
 // 주소를 지우지 않는다 - 새로고침하거나 홈 화면에 추가해 두어도 같은 공종 화면이 열리도록.
 export function readTradeLink() {
+  // 직접 추가한 공종은 스캔한 기기에서 아직 읽어 오기 전이라 이 시점에는 알 수 없다 - 올바른 id 모양이면 돌려주고, 있는 공종인지는 화면(QrTradeScreen)이 읽어 온 뒤 확인한다.
   const t = new URLSearchParams(window.location.search).get("trade");
-  return QR_TRADE_IDS.includes(t) ? t : null;
+  return typeof t === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(t) ? t : null;
 }
 
 // 현재 페이지 URL에서 예전 호실 QR의 딥링크 파라미터를 읽는다. 없으면 null. 공종(t)이 올바르게 들어 있을 때만 trade가 붙는다.

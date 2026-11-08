@@ -30,8 +30,13 @@ export const CATEGORIES = [
   },
 ];
 
+// 관리자가 "1. 공종별 QR 생성소"에서 직접 추가한 공종(Firestore meta/customTrades). 기본 공종(CATEGORIES)과 따로 둔다 -
+// 표준 공종(점검 항목) 화면 같은 곳에는 섞이지 않고, 공종별 QR·음성 보고·음성요청 내역에서만 쓰인다. 값은 voice.js의 registerCustomTrades가 채운다.
+// 모양: { id, name, shortName, color, description, custom: true }
+export const CUSTOM_CATEGORIES = [];
+
 export function getCategory(categoryId) {
-  return CATEGORIES.find((c) => c.id === categoryId) || null;
+  return CATEGORIES.find((c) => c.id === categoryId) || CUSTOM_CATEGORIES.find((c) => c.id === categoryId) || null;
 }
 
 // checklistItems(bootstrap에서 받아온 동적 목록)에서 특정 공종의 항목만 추출

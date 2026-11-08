@@ -1,3 +1,5 @@
+import { getCategory } from "./data.js";
+
 // 다국어 번역 사전. 키는 "화면.항목" 형태로 짓는다.
 // 지금은 사이드바 메뉴, 대시보드, 공통 용어(역할명 등)를 우선 번역했고,
 // 나머지 세부 화면(동 관리, 검측 상세 등)은 아직 한국어만 있다 - 이후 점진적으로 채워나가면 된다.
@@ -178,6 +180,7 @@ const dict = {
     "qr.trade.recognized": "공종별 QR 인식됨",
     "qr.trade.sub": "마이크를 누르고 작업 완료 내용을 편하게 말씀해주세요.",
     "qr.trade.loadError": "현장 정보를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.",
+    "qr.trade.unknown": "등록되지 않았거나 삭제된 공종의 QR입니다. 관리자에게 새 QR을 요청해 주세요.",
     "qr.compose.title": "기록 남기기",
     "qr.compose.hint": "메모·사진·음성 중 원하는 것을 남기세요. 이 QR을 스캔한 다른 사람도 볼 수 있습니다.",
     "qr.compose.name": "이름 (선택)",
@@ -1942,7 +1945,13 @@ const dict = {
 // key에 해당하는 번역을 반환한다. 없으면 한국어 -> key 순으로 대체한다.
 // vars가 있으면 "{approved}" 같은 자리표시자를 채워 넣는다.
 export function translate(lang, key, vars) {
-  const raw = dict[lang]?.[key] ?? dict[DEFAULT_LANGUAGE]?.[key] ?? key;
+  let raw = dict[lang]?.[key] ?? dict[DEFAULT_LANGUAGE]?.[key];
+  if (raw === undefined) {
+    // 직접 추가한 공종("category.<id>.name")은 번역 사전에 없으니 입력한 이름을 그대로 보여 준다.
+    const m = /^category\.([^.]+)\.name$/.exec(key);
+    const custom = m ? getCategory(m[1]) : null;
+    raw = custom ? custom.name : key;
+  }
   if (!vars) return raw;
   return Object.keys(vars).reduce((str, k) => str.replaceAll(`{${k}}`, vars[k]), raw);
 }

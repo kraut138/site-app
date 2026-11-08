@@ -44,8 +44,9 @@ function Body({ tradeId, lang, onChangeLang }) {
     };
   }, [load]);
 
-  const trade = getCategory(tradeId);
-  const tradeName = t(`category.${tradeId}.name`);
+  const trade = getCategory(tradeId); // 직접 추가한 공종은 현장 정보를 읽어 온 뒤(ready)에야 알 수 있다
+  const unknownTrade = status === "ready" && !trade;
+  const tradeName = trade ? t(`category.${tradeId}.name`) : "";
 
   return (
     <BrandFrame narrow testId="qr-trade-screen" rootClass="qr-screen" right={<QrLangSwitch lang={lang} onChange={onChangeLang} />}>
@@ -86,7 +87,12 @@ function Body({ tradeId, lang, onChangeLang }) {
             </button>
           </div>
         )}
-        {status === "ready" && <VoiceInspection buildings={site.buildings} checklistItems={site.checklistItems} tradeQr={tradeId} notify={notify} />}
+        {unknownTrade && (
+          <div className="card card-pad qr-center" data-testid="qr-trade-unknown">
+            {t("qr.trade.unknown")}
+          </div>
+        )}
+        {status === "ready" && !unknownTrade && <VoiceInspection buildings={site.buildings} checklistItems={site.checklistItems} tradeQr={tradeId} notify={notify} />}
       </div>
 
       <Toast message={toast} onDone={() => setToast("")} />

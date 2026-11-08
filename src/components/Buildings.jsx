@@ -37,6 +37,11 @@ export default function Buildings({
     }
   }
 
+  // 등록한 순서와 상관없이 동 번호(숫자) 순서로 보여 준다. 예: 102동을 먼저 추가해도 101동이 위, 102동이 아래. (9동 < 10동 < 101동)
+  const sortedBuildings = [...buildings].sort((x, y) =>
+    String(x.name || "").localeCompare(String(y.name || ""), "ko", { numeric: true })
+  );
+
   return (
     <div>
       <div className={`grid grid-cols-1 gap-6 items-start ${canEdit ? "md:grid-cols-3" : ""}`}>
@@ -49,7 +54,7 @@ export default function Buildings({
           <EmptyState message="등록된 동이 없습니다." />
         ) : (
           <div style={{ padding: "8px 4px" }}>
-            {buildings.map((b) => {
+            {sortedBuildings.map((b) => {
               const expanded = expandedId === b.id;
               const plansForBuilding = unitFloorPlans.filter((p) => p.buildingId === b.id);
               return (

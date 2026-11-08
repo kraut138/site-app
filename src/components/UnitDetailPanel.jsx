@@ -113,7 +113,7 @@ const STATE_LABEL = (v) => (v.state === "done" ? "완료" : `${v.percent}%`);
 function VoiceChip({ value, testId }) {
   return (
     <span className={`up-chip ${value.state === "done" ? "is-done" : "is-doing"}`} data-testid={testId}>
-      음성 {STATE_LABEL(value)}
+      {value.state === "done" ? "음성 보고 완료" : `음성 ${STATE_LABEL(value)}`}
     </span>
   );
 }

@@ -1,6 +1,6 @@
 // 음성 검측(VOICE-LOCK): 공종 정보, 현장 은어 → 표준 용어 변환, 요약 문장 만들기, 위치(동·층) 도우미, 음성 인식 객체.
 // 화면에 보이는 문구는 i18n.js(voice.*)에 있고, 여기에는 저장되는 데이터(한국어 표준 용어)와 계산 로직만 둔다.
-import { CATEGORIES, getCategory } from "./data.js";
+import { CATEGORIES, CUSTOM_CATEGORIES, getCategory } from "./data.js";
 import { FUZZY_LEVELS, buildFuzzyIndex, findFuzzyMatches, normalizeFuzzy } from "./fuzzyTerms.js";
 
 // 공종: 관리자 "표준 공종" 탭(공사현황 > 표준 공종)에 나오는 분류와 똑같이 골조공사·마감공사·설비/전기다.
@@ -9,6 +9,46 @@ import { FUZZY_LEVELS, buildFuzzyIndex, findFuzzyMatches, normalizeFuzzy } from 
 // 이름은 번역 사전(category.<id>.name)에서 가져온다. 그 분류 아래의 세부 공종(표준 항목)은 관리자가 고치는 목록이라
 // 여기에 고정해 두지 않고, 화면이 받은 checklistItems에서 읽는다(data.js itemsForCategory).
 export const VOICE_TRADES = CATEGORIES.filter((c) => c.id !== "safety").map((c) => ({ id: c.id, color: c.color, badge: c.id.toUpperCase() }));
+
+// ---------------- 직접 추가한 공종 ----------------
+// 관리자가 "1. 공종별 QR 생성소"에서 추가한 공종(id는 "c"로 시작, 예: c1k2m3x9). Firestore meta/customTrades에 { trades: [{ id, name, color }] }로 저장된다.
+// 기본 공종 3개(골조공사·마감공사·설비/전기) 뒤에 이어서 붙고, 공종별 QR·음성 보고·음성요청 내역이 기본 공종과 똑같이 다룬다.
+export const CUSTOM_TRADE_LIMITS = { name: 20, max: 30 };
+export const CUSTOM_TRADE_COLORS = ["#F59E0B", "#0891B2", "#DB2777", "#65A30D", "#7C3AED", "#EA580C", "#0D9488", "#4F46E5"];
+const CUSTOM_TRADE_ID = /^c[a-z0-9]{3,24}$/;
+
+export function newCustomTradeId() {
+  return `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+}
+
+// 저장소에서 읽은 값을 그대로 믿지 않고 { id, name, color } 목록으로 걸러 낸다(id·이름이 올바르지 않거나 겹치면 버린다).
+export function sanitizeCustomTrades(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  list.forEach((row, i) => {
+    if (!row || typeof row !== "object") return;
+    const id = typeof row.id === "string" ? row.id : "";
+    const name = String(row.name == null ? "" : row.name).replace(/\s+/g, " ").trim().slice(0, CUSTOM_TRADE_LIMITS.name);
+    if (!CUSTOM_TRADE_ID.test(id) || !name || seen.has(id)) return;
+    seen.add(id);
+    const color = typeof row.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(row.color) ? row.color : CUSTOM_TRADE_COLORS[i % CUSTOM_TRADE_COLORS.length];
+    out.push({ id, name, color });
+  });
+  return out.slice(0, CUSTOM_TRADE_LIMITS.max);
+}
+
+// 지금 쓸 직접 추가 공종을 등록한다(이전에 등록한 것은 모두 바꾼다). 돌려주는 값: 정리된 목록
+export function registerCustomTrades(list) {
+  const clean = sanitizeCustomTrades(list);
+  for (let i = VOICE_TRADES.length - 1; i >= 0; i -= 1) if (VOICE_TRADES[i].custom) VOICE_TRADES.splice(i, 1);
+  CUSTOM_CATEGORIES.length = 0;
+  clean.forEach((t) => {
+    VOICE_TRADES.push({ id: t.id, color: t.color, badge: "CUSTOM", custom: true });
+    CUSTOM_CATEGORIES.push({ id: t.id, name: t.name, shortName: t.name, color: t.color, description: "직접 추가한 공종", custom: true });
+  });
+  return clean;
+}
 
 // 예전에 쓰던 공종(철근·형틀·품질 승인). 새로 고를 수는 없고, 이미 저장된 기록의 이름과 색을 보여 줄 때만 쓴다.
 // (예전의 "설비"(mep)는 지금의 "설비/전기"와 id가 같아서 따로 두지 않는다)

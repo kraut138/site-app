@@ -17,7 +17,7 @@ export const ADMIN_TABS = [
   { id: "dashboard", label: "공사현황 대시보드", Icon: LayoutDashboard },
   { id: "qrgen", label: "1. 공종별 QR 생성소", Icon: QrCode },
   { id: "buildings", label: "2. 동.호수 생성", Icon: Building2 },
-  { id: "unitinfo", label: "3. 각 호실 정보 & 평면도", Icon: DoorOpen },
+  { id: "unitinfo", label: "3. 호실 정보 및 평면도", Icon: DoorOpen },
   { id: "voicerequests", label: "4. 공사 확인 음성요청 내역", Icon: Headphones },
   { id: "paperwork", label: "5. 서류 작성", Icon: FileText },
   { id: "operations", label: "6. 검측·NCR·표준 공종", Icon: ClipboardCheck, badgeKey: "operations" },

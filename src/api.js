@@ -17,7 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase.js";
 import { QR_LIMITS, newQrBoardId, isValidQrBoardId } from "./qr.js";
-import { VOICE_TRADES, VOICE_LIMITS, clockString, defaultGlossary, sanitizeGlossary, checkTerm, convertVoiceText, buildSummary, glossaryHash, GLOSSARY_MESSAGES } from "./voice.js";
+import { VOICE_TRADES, VOICE_LIMITS, registerCustomTrades, sanitizeCustomTrades, clockString, defaultGlossary, sanitizeGlossary, checkTerm, convertVoiceText, buildSummary, glossaryHash, GLOSSARY_MESSAGES } from "./voice.js";
 import { FUZZY_LEVELS, normalizeFuzzy } from "./fuzzyTerms.js";
 import { cleanImportEntries, planGlossaryImport, applyGlossaryImport } from "./glossaryImport.js";
 import { analysisText, SPEAKER_LIMITS } from "./speakerIntro.js";
@@ -100,8 +100,27 @@ async function ensureSeeded() {
   }
 }
 
+// meta/customTrades: { trades: [{ id, name, color }], updatedAt } - "1. 공종별 QR 생성소"에서 직접 추가한 공종.
+// 읽으면 바로 voice.js에 등록해 공종별 QR·음성 보고·음성요청 내역이 기본 공종처럼 쓰게 한다. 읽지 못하면(문서 없음·통신 문제) 빈 목록으로 두고 막지 않는다.
+export async function fetchCustomTrades() {
+  try {
+    const snap = await getDoc(doc(db, "meta", "customTrades"));
+    return registerCustomTrades(snap.exists() ? (snap.data() || {}).trades : []);
+  } catch {
+    return registerCustomTrades([]);
+  }
+}
+
+// 직접 추가한 공종 목록 전체를 저장하고 등록한다. 돌려주는 값: 저장된(정리된) 목록
+export async function saveCustomTrades(trades) {
+  const clean = sanitizeCustomTrades(trades);
+  await setDoc(doc(db, "meta", "customTrades"), { trades: clean, updatedAt: nowIso() });
+  return registerCustomTrades(clean);
+}
+
 export async function fetchBootstrap() {
   await ensureSeeded();
+  await fetchCustomTrades();
   const [buildingsSnap, inspectionsSnap, ncrsSnap, unitNotesSnap, checklistItemsSnap, workersSnap, siteSettingsSnap, unitFloorPlansSnap] = await Promise.all([
     getDocs(collection(db, "buildings")),
     getDocs(collection(db, "inspections")),
@@ -127,6 +146,7 @@ export async function fetchBootstrap() {
 // 공종별 QR 화면이 쓰는 가벼운 읽기: 말한 동·호실을 찾는 데 필요한 동 목록과, 말한 작업을 읽는 데 필요한 표준 공종 항목만 읽는다.
 // (검측·NCR·특이사항처럼 이 화면에 필요 없는 컬렉션은 읽지 않아 스캔할 때마다 드는 읽기 수가 적다)
 export async function fetchSiteCore() {
+  await fetchCustomTrades();
   const readBoth = () => Promise.all([getDocs(collection(db, "buildings")), getDocs(collection(db, "checklistItems"))]);
   let [buildingsSnap, checklistItemsSnap] = await readBoth();
   if (buildingsSnap.empty || checklistItemsSnap.empty) {

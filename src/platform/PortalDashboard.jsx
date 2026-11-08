@@ -4,12 +4,11 @@ import { CATEGORIES } from "../data.js";
 import { findTrade, tradeName } from "../voice.js";
 import { fuzzyLabel } from "../fuzzyTerms.js";
 import * as api from "../api.js";
-import Dashboard from "../components/Dashboard.jsx";
 import SiteLayout from "../components/SiteLayout.jsx";
 import FoldToggle, { useFolded } from "../components/FoldToggle.jsx";
 import { VoiceRecordMeta } from "../components/VoiceAudio.jsx";
 
-// 공사현황 대시보드(현장통 시안의 첫 번째 탭): 숫자 카드 4개 → 실시간 음성 보고 피드 + 공종별 현황 → (앱에만 있던) 검측·NCR 분석 카드.
+// 공사현황 대시보드(현장통 시안의 첫 번째 탭): 숫자 카드 4개 → 실시간 음성 보고 피드 + 공종별 현황.
 // 모든 숫자는 실제 데이터에서 나온다. 음성 보고는 화면이 열려 있는 동안만 가장 최근 FEED_COUNT건을 실시간으로 받는다(api.subscribeRecentVoiceReports).
 const FEED_COUNT = 40; // 한 번에 받는 최근 보고 수(금일 건수 계산 + 피드 표시용)
 const FEED_SHOWN = 8; // 피드에 보여 주는 개수
@@ -264,14 +263,6 @@ export default function PortalDashboard({ buildings, inspections, ncrs, checklis
             feed.slice(0, FEED_SHOWN).map((r) => <FeedItem key={r.id} report={r} />)
           )}
         </div>
-      </div>
-
-      <div data-testid="portal-analysis">
-        <div className="flex items-center gap-2 px-1 mb-3">
-          <h3 className="font-bold text-slate-900 text-sm">검측·NCR 분석</h3>
-          <span className="text-[11px] text-slate-400">동별 승인율, NCR 상태, 공종별 부적합, 미해결 지적사항 위치</span>
-        </div>
-        <Dashboard buildings={buildings} inspections={inspections} ncrs={ncrs} hideStats />
       </div>
     </div>
   );

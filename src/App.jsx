@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import PlatformShell from "./platform/PlatformShell.jsx";
 import PortalDashboard from "./platform/PortalDashboard.jsx";
 import QrGenerator from "./platform/QrGenerator.jsx";
@@ -62,7 +62,12 @@ export default function App() {
   // "5. 서류 작성" 탭 안의 하위 화면: docs(서류 작성) | voicelock(음성 보정 관제)
   const [paperSub, setPaperSub] = useState("docs");
   const [unitTarget, setUnitTarget] = useState(null);
-  const [buildings, setBuildings] = useState([]);
+  const [buildingsRaw, setBuildings] = useState([]);
+  // 동은 등록한 순서와 상관없이 동 번호(숫자) 순서로 쓴다(9동 < 10동 < 101동 < 102동). 모든 탭의 동 선택 칸·목록이 같은 순서가 된다.
+  const buildings = useMemo(
+    () => [...buildingsRaw].sort((x, y) => String(x.name || "").localeCompare(String(y.name || ""), "ko", { numeric: true })),
+    [buildingsRaw]
+  );
   const [inspections, setInspections] = useState([]);
   const [ncrs, setNcrs] = useState([]);
   const [unitNotes, setUnitNotes] = useState([]);

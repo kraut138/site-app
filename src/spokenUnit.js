@@ -207,7 +207,7 @@ export function resolveSpokenAddress(text, buildings) {
 const EXAMPLE_WORK = { frame: "철근 배근 완료", finish: "도배 완료", mep: "분전반 결선 완료" };
 
 export function spokenExample(buildings, tradeId) {
-  const work = EXAMPLE_WORK[tradeId] || EXAMPLE_WORK.finish;
+  const work = EXAMPLE_WORK[tradeId] || "작업 완료";
   const b = (Array.isArray(buildings) ? buildings : []).find(Boolean);
   if (!b) return `101동 502호 ${work}`;
   const no = buildingNo(b);
