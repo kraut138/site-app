@@ -4732,3 +4732,149 @@ textarea.input {
 .vl-audio-state.is-error .vl-audio-warn {
   color: var(--fail);
 }
+
+/* ---- 작업일보에 필요한 말(예문 카드)과 빠진 정보 알림 ---- */
+.vl-wl {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--vl, var(--blueprint));
+  border-radius: var(--radius-s);
+  background: var(--surface-alt);
+}
+
+.vl-wl-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+/* 예문은 한국어로 고정이라, 어느 화면 언어에서도 낱말 가운데서 줄이 끊기지 않게 한다 */
+.vl-wl-example {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--ink);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.vl-wl-seg {
+  padding-bottom: 1px;
+  border-bottom: 2px solid var(--vl, var(--blueprint));
+}
+
+.vl-wl-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  border-radius: 999px;
+  background: var(--vl, var(--blueprint));
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* 문장 안의 번호는 글자와 같은 줄 흐름에 두어, 번호만 줄 끝에 남지 않게 한다 */
+.vl-wl-seg .vl-wl-no {
+  display: inline;
+  padding: 1px 5px;
+  margin-right: 3px;
+  vertical-align: 1px;
+}
+
+.vl-wl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.vl-wl-legend li {
+  display: inline-flex;
+  align-items: center;
+}
+
+.vl-wl-note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+.vl-page--unit .vl-wl-note,
+.vl-page--compact .vl-wl-note,
+.vl-page--unit .vl-missing,
+.vl-page--compact .vl-missing {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 말한 글에서 작업일보에 필요한 말이 빠졌을 때의 알림 상자 */
+.vl-missing {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #fcd34d;
+  border-left: 5px solid var(--pending);
+  border-radius: var(--radius-s);
+  background: var(--pending-bg);
+  color: #78350f;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.vl-missing.is-also {
+  margin: 10px 0 0;
+}
+
+.vl-missing-title {
+  font-weight: 800;
+}
+
+.vl-missing-lead {
+  margin-top: 2px;
+  font-size: 12.5px;
+}
+
+.vl-missing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.vl-missing-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+
+.vl-missing-list strong {
+  font-weight: 800;
+}
+
+.vl-missing-eg {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.vl-missing-foot {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}

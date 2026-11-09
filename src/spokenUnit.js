@@ -206,13 +206,36 @@ export function resolveSpokenAddress(text, buildings) {
 // 예: "101동 502호 도배 완료". 동 이름에 번호가 없으면 동 이름을 그대로 쓴다. 동이 하나도 없으면 "101동 502호 …"로 대신한다.
 const EXAMPLE_WORK = { frame: "철근 배근 완료", finish: "도배 완료", mep: "분전반 결선 완료" };
 
-export function spokenExample(buildings, tradeId) {
+// 말하기 예시를 위치("101동 502호")와 작업("도배 완료")으로 나눠 돌려준다. 작업일보 예문 카드도 이 값을 쓴다.
+export function spokenExampleParts(buildings, tradeId) {
   const work = EXAMPLE_WORK[tradeId] || "작업 완료";
   const b = (Array.isArray(buildings) ? buildings : []).find(Boolean);
-  if (!b) return `101동 502호 ${work}`;
+  if (!b) return { place: "101동 502호", work };
   const no = buildingNo(b);
   const dong = Number.isInteger(no) ? `${no}동` : String(b.name || "");
   const floor = Math.max(1, Math.min(5, Math.floor(Number(b.floors)) || 1));
   const unit = Math.max(1, Math.min(2, Math.floor(Number(b.unitsPerFloor)) || 1));
-  return `${dong} ${floor * 100 + unit}호 ${work}`;
+  return { place: `${dong} ${floor * 100 + unit}호`, work };
+}
+
+export function spokenExample(buildings, tradeId) {
+  const { place, work } = spokenExampleParts(buildings, tradeId);
+  return `${place} ${work}`;
+}
+
+// 호실 QR 화면의 호실을 말로 하면 어떻게 말하는지: "101동 502호"(5층 02호). 지하층이거나 호수가 숫자가 아니면 ""(말하기 예시에 넣지 않는다).
+// 이 화면의 호실을 그대로 말한 것이라 읽어도 다른 호실로 옮겨지지 않는다(resolveSpokenPlace가 '같은 호실'로 본다).
+export function spokenUnitLabel(building, floor, unit) {
+  if (!building) return "";
+  const no = buildingNo(building);
+  const dong = Number.isInteger(no) ? `${no}동` : String(building.name || "").trim();
+  const f = Number(floor);
+  const u = Number(String(unit == null ? "" : unit).trim());
+  if (!dong || !Number.isInteger(f) || f < 1 || !Number.isInteger(u) || u < 1 || u > 99) return "";
+  return `${dong} ${f * 100 + u}호`;
+}
+
+// 공종에 맞는 작업 말("도배 완료")
+export function exampleWorkOf(tradeId) {
+  return EXAMPLE_WORK[tradeId] || "작업 완료";
 }

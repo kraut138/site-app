@@ -21,8 +21,10 @@ import {
 import { convertVoiceTextSpaced } from "../spacing.js";
 import { getGlossaryTerms, getGlossaryOnlyDb, getGlossaryFuzzy, getGlossaryPending, refreshGlossary } from "../glossaryStore.js";
 import { analyzeReport, hasEffect, doneItemIdsOf } from "../unitProgress.js";
-import { resolveSpokenPlace, resolveSpokenAddress, spokenExample } from "../spokenUnit.js";
+import { resolveSpokenPlace, resolveSpokenAddress, spokenExample, spokenExampleParts, spokenUnitLabel, exampleWorkOf } from "../spokenUnit.js";
 import { parseSpeakerIntro } from "../speakerIntro.js";
+import { checkWorkLogInfo, workLogExample } from "../workLogInfo.js";
+import { WorkLogGuide, WorkLogMissing } from "./WorkLogGuide.jsx";
 import { canRecordAudio, canShareMicWithRecognition, startVoiceCapture, primeVoiceAudio, audioNoteKey } from "../voiceAudio.js";
 import { SpeakerLine, VoiceAudioPlayer, VoiceRecordMeta } from "./VoiceAudio.jsx";
 
@@ -113,6 +115,16 @@ function writeAuthor(value) {
 }
 
 // 음성 인식이 돌려주는 오류 코드를 안내 문구 키로 바꾼다. "aborted"(우리가 멈춘 경우)는 안내가 필요 없다.
+// 말한 글에서 작업일보에 필요한 말(업체명·금일 작업인원·작업내용) 중 빠진 것(workLogInfo.js). 읽다가 오류가 나도 저장을 막지 않도록 빈 목록으로 돌린다.
+// 위치는 여기서 찾지 않는다: 호실 QR·탭은 화면이 정하고, 공종별 QR은 말한 동·호실을 읽어 못 읽으면 저장하지 않고 따로 알린다.
+function lackOf(rawText) {
+  try {
+    return checkWorkLogInfo(rawText).missing;
+  } catch {
+    return [];
+  }
+}
+
 function errorKey(code) {
   if (code === "not-allowed" || code === "service-not-allowed") return "voice.err.permission";
   if (code === "no-speech") return "voice.err.noSpeech";
@@ -505,7 +517,9 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
       const only = latest.current.elemFilter;
       // (공종별 QR 화면의 목록은 이 기기에서 방금 남긴 보고들이라, 어느 호실로 저장됐든 모두 넣는다)
       if (latest.current.placeMode || (latest.current.zone === entry.zone && (!only || entry.elem === only))) setReports((prev) => [saved, ...prev.filter((r) => r.id !== saved.id)]);
-      latest.current.notify(latest.current.t("voice.sent"));
+      const lack = Array.isArray(entry.missingInfo) ? entry.missingInfo : [];
+      const tt = latest.current.t;
+      latest.current.notify(lack.length > 0 ? tt("voice.worklog.toast", { parts: lack.map((k) => tt(`voice.worklog.part.${k}`)).join(", ") }) : tt("voice.sent"));
       if (job) saveClip(saved.id, job); // 글 기록이 저장된 뒤에 소리를 따로 저장한다(기다리지 않는다)
     } catch {
       if (!mounted.current) return;
@@ -574,6 +588,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
         failKind: spoken.kind,
         failPlace: spoken.kind === "unknown" ? spoken.place : "",
         summary: "",
+        missingInfo: lackOf(rawText),
         via,
       });
       setStatus("idle");
@@ -619,6 +634,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
         summary: buildSummary(cur.tradeId, fixed.shown, tradeItem),
         progress,
         done: doneIds.length > 0 ? { buildingId: b.id, floor: spoken.floor, unit: spoken.unit, itemIds: doneIds } : null,
+        missingInfo: lackOf(rawText), // 작업일보에 필요한 말 중 빠진 것 - 결과 상자에서 알려 주는 용도(저장하지 않는다)
         via,
       },
       heard.audioJob
@@ -695,6 +711,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
           progress && progress.resolved.ok && doneItemIdsOf(progress.analysis, cur.checklistItems).length > 0
             ? { buildingId: progress.resolved.buildingId, floor: progress.resolved.floor, unit: progress.resolved.unit, itemIds: doneItemIdsOf(progress.analysis, cur.checklistItems) }
             : null,
+        missingInfo: lackOf(rawText), // 작업일보에 필요한 말 중 빠진 것 - 결과 상자에서 알려 주는 용도(저장하지 않는다)
         via,
       },
       heard.audioJob
@@ -855,6 +872,13 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   const themeStyle = { "--vl": trade.color, "--vl-tint": `${trade.color}1c` };
   const unitText = unitMode ? t("voice.loc.unitOption", { n: unitName }) : "";
   const example = placeMode ? spokenExample(allBuildings || buildings, tradeId) : ""; // 공종별 QR 안내문의 말하기 예시("101동 502호 도배 완료")
+  // 작업일보에 필요한 말(업체명·금일 작업인원·위치·작업내용) 예문. 위치는 공종별 QR에서는 이 현장의 실제 동·호실로, 호실 QR·'음성 검측' 탭에서는 이 화면의 위치로 보여 준다
+  // (예문을 그대로 읽어도 다른 위치로 옮겨 저장되지 않게). 말하는 글은 한국어로 고정이다.
+  const koFloor = (f) => (f < 0 ? `지하 ${-f}층` : `${f}층`);
+  const exParts = placeMode ? spokenExampleParts(allBuildings || buildings, tradeId) : null;
+  const exWork = itemValue && itemValue.length <= 12 ? `${itemValue} 완료` : exParts ? exParts.work : exampleWorkOf(tradeId);
+  const exPlace = exParts ? exParts.place : unitMode ? spokenUnitLabel(building, activeFloor, unitName) : building ? [building.name, koFloor(activeFloor), elem.trim()].filter(Boolean).join(" ") : "";
+  const wlExample = workLogExample({ place: exPlace, work: exWork });
   // 말한 호실로 옮겨 저장했을 때 알려 주는 "102동 5층 02호" / 지금 보고 있는 "101동 3층 301호"
   const movedLabel = (p) => `${p.buildingName} ${floorText(p.floor)} ${t("voice.loc.unitOption", { n: p.unit })}`;
   const hereLabel = building ? `${building.name} ${floorText(activeFloor)} ${unitText}` : "";
@@ -1037,12 +1061,13 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
               )}
             </div>
 
-            <p className="vl-guide" data-testid="vl-guide">
-              {placeMode ? t("voice.place.guide", { example }) : itemValue ? t("voice.guide.item", { item: itemValue }) : t(`voice.guide.${trade.id}`)}
-            </p>
-            <p className="vl-guide vl-speaker-hint" data-testid="vl-speaker-hint">
-              {t("voice.speaker.hint")}
-            </p>
+            {/* 공종별 QR 화면의 "동·호실과 작업 내용을 함께 말씀하세요. 예: …" 안내는 바로 아래 작업일보 예문 카드가 같은 예시를 보여 주므로 따로 두지 않는다(휴대폰에서 마이크가 더 내려가지 않게) */}
+            {!placeMode && (
+              <p className="vl-guide" data-testid="vl-guide">
+                {itemValue ? t("voice.guide.item", { item: itemValue }) : t(`voice.guide.${trade.id}`)}
+              </p>
+            )}
+            <WorkLogGuide t={t} example={wlExample} placeFromScreen={!placeMode} />
 
             {!supported && (
               <div className="vl-note" data-testid="vl-unsupported">
@@ -1083,11 +1108,13 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
                 <div className="vl-progress-msg is-warn" data-testid="vl-place-msg">
                   {t(PLACE_FAIL_KEY[result.failKind] || "voice.place.none", { place: result.failPlace || "", example })}
                 </div>
+                <WorkLogMissing t={t} missing={result.missingInfo} example={wlExample} variant="also" />
               </div>
             )}
             {result && result.state !== "noplace" && (
               <>
               <div ref={resultRef} className={`vl-result${result.state === "error" ? " is-error" : ""}`} data-testid="vl-result">
+                <WorkLogMissing t={t} missing={result.missingInfo} example={wlExample} variant="saved" />
                 <h3>{t("voice.result.raw")}</h3>
                 <div className="vl-result-raw" data-testid="vl-raw">
                   "{result.rawText}"
