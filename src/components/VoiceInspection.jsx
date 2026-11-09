@@ -18,6 +18,7 @@ import {
   floorChoices,
   buildZone,
 } from "../voice.js";
+import { convertVoiceTextSpaced } from "../spacing.js";
 import { getGlossaryTerms, getGlossaryOnlyDb, getGlossaryFuzzy, getGlossaryPending, refreshGlossary } from "../glossaryStore.js";
 import { analyzeReport, hasEffect, doneItemIdsOf } from "../unitProgress.js";
 import { resolveSpokenPlace, resolveSpokenAddress, spokenExample } from "../spokenUnit.js";
@@ -50,6 +51,10 @@ import { SpeakerLine, VoiceAudioPlayer, VoiceRecordMeta } from "./VoiceAudio.jsx
 const STORAGE_KEY = "voiceInspectionSelection";
 const UNIT_STORAGE_KEY = "voiceUnitSelection"; // 호실 QR 화면에서는 공종(과 세부 공종)만 기억한다(탭의 위치 선택과 섞이지 않게 따로 둔다)
 const AUTHOR_KEY = "qrBoardAuthor"; // QR 기록판과 같은 키 - 한 번 적은 이름을 두 화면에서 함께 쓴다
+// 하도급 반장 모바일 모드에서는 '내 목소리도 녹음해 저장'을 쓰지 않는다: 휴대폰은 음성 인식과 녹음이 마이크를 함께 쓰지 못해 인식이 안 되는 경우가 있었다.
+// false이면 목소리를 녹음하지 않고(글 기록만 저장) 이 선택 칸도 보이지 않는다. 관리자 포털의 '공사 확인 음성요청 내역'에서 듣는 기능은 이미 저장된 녹음에 그대로 쓰인다.
+// 다시 켜려면 true로 바꾸면 된다.
+const AUDIO_CAPTURE_ENABLED = false;
 const KEEP_AUDIO_KEY = "voiceKeepAudio"; // "내 목소리도 녹음해 저장" 선택(이 기기에 기억한다, 기본 켜짐). "off"일 때만 끈 것.
 const PAGE_SIZE = 20;
 const UNIT_PAGE_SIZE = 3; // 호실 화면은 길어지지 않도록 처음에는 최근 3건만 보여 준다
@@ -242,7 +247,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   const [showText, setShowText] = useState(!supported);
   const [textValue, setTextValue] = useState("");
 
-  const audioOk = canRecordAudio(); // 이 기기(브라우저)에서 목소리를 함께 녹음할 수 있는지
+  const audioOk = AUDIO_CAPTURE_ENABLED && canRecordAudio(); // 이 기기(브라우저)에서 목소리를 함께 녹음할 수 있는지
   const [keepAudio, setKeepAudio] = useState(() => readKeepAudio());
   const [audioHint, setAudioHint] = useState(false); // 음성 인식이 계속 안 될 때 '녹음 저장 끄기'를 권하는 안내
   // 이 브라우저가 음성 인식에 마이크 소리를 넘겨받을 수 있는지(PC의 Chrome·Edge 135 이상). 그러면 마이크를 한 번만 열어 인식과 녹음이 같은 소리를 나눠 쓴다.
@@ -627,7 +632,8 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
 
   // heard: { body(소개 말을 뗀 분석용 글), speaker({ name, company } | null), audioJob(소리 녹음 결과 약속 | null) }
   function makeReport(cur, rawText, via, heard) {
-    const fixed = convertVoiceText(heard.body, getGlossaryTerms(), getGlossaryOnlyDb(), getGlossaryFuzzy());
+    // 용어 DB 변환 + 음성 보정 관제의 자동 띄어쓰기: 붙여 쓴 글을 용어 DB 단어로 먼저 끊은 뒤 은어·비슷한 용어를 바꾼다(spacing.js). 호실·진행도를 읽는 글(normalized)은 말한 그대로에서 만든다.
+    const fixed = convertVoiceTextSpaced(heard.body, getGlossaryTerms(), getGlossaryOnlyDb(), getGlossaryFuzzy());
     if (cur.placeMode) {
       makePlaceReport(cur, rawText, via, fixed, heard);
       return;
@@ -1186,7 +1192,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
               </>
             )}
 
-            {audioOk ? (
+            {!AUDIO_CAPTURE_ENABLED ? null : audioOk ? (
               <div className="vl-keep-wrap">
                 <label className="vl-keep" data-testid="vl-keep">
                   <input type="checkbox" checked={keepAudio} disabled={busy} onChange={(e) => changeKeepAudio(e.target.checked)} data-testid="vl-keep-input" />

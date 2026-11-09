@@ -1,95 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { getGlossaryTerms, getGlossaryFuzzy, refreshGlossary } from "../glossaryStore.js";
-import { FUZZY_LEVELS, fuzzyLabel, jamoDistance, jamoSimilarity, normalizeFuzzy, toJamo } from "../fuzzyTerms.js";
-import { slangKey } from "../voice.js";
+import { fuzzyLabel, normalizeFuzzy, toJamo } from "../fuzzyTerms.js";
+import { SHORT_SOUNDS, MIN_FUZZY_SOUNDS, autoSegment, bestMatch, buildEntries } from "../spacing.js";
 
 // "5. 서류 작성" 탭 안의 하위 화면 '음성 보정 관제'.
 // 띄어쓰기 없이 붙어서 들어온 현장 말을 (Step 1) 용어 DB 단어 기준으로 먼저 끊고, (Step 2) 끊은 낱말마다 용어 DB의 현장 은어와 소리(자모) 레벤슈타인 거리를 견주어
 // 표준 용어로 바꾸는 과정을 한 단계씩 보여 주는 관제 화면이다. 쓰는 용어 표와 '비슷한 용어 찾기' 단계는 "현장용어/은어 DB"에 저장된 것과 같다(여기서 고치지는 않는다).
-// 이 화면은 계산 과정을 보여 주기만 하고 아무것도 저장하지 않는다.
-
-// 말 끝에 붙는 조사·어미·자주 쓰는 말(띄어쓰기 복원에서 낱말의 끝을 찾는 데 쓴다)
-const COMMON_PARTICLES = ["치고", "했고", "했응게", "했심더", "하고", "대고", "받쳐라", "치우고", "꼽아", "확인해", "잡고", "쏴서", "쳐도", "됨", "완료", "이상무", "끝났응게", "밑에", "위에"];
-
-const EPS = 1e-9;
-const SIMILAR_ONLY_COST = 0.5; // 비슷한 소리끼리 바꾼 것 한 번의 값 (fuzzyTerms.js의 SIMILAR_COST와 같다)
-const SHORT_SOUNDS = 5; // 소리(자모)가 이 수 이하인 짧은 단어는 비슷한 소리 바꿈만 허용한다 (용어 DB의 비슷한 용어 찾기와 같은 규칙)
-const MIN_FUZZY_SOUNDS = 4; // 소리가 이보다 적은 단어는 정확히 같을 때만 찾는다
-
-const isHangulOnly = (s) => /^[가-힣]+$/.test(s);
-
-// 용어 표 → 견주기에 쓰는 목록 (한글로만 된 은어만)
-function buildEntries(terms) {
-  const out = [];
-  (terms || []).forEach((t, i) => {
-    const key = slangKey(t.slang);
-    if (key.length < 2 || !isHangulOnly(key)) return;
-    out.push({ id: t.id, no: i + 1, slang: t.slang, key, standard: t.standard, jamo: toJamo(key) });
-  });
-  return out;
-}
-
-// text(띄어쓰기 없는 한 낱말)가 entry의 현장 은어와 같은 말인지. 같으면 { entry, sim, dist }, 아니면 null.
-function compare(text, entry, level) {
-  if (text === entry.key) return { entry, sim: 1, dist: 0 };
-  const threshold = FUZZY_LEVELS[level] || 0;
-  if (!(threshold > 0) || entry.jamo.length < MIN_FUZZY_SOUNDS) return null;
-  const a = toJamo(text);
-  if (a.length < 2) return null;
-  const dist = jamoDistance(text, entry.key);
-  const sim = jamoSimilarity(text, entry.key);
-  if (sim + EPS < threshold) return null;
-  if (entry.jamo.length <= SHORT_SOUNDS && (a.length !== entry.jamo.length || dist > SIMILAR_ONLY_COST + EPS)) return null;
-  return { entry, sim, dist };
-}
-
-// 용어 DB에서 text와 가장 닮은 은어 하나 (기준을 못 넘으면 null)
-function bestMatch(text, entries, level) {
-  const t = String(text || "");
-  if (!isHangulOnly(t)) return null;
-  let best = null;
-  for (const e of entries) {
-    const r = compare(t, e, level);
-    if (r && (!best || r.sim > best.sim + EPS)) best = r;
-  }
-  return best;
-}
-
-// Step 1: 최장 일치 방식 띄어쓰기 복원. 용어 DB 단어(소리가 비슷한 말 포함)나 조사·어미를 만나면 거기서 끊고,
-// 어디에도 맞지 않는 글자는 모아서 한 낱말로 둔다.
-function autoSegment(raw, entries, level) {
-  const blocks = String(raw || "").trim().split(/\s+/).filter(Boolean);
-  const maxLen = Math.min(8, entries.reduce((m, e) => Math.max(m, e.key.length), 0) + 1);
-  const tokens = [];
-  blocks.forEach((block) => {
-    let i = 0;
-    let other = "";
-    const flush = () => {
-      if (other) tokens.push(other);
-      other = "";
-    };
-    while (i < block.length) {
-      let hit = 0;
-      for (let len = Math.min(maxLen, block.length - i); len >= 2; len -= 1) {
-        const sub = block.slice(i, i + len);
-        if (COMMON_PARTICLES.includes(sub) || bestMatch(sub, entries, level)) {
-          hit = len;
-          break;
-        }
-      }
-      if (hit) {
-        flush();
-        tokens.push(block.slice(i, i + hit));
-        i += hit;
-      } else {
-        other += block[i];
-        i += 1;
-      }
-    }
-    flush();
-  });
-  return tokens;
-}
+// 이 화면은 계산 과정을 보여 주기만 하고 아무것도 저장하지 않는다. 끊기·견주기 계산은 src/spacing.js에 있고, 음성 보고의 실제 처리(VoiceInspection)도 같은 계산을 쓴다.
 
 // 용어 DB의 단어로 눌러 볼 수 있는 예시 문장(붙여 쓴 글)을 만든다. 소리가 비슷한 글자로 바꾼 "잘못 들은" 예시도 하나 넣는다.
 const MISHEAR = { 시: "씨", 사: "싸", 가: "카", 다: "타", 바: "파", 지: "치", 게: "개", 기: "키" };
@@ -132,7 +49,8 @@ export default function VoiceLockMonitor({ notify }) {
     };
   }, []);
 
-  const entries = useMemo(() => buildEntries(terms), [terms]);
+  const entries = useMemo(() => buildEntries(terms), [terms]); // 표에 보여 주고 견주는 현장 은어
+  const segEntries = useMemo(() => buildEntries(terms, true), [terms]); // 끊을 때는 표준 용어를 직접 말한 것도 한 낱말로 본다(실제 처리와 같다)
   const samples = useMemo(() => buildSamples(entries), [entries]);
   const lv = normalizeFuzzy(level);
 
@@ -143,7 +61,7 @@ export default function VoiceLockMonitor({ notify }) {
         if (notify) notify("분석할 말을 입력해 주세요.");
         return;
       }
-      const spaced = autoSegment(raw, entries, lv);
+      const spaced = autoSegment(raw, segEntries, lv);
       const rows = spaced.map((token) => {
         const m = bestMatch(token, entries, lv);
         return { token, jamo: toJamo(token), match: m };
@@ -151,7 +69,7 @@ export default function VoiceLockMonitor({ notify }) {
       const final = rows.map((r) => (r.match ? `[${r.match.entry.standard}]` : r.token)).join(" ");
       setRun({ raw, spaced: spaced.join(" "), rows, final });
     },
-    [entries, input, lv, notify]
+    [entries, segEntries, input, lv, notify]
   );
 
   // 처음 열릴 때(용어 표가 준비되면) 첫 예시로 한 번 실행해 보여 준다.

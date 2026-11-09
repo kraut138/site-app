@@ -103,6 +103,14 @@ export function jamoDistance(a, b) {
   return levenshtein(soundsOf(a), soundsOf(b), (p, q) => SUB[p * N + q]);
 }
 
+// 이미 소리(자모)로 쪼갠 두 글의 거리 - 같은 글을 여러 단어와 견줄 때 매번 다시 쪼개지 않게 한다(spacing.js).
+export function soundsOfText(text) {
+  return soundsOf(text);
+}
+export function soundsDistance(x, y) {
+  return levenshtein(x, y, (p, q) => SUB[p * N + q]);
+}
+
 export function jamoSimilarity(a, b) {
   const x = soundsOf(a);
   const y = soundsOf(b);

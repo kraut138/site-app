@@ -19,6 +19,7 @@ import { db } from "./firebase.js";
 import { QR_LIMITS, newQrBoardId, isValidQrBoardId } from "./qr.js";
 import { VOICE_TRADES, VOICE_LIMITS, registerCustomTrades, sanitizeCustomTrades, clockString, defaultGlossary, sanitizeGlossary, checkTerm, convertVoiceText, buildSummary, glossaryHash, GLOSSARY_MESSAGES } from "./voice.js";
 import { FUZZY_LEVELS, normalizeFuzzy } from "./fuzzyTerms.js";
+import { convertVoiceTextSpaced } from "./spacing.js";
 import { cleanImportEntries, planGlossaryImport, applyGlossaryImport } from "./glossaryImport.js";
 import { analysisText, SPEAKER_LIMITS } from "./speakerIntro.js";
 import { SAMPLE_LIMITS, SAMPLE_MESSAGES, cleanSampleName, newSampleId, sanitizeSamples, sanitizeSegments, splitIntoChunks, joinChunks } from "./audioSamples.js";
@@ -1142,7 +1143,7 @@ export async function planGlossaryReapply() {
       return;
     }
     // 말한 글 맨 앞의 '소속·이름' 소개 말은 저장할 때와 똑같이 떼고 변환한다(안 떼면 다시 적용할 때 소개 말이 변환 글에 섞여 들어온다)
-    const conv = convertVoiceText(analysisText(rawText), current.terms, current.onlyDb, current.fuzzy);
+    const conv = convertVoiceTextSpaced(analysisText(rawText), current.terms, current.onlyDb, current.fuzzy); // 저장할 때와 같은 방식(자동 띄어쓰기 포함)
     // tradeItem이 없는 기록은 세부 공종 칸이 없던 예전 기록이다 - buildSummary가 예전 문장 틀로 같은 요약을 만든다.
     const summary = buildSummary(String(data.trade || ""), conv.shown, typeof data.tradeItem === "string" ? data.tradeItem : undefined);
     const beforeFull = typeof data.normalized === "string" ? data.normalized : "";
