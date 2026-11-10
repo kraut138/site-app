@@ -3,8 +3,10 @@
 import { compactDate, dotDate, dotDateWithDay, isDayKey } from "./dayTools.js";
 import { floorText, joinFloors, joinUnits, describeStatements } from "./textRules.js";
 import { placeLabel } from "./digestReports.js";
+import { cleanTbmFields, hasTbmFields, emptyTbmFields } from "./tbmSummary.js";
 
-// TBM 위험요인 표의 줄 수(양식에 5줄). 이보다 많으면 마지막 줄에 "외 N건"으로 줄인다.
+// TBM 위험요인 표의 양식 줄 수(5줄). 음성 기록의 위험요인이 이보다 많으면 마지막 줄에 "외 N건"으로 줄인다.
+// (회의를 녹음해 요약한 위험요인은 이보다 많아도 줄을 늘려서 모두 넣는다 - docxFill.js)
 export const TBM_RISK_ROWS = 5;
 
 const dayParts = (dayKey) => {
@@ -39,29 +41,75 @@ export function workLogModel(digest, dayKey) {
 }
 
 // ---------------------------------------------------------------- TBM 일지
+// 음성 기록만 있을 때(회의 녹음이 없을 때)의 안내. 회의를 녹음해 요약했으면 칸마다 실제로 채운 것을 세어 tbmTags가 새로 만든다.
 export const TBM_FILLED = ["일시(날짜만)", "작업 장소", "작업 내용", "위험요인(위험 낱말이 들어 있는 기록만)"];
 export const TBM_BLANK = ["현장명", "시간", "진행자", "참석 인원", "대책", "점검 항목 확인", "교육·전달 사항", "참석자 확인(소속·성명·서명)"];
 
-export function tbmModel(digest, dayKey) {
+// 회의 녹음으로 채운 칸을 반영한 "채우는 칸 / 비워 두는 칸" 안내
+function tbmTags(m) {
+  const filled = [m.from || m.to ? "일시(날짜·시간)" : "일시(날짜만)"];
+  const blank = [];
+  const put = (cond, name) => (cond ? filled : blank).push(name);
+  put(m.site, "현장명");
+  put(m.leader, "진행자");
+  put(m.headcount, "참석 인원");
+  put(m.place, "작업 장소");
+  put(m.work, "작업 내용");
+  put(m.risks.length > 0, "위험요인");
+  put(m.risks.some((r) => r.measure), "대책");
+  put(Object.values(m.checks).some(Boolean), "점검 항목 표시");
+  if (!Object.values(m.checks).some(Boolean)) blank.push("점검 항목 확인");
+  put(m.notes.length > 0, "교육·전달 사항");
+  blank.push("참석자 확인(소속·성명·서명)");
+  return { filled, blank };
+}
+
+// digest: 하루 요약(digestReports.js), meeting: 회의 녹음을 요약해 사람이 고친 칸 값(tbmSummary.js의 cleanTbmFields 모양, 없으면 null)
+// opts.useDigest(기본 false): 회의를 녹음했을 때, 회의에서 채우고 남은 위험요인 줄을 그 날 음성 기록의 위험요인으로도 채울지
+//   (회의를 녹음하지 않았으면 예전처럼 음성 기록의 위험요인으로 채운다 - 이 값과 상관없다)
+// 칸마다: 회의에서 읽은(또는 사람이 쓴) 값이 있으면 그 값, 없으면 음성 기록에서 읽은 값, 그것도 없으면 빈 칸(양식 그대로).
+export function tbmModel(digest, dayKey, meeting = null, opts = {}) {
   const date = dayParts(dayKey);
-  const place = digest.places
+  const mt = hasTbmFields(meeting) ? cleanTbmFields(meeting) : null;
+  const useDigest = !mt || !!(opts && opts.useDigest === true);
+  const digestPlace = digest.places
     .map((p) => [p.building, joinFloors(p.floors)].filter(Boolean).join(" "))
     .filter(Boolean)
     .join(", ");
-  let hazards = digest.hazards.map((h) => [h.place, h.text].filter(Boolean).join(" · "));
-  let more = 0;
-  if (hazards.length > TBM_RISK_ROWS) {
-    more = hazards.length - (TBM_RISK_ROWS - 1);
-    hazards = [...hazards.slice(0, TBM_RISK_ROWS - 1), `${hazards[TBM_RISK_ROWS - 1]} 외 ${more}건`];
+  const digestHazards = digest.hazards.map((h) => [h.place, h.text].filter(Boolean).join(" · "));
+  const meetingRisks = mt ? mt.risks : [];
+
+  // 회의에서 채우고 남은 양식의 줄(양식은 5줄)에 음성 기록의 위험요인을 채운다. 남는 줄보다 많으면 마지막 줄에 "외 N건"으로 줄인다.
+  const free = useDigest ? Math.max(0, TBM_RISK_ROWS - meetingRisks.length) : 0;
+  let fromDigest = digestHazards.slice(0, free);
+  if (free > 0 && digestHazards.length > free) {
+    fromDigest = [...digestHazards.slice(0, free - 1), `${digestHazards[free - 1]} 외 ${digestHazards.length - (free - 1)}건`];
   }
+  const risks = [...meetingRisks.map((r) => ({ hazard: r.hazard, measure: r.measure })), ...fromDigest.map((h) => ({ hazard: h, measure: "" }))];
+  const empty = emptyTbmFields();
+  const m = {
+    site: mt ? mt.site : "",
+    leader: mt ? mt.leader : "",
+    headcount: mt ? mt.headcount : "",
+    from: mt ? mt.from : "",
+    to: mt ? mt.to : "",
+    place: (mt && mt.place) || digestPlace,
+    work: (mt && mt.work) || digest.workNames.join(", "),
+    risks,
+    checks: mt ? mt.checks : empty.checks,
+    notes: mt ? mt.notes : [],
+  };
+  const tags = mt ? tbmTags(m) : { filled: TBM_FILLED, blank: TBM_BLANK };
   return {
     date,
     dateLabel: dotDate(dayKey),
-    place,
-    work: digest.workNames.join(", "),
-    hazards,
-    filled: TBM_FILLED,
-    blank: TBM_BLANK,
+    ...m,
+    hazards: risks.map((r) => r.hazard), // 위험요인 글만(예전 모양)
+    meeting: !!mt,
+    digestHazardCount: digestHazards.length,
+    digestHazardsLeft: useDigest && free === 0 ? digestHazards.length : 0, // 회의 내용으로 위험요인 줄이 이미 차서 넣지 못한 음성 기록 위험요인 수(넣지 않기로 한 경우는 0)
+    filled: tags.filled,
+    blank: tags.blank,
     fileName: `TBM일지_${compactDate(dayKey)}.docx`,
   };
 }

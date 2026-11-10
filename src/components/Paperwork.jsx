@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { zipSync } from "fflate";
 import { Icon, EmptyState } from "./UI.jsx";
 import * as api from "../api.js";
@@ -8,11 +8,16 @@ import { workLogModel, tbmModel, inspectionModels, inspectionZipName, INSPECTION
 import { fillWorkLog, fillTbmLog } from "../paperwork/docxFill.js";
 import { fillInspectionRequest } from "../paperwork/hwpFill.js";
 import PaperworkPreview, { EyeIcon } from "./PaperworkPreview.jsx";
+import TbmMeeting from "./TbmMeeting.jsx";
+import { loadTbmDraft, saveTbmDraft, clearTbmDraft, emptyDraft, purgeOldTbmDrafts } from "../paperwork/tbmDraft.js";
+import { CHECK_KEYS } from "../paperwork/tbmSummary.js";
 
 // "5. 서류 작성" - 하루치 음성 기록(voiceReports)을 읽어 작업일보·TBM 일지(워드)와 검측요청서(한글)의 양식 파일을 자동으로 채워 내려받게 한다.
 // 기록에서 알 수 없는 칸(현장명·날씨·출역 인원·서명 등)은 값을 만들지 않고 양식의 빈 칸 그대로 둔다. 어떻게 채우는지는 src/paperwork/ 에 있다.
 // 양식 원본은 public/templates/ 에 있고, 내려받을 때마다 이 브라우저 안에서 채운다(서버로 보내는 것은 없다).
 // "미리보기" 단추는 내려받을 파일과 똑같은 바이트를 만들어(같은 채우기 함수) 내려받지 않고 화면에 종이 모양으로 보여 준다(PaperworkPreview.jsx).
+// TBM 일지는 음성 기록 말고도 "회의 녹음"으로 채울 수 있다: 회의를 말하면(약 5분) 받아 적어 칸별로 나누고(TbmMeeting.jsx), 사람이 고친 값을 서류에 넣는다.
+// 받아 적은 글과 고친 칸은 날짜별로 이 기기의 브라우저에만 임시로 남긴다(paperwork/tbmDraft.js).
 
 const BASE = import.meta.env.BASE_URL || "/";
 const TEMPLATE_URLS = {
@@ -56,8 +61,17 @@ function saveFile(bytes, fileName, mime) {
 
 // 내려받은 뒤(또는 미리보기에서) 알려 주는 글. 칸에 다 못 넣어 줄인 것이 있을 때만 글이 있다.
 const workLogWarnText = (report) => (report.omitted ? `기록이 많아 ${report.omitted}건은 표에 다 넣지 못하고 "외 ${report.omitted}건"으로 줄였어요.` : "");
+// TBM: 위험요인이 양식의 5줄을 넘거나 교육·전달 사항이 양식의 2줄을 넘어 표 줄을 늘렸을 때
+const tbmWarnText = (report) => {
+  const bits = [];
+  if (report && report.addedRiskRows) bits.push(`위험요인·대책 표를 ${report.addedRiskRows}줄 늘렸어요`);
+  if (report && report.addedNoteRows) bits.push(`교육·전달 사항 표를 ${report.addedNoteRows}줄 늘렸어요`);
+  return bits.length ? `${bits.join(", ")}. 줄이 늘어서 쪽 수가 달라질 수 있으니 워드에서 한 번 열어 확인해 주세요.` : "";
+};
 const inspectionWarnText = (shortened) => (shortened ? `${shortened}건은 칸이 좁아 일부 글을 "…"로 줄였어요. 한글에서 열어 확인해 주세요.` : "");
 const countShortened = (report) => (Object.values(report.fields).some((f) => f.truncated) ? 1 : 0);
+
+const CHECK_SHORT = { protect: "보호구", health: "건강 상태", newcomer: "신규·외국인", equipment: "장비·신호수", weather: "기상" };
 
 function Tags({ filled, blank }) {
   return (
@@ -90,6 +104,15 @@ export default function Paperwork({ notify, checklistItems = [] }) {
   const [warn, setWarn] = useState({}); // 서류별로 내려받은 뒤의 안내 글
   const [preview, setPreview] = useState(null); // 열어 둔 미리보기 { kind, title, fileName, bytes, notice }
   const openerRef = useRef(null); // 미리보기를 연 단추(닫으면 그 단추로 돌아온다)
+  // TBM 회의 녹음 초안(받아 적은 글 + 칸 값). 날짜마다 따로 이 기기에 임시로 남는다.
+  const [draft, setDraft] = useState(() => loadTbmDraft(dayKeyOf()));
+  const [recording, setRecording] = useState(false); // 회의를 녹음하는 중에는 날짜를 바꾸거나 다시 불러오지 못하게 한다
+  const draftRef = useRef(draft);
+  const draftDayRef = useRef(dayKey);
+
+  useEffect(() => {
+    purgeOldTbmDrafts(dayKeyOf());
+  }, []);
 
   useEffect(() => {
     if (!isDayKey(dayKey)) return undefined;
@@ -115,9 +138,27 @@ export default function Paperwork({ notify, checklistItems = [] }) {
 
   const digest = useMemo(() => digestDay(reports, { checklistItems }), [reports, checklistItems]);
   const workLog = useMemo(() => workLogModel(digest, dayKey), [digest, dayKey]);
-  const tbm = useMemo(() => tbmModel(digest, dayKey), [digest, dayKey]);
+  const tbm = useMemo(() => tbmModel(digest, dayKey, draft.fields, { useDigest: draft.useDigest }), [digest, dayKey, draft.fields, draft.useDigest]);
+  const tbmDigestOnly = useMemo(() => tbmModel(digest, dayKey), [digest, dayKey]); // 회의 내용 없이 음성 기록만으로 읽은 장소·공종(칸을 비워 두면 들어갈 값)
   const inspections = useMemo(() => inspectionModels(digest, dayKey), [digest, dayKey]);
   const chosen = inspections.filter((m) => !unchecked[m.key]);
+
+  // 초안 고치기: patch는 객체이거나, 이전 초안을 받아 patch를 돌려주는 함수. 바꾼 즉시 이 기기에 남긴다.
+  const updateDraft = useCallback((patch) => {
+    const prev = draftRef.current;
+    const part = typeof patch === "function" ? patch(prev) : patch;
+    if (!part || Object.keys(part).length === 0) return;
+    const next = { ...prev, ...part };
+    draftRef.current = next;
+    setDraft(next);
+    saveTbmDraft(draftDayRef.current, next);
+  }, []);
+  const resetDraft = useCallback(() => {
+    const next = emptyDraft();
+    draftRef.current = next;
+    setDraft(next);
+    clearTbmDraft(draftDayRef.current);
+  }, []);
 
   const run = async (id, job, failText) => {
     if (busy) return;
@@ -152,9 +193,9 @@ export default function Paperwork({ notify, checklistItems = [] }) {
     run(
       "tbm",
       async () => {
-        const { bytes } = await makeTbm();
+        const { bytes, report } = await makeTbm();
         saveFile(bytes, tbm.fileName, MIME_DOCX);
-        setWarn((w) => ({ ...w, tbm: "" }));
+        setWarn((w) => ({ ...w, tbm: tbmWarnText(report) }));
         if (notify) notify("TBM 일지를 내려받았습니다.");
       },
       "TBM 일지를 만들지 못했습니다."
@@ -200,8 +241,8 @@ export default function Paperwork({ notify, checklistItems = [] }) {
 
   const previewTbm = (trigger) =>
     openPreview("tbm", trigger, async () => {
-      const { bytes } = await makeTbm();
-      return { kind: "docx", title: "TBM 일지", fileName: tbm.fileName, bytes, notice: "" };
+      const { bytes, report } = await makeTbm();
+      return { kind: "docx", title: "TBM 일지", fileName: tbm.fileName, bytes, notice: tbmWarnText(report) };
     });
 
   const previewInspection = (m, trigger) =>
@@ -220,8 +261,13 @@ export default function Paperwork({ notify, checklistItems = [] }) {
 
   const today = dayKeyOf();
   const changeDay = (key) => {
-    if (!isDayKey(key)) return;
+    if (!isDayKey(key) || recording) return;
     setDayKey(key);
+    // 날짜마다 따로 남긴 회의 초안으로 바꾼다
+    draftDayRef.current = key;
+    const nextDraft = loadTbmDraft(key);
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
     setReports([]);
     setUnchecked({});
     setWarn({});
@@ -232,7 +278,7 @@ export default function Paperwork({ notify, checklistItems = [] }) {
       <div className="card pw-head">
         <div className="section-title">작성할 날짜</div>
         <div className="pw-date-row">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDay(shiftDay(dayKey, -1))} aria-label="전날" data-testid="pw-prev">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDay(shiftDay(dayKey, -1))} disabled={recording} aria-label="전날" data-testid="pw-prev">
             ‹ 전날
           </button>
           <input
@@ -241,16 +287,17 @@ export default function Paperwork({ notify, checklistItems = [] }) {
             value={dayKey}
             max={today}
             onChange={(e) => changeDay(e.target.value)}
+            disabled={recording}
             aria-label="서류를 만들 날짜"
             data-testid="pw-date"
           />
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDay(shiftDay(dayKey, 1))} disabled={dayKey >= today} aria-label="다음 날" data-testid="pw-next">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDay(shiftDay(dayKey, 1))} disabled={dayKey >= today || recording} aria-label="다음 날" data-testid="pw-next">
             다음 날 ›
           </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDay(today)} disabled={dayKey === today} data-testid="pw-today">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDay(today)} disabled={dayKey === today || recording} data-testid="pw-today">
             오늘
           </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTick((n) => n + 1)} disabled={status === "loading"} data-testid="pw-reload">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTick((n) => n + 1)} disabled={status === "loading" || recording} data-testid="pw-reload">
             다시 불러오기
           </button>
         </div>
@@ -328,25 +375,54 @@ export default function Paperwork({ notify, checklistItems = [] }) {
             <div className="pw-doc-head">
               <div>
                 <div className="section-title">작업 전 안전점검회의(TBM) 일지 (.docx)</div>
-                <div className="pw-doc-desc">위험요인은 기록에 위험 낱말(추락·개구부·감전·미설치 등)이 들어 있을 때만 옮겨 적어요.</div>
+                <div className="pw-doc-desc">
+                  회의를 녹음하면(약 5분) 받아 적어 현장명·진행자·참석 인원·작업·위험요인과 대책·점검 항목·전달 사항 칸에 나눠 넣어요. 녹음하지 않으면 이 날 음성 기록의 위험 낱말(추락·개구부·감전·미설치 등)만 옮겨 적어요.
+                </div>
               </div>
               <div className="pw-doc-actions">
-                <button type="button" className="btn btn-ghost" onClick={(e) => previewTbm(e.currentTarget)} disabled={status !== "ready" || !!busy} data-testid="pw-tbm-pv">
+                <button type="button" className="btn btn-ghost" onClick={(e) => previewTbm(e.currentTarget)} disabled={status !== "ready" || !!busy || recording} data-testid="pw-tbm-pv">
                   <EyeIcon width="15" height="15" />
                   {busy === "pv:tbm" ? "여는 중…" : "미리보기"}
                 </button>
-                <button type="button" className="btn btn-primary" onClick={downloadTbm} disabled={status !== "ready" || !!busy} data-testid="pw-tbm-dl">
+                <button type="button" className="btn btn-primary" onClick={downloadTbm} disabled={status !== "ready" || !!busy || recording} data-testid="pw-tbm-dl">
                   <Icon.Download width="15" height="15" />
                   {busy === "tbm" ? "만드는 중…" : "TBM 일지 받기"}
                 </button>
               </div>
             </div>
+            <TbmMeeting
+              key={dayKey}
+              draft={draft}
+              onDraft={updateDraft}
+              onReset={resetDraft}
+              onRecordingChange={setRecording}
+              fallbackPlace={tbmDigestOnly.place}
+              fallbackWork={tbmDigestOnly.work}
+            />
             <Tags filled={tbm.filled} blank={tbm.blank} />
-            <table className="pw-table" data-testid="pw-tbm-table">
+            <table className="pw-table pw-table-tbm" data-testid="pw-tbm-table">
               <tbody>
                 <tr>
                   <th>일시</th>
-                  <td>{tbm.dateLabel} (시간은 공란)</td>
+                  <td>{tbm.from || tbm.to ? `${tbm.dateLabel} (${tbm.from || "  :  "} ~ ${tbm.to || "  :  "})` : `${tbm.dateLabel} (시간은 공란)`}</td>
+                </tr>
+                <tr>
+                  <th>현장명</th>
+                  <td>
+                    <Blank>{tbm.site}</Blank>
+                  </td>
+                </tr>
+                <tr>
+                  <th>진행자</th>
+                  <td>
+                    <Blank>{tbm.leader}</Blank>
+                  </td>
+                </tr>
+                <tr>
+                  <th>참석 인원</th>
+                  <td>
+                    <Blank>{tbm.headcount ? `${tbm.headcount}명` : ""}</Blank>
+                  </td>
                 </tr>
                 <tr>
                   <th>작업 장소</th>
@@ -361,11 +437,46 @@ export default function Paperwork({ notify, checklistItems = [] }) {
                   </td>
                 </tr>
                 <tr>
-                  <th>위험요인</th>
-                  <td>{tbm.hazards.length ? tbm.hazards.map((h, i) => <div key={i}>{h}</div>) : <span className="pw-blank">(공란)</span>}</td>
+                  <th>위험요인·대책</th>
+                  <td data-testid="pw-tbm-risks">
+                    {tbm.risks.length ? (
+                      tbm.risks.map((r, i) => (
+                        <div key={i} className="pw-tbm-risk">
+                          <span className="pw-tbm-no">{i + 1}</span>
+                          <span>
+                            {r.hazard || <span className="pw-blank">(위험요인 공란)</span>}
+                            {r.measure ? <span className="pw-tbm-measure"> → {r.measure}</span> : null}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="pw-blank">(공란)</span>
+                    )}
+                  </td>
+                </tr>
+                <tr>
+                  <th>점검 항목</th>
+                  <td>
+                    <Blank>{CHECK_KEYS.filter((k) => tbm.checks[k]).map((k) => CHECK_SHORT[k]).join(" · ")}</Blank>
+                  </td>
+                </tr>
+                <tr>
+                  <th>교육·전달 사항</th>
+                  <td>{tbm.notes.length ? tbm.notes.map((n, i) => <div key={i}>{n}</div>) : <span className="pw-blank">(공란)</span>}</td>
                 </tr>
               </tbody>
             </table>
+            {tbm.meeting && tbm.digestHazardCount > 0 && (
+              <label className="pw-check" data-testid="pw-tbm-digest">
+                <input type="checkbox" checked={!!draft.useDigest} onChange={(e) => updateDraft({ useDigest: e.target.checked })} data-testid="pw-tbm-digest-check" />
+                <span>회의에서 채우고 남은 위험요인 줄에는 이 날 음성 기록의 위험요인도 넣기 ({tbm.digestHazardCount}건)</span>
+              </label>
+            )}
+            {tbm.meeting && draft.useDigest && tbm.digestHazardsLeft > 0 && (
+              <div className="pw-note" data-testid="pw-tbm-digest-left">
+                이 날 음성 기록의 위험요인 {tbm.digestHazardsLeft}건은 회의 내용으로 위험요인 줄이 이미 차서 넣지 못했어요.
+              </div>
+            )}
             {warn.tbm && <div className="pw-warn">{warn.tbm}</div>}
           </div>
 

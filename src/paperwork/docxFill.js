@@ -245,6 +245,36 @@ function shrinkSpacerBeforeNotes(doc) {
   return true;
 }
 
+// 문단이 다음 문단과 같은 쪽에 있게 한다(<w:keepNext/>). 문단 모양(pPr)의 차례를 지켜 넣는다.
+function setKeepNext(doc, p) {
+  let pPr = kid(p, "pPr");
+  if (!pPr) {
+    pPr = make(doc, "pPr");
+    p.insertBefore(pPr, p.firstChild);
+  }
+  if (kid(pPr, "keepNext")) return;
+  const k = make(doc, "keepNext");
+  const style = kid(pPr, "pStyle");
+  pPr.insertBefore(k, style ? style.nextSibling : pPr.firstChild);
+}
+
+// 서명하는 "참석자 확인" 표가 쪽 사이에서 갈라지지 않게(위쪽 표가 늘어나거나 글자 크기가 달라져 쪽 끝이 바뀔 수 있다) 제목과 표를 한 쪽에 모아 둔다(제목·표의 마지막 줄을 뺀 모든 줄에 '다음 문단과 함께').
+// "작성할 때 자주 걸리는 것" 제목도 아래 안내 글과 떨어지지 않게 한다(제목만 쪽 끝에 남지 않게).
+// 반환: 적용했으면 true(참석자 제목이나 표를 못 찾으면 아무것도 바꾸지 않는다)
+function keepAttendeeTogether(doc) {
+  const body = kid(doc.documentElement, "body");
+  const nodes = Array.from(body.childNodes).filter((n) => n.nodeType === 1);
+  const at = nodes.findIndex((n) => n.localName === "p" && squash(cellText(n)).startsWith("4.참석자"));
+  const table = at >= 0 ? nodes.slice(at + 1).find((n) => n.localName === "tbl") : null;
+  if (!table) return false;
+  setKeepNext(doc, nodes[at]);
+  const trs = kids(table, "tr");
+  trs.slice(0, -1).forEach((tr) => Array.from(tr.getElementsByTagNameNS(NS_W, "p")).forEach((p) => setKeepNext(doc, p)));
+  const notes = nodes.find((n) => n.localName === "p" && squash(cellText(n)).startsWith("작성할때"));
+  if (notes) setKeepNext(doc, notes);
+  return true;
+}
+
 // ---------------------------------------------------------------- 작업일보
 
 // model: { date: "2026. 11. 3. (화)", rows: [{ trade, place, content: ["줄", ...] }] }
@@ -295,9 +325,63 @@ export function fillWorkLog(templateBytes, model) {
 
 // ---------------------------------------------------------------- TBM 일지
 
-// model: { date: { y, m, d }, place: "101동 3층", work: "도배, 바닥마감", hazards: ["101동 3층 · 개구부 난간 미설치", ...] }
-// 일시 칸은 양식의 "20  .   .   .  (   :   ~   :   )" 중 날짜 자리만 채우고 시간 자리는 그대로 둔다.
-// 반환: { bytes, report: { hazards } }
+// 점검 항목 다섯 줄을 찾는 낱말(양식의 "□ 보호구 착용 상태 …", "□ 작업자 건강 상태 …" …). 글이 조금 바뀌어도 낱말만 있으면 찾는다.
+const TBM_CHECK_WORDS = { protect: "보호구", health: "건강", newcomer: "신규", equipment: "장비", weather: "기상" };
+const CHECK_NAMES = { protect: "보호구 착용 상태", health: "작업자 건강 상태", newcomer: "신규·외국인 근로자", equipment: "장비 작업 반경·신호수", weather: "기상" };
+const TICK = "☑";
+export const TBM_MAX_RISK_ROWS = 8; // 위험요인 표는 양식의 5줄에서 이 줄 수까지 늘린다
+export const TBM_MAX_NOTE_ROWS = 6; // 교육·전달 사항 표는 양식의 2줄에서 이 줄 수까지 늘린다
+
+// 표 줄 하나를 복사해 표의 마지막 줄 뒤에 붙인다(문단 번호는 지운다)
+function appendRowCopy(table, sample) {
+  const copy = sample.cloneNode(true);
+  stripParaIds(copy);
+  const rows = kids(table, "tr");
+  const last = rows[rows.length - 1];
+  table.insertBefore(copy, last.nextSibling);
+  return copy;
+}
+
+// 나란히 있는 칸들을 같은 크기로 쓴다(둘 중 더 작게 줄여야 하는 쪽에 맞춘다). 양식의 한 줄보다 늘어나는 줄 수(어림)를 돌려준다.
+function fillSame(items) {
+  const list = items.filter((x) => x.cell && x.lines.length > 0);
+  if (!list.length) return 0;
+  const size = Math.min(...list.map((x) => pickSize(x.cell, x.lines, TBM_SIZES).size));
+  list.forEach((x) => setCellLines(x.cell, x.lines, size));
+  return Math.max(...list.map((x) => Math.max(0, rowsNeeded(x.lines, innerWidthPt(x.cell), size) - 1)));
+}
+
+// "□ 보호구 착용 상태(…)" 줄의 네모를 체크한 네모로 바꾼다. 줄을 못 찾으면 엉뚱한 곳에 쓰지 않고 오류를 낸다. 반환: 표시한 줄 수
+function tickChecks(doc, checks) {
+  const body = kid(doc.documentElement, "body");
+  const paras = kids(body, "p");
+  let ticked = 0;
+  for (const key of Object.keys(TBM_CHECK_WORDS)) {
+    if (!checks || checks[key] !== true) continue;
+    const word = TBM_CHECK_WORDS[key];
+    const p = paras.find((n) => {
+      const t = squash(cellText(n));
+      return t.startsWith("□") && t.includes(word);
+    });
+    const box = p && Array.from(p.getElementsByTagNameNS(NS_W, "t")).find((n) => n.textContent.indexOf("□") >= 0);
+    if (!box) throw new Error(`양식에서 점검 항목 '${CHECK_NAMES[key]}' 줄을 찾지 못했습니다. 양식 파일이 바뀌었는지 확인해 주세요.`);
+    box.textContent = box.textContent.replace("□", TICK);
+    ticked += 1;
+  }
+  return ticked;
+}
+
+// model: {
+//   date: { y, m, d },                       날짜(필수)
+//   site, leader, headcount("12"), from, to("HH:MM"),  현장명 · 진행자 · 참석 인원 · 시작/끝 시각(없으면 양식의 빈 칸 그대로)
+//   place, work,                             작업 장소 · 작업 내용
+//   risks: [{ hazard, measure }],            위험요인과 대책(양식은 5줄, 더 있으면 줄을 늘린다)  — 예전 모양의 hazards: ["…"]도 읽는다
+//   checks: { protect, health, newcomer, equipment, weather },   점검 항목 중 표시할 것
+//   notes: ["…"]                             교육·전달 사항(한 줄씩)
+// }
+// 값이 없는 칸은 손대지 않아 양식의 빈 칸 그대로 남는다. 참석자 확인(소속·성명·서명)과 위험요인 표의 '확인' 칸은 사람이 직접 하는 곳이라 항상 비워 둔다.
+// 일시 칸은 양식의 "20  .   .   .  (   :   ~   :   )" 중 날짜 자리(와 시각을 알면 시각 자리)만 채운다.
+// 반환: { bytes, report: { hazards, measures, ticked, notes, addedRiskRows, addedNoteRows, grownLines, spacerRemoved, attendeeKept } }
 export function fillTbmLog(templateBytes, model) {
   const pack = openDocx(templateBytes);
   const tables = bodyTables(pack.doc);
@@ -309,36 +393,85 @@ export function fillTbmLog(templateBytes, model) {
   if (!head) throw missingTable("일시가 있는 머리글");
   if (!risks) throw missingTable("위험요인과 대책");
 
+  const m = model || {};
+  const report = { hazards: 0, measures: 0, ticked: 0, notes: 0, addedRiskRows: 0, addedNoteRows: 0, grownLines: 0, spacerRemoved: false, attendeeKept: false };
   // 칸이 한 줄보다 늘어나는 줄 수(어림). 같은 줄에 나란히 있는 칸은 더 많이 늘어난 쪽만 센다.
   let growth = 0;
-  if (model.date) {
-    const cell = valueCellOf(head, "일시");
-    const old = cellText(cell);
-    const { y, m, d } = model.date;
-    const dateText = `${y}.  ${m}.  ${d}.`;
-    // "20  .   .   ." 부분만 날짜로 바꾸고 뒤의 "(   :   ~   :   )"는 남긴다
+
+  // ---- 머리글 표: 현장명 | 일시 / 작업 장소 | 작업 내용 / 진행자 | 참석 인원
+  let dateCell = null;
+  let dateLines = [];
+  if (m.date) {
+    dateCell = valueCellOf(head, "일시");
+    const old = cellText(dateCell);
+    const { y, m: mm, d } = m.date;
+    const dateText = `${y}.  ${mm}.  ${d}.`;
+    // "20  .   .   ." 부분만 날짜로 바꾸고 뒤의 "(   :   ~   :   )"는 남긴다(시각을 알면 그 자리에 시각을 쓴다)
     const rest = /^\s*20\s*\.\s*\.\s*\.\s*(.*)$/s.exec(old);
-    setCellLines(cell, [rest ? `${dateText}  ${rest[1]}`.trimEnd() : dateText], TBM_SIZES[0]);
+    const clock = (v) => (v ? v : "   :   ");
+    const time = m.from || m.to ? `(${clock(m.from)} ~ ${clock(m.to)})` : rest ? rest[1] : "";
+    dateLines = [`${dateText}  ${time}`.trimEnd()];
   }
-  // 같은 줄의 두 칸(작업 장소 · 작업 내용)은 같은 크기로 쓴다(둘 중 더 작게 줄여야 하는 쪽에 맞춘다)
-  const headCells = [];
-  if (model.place) headCells.push({ cell: valueCellOf(head, "작업 장소"), lines: linesOf(model.place) });
-  if (model.work) headCells.push({ cell: valueCellOf(head, "작업 내용"), lines: linesOf(model.work) });
-  if (headCells.length) {
-    const picks = headCells.map((h) => pickSize(h.cell, h.lines, TBM_SIZES));
-    const size = Math.min(...picks.map((p) => p.size));
-    headCells.forEach((h) => setCellLines(h.cell, h.lines, size));
-    growth += Math.max(...headCells.map((h) => Math.max(0, rowsNeeded(h.lines, innerWidthPt(h.cell), size) - 1)));
+  // 값이 있는 칸의 이름표만 찾는다(값이 없는 칸의 이름표가 양식에서 바뀌었어도 오류를 내지 않는다)
+  const cellFor = (label, value) => {
+    const lines = value ? linesOf(value) : [];
+    return { cell: lines.length ? valueCellOf(head, label) : null, lines };
+  };
+  growth += fillSame([cellFor("현장명", m.site), { cell: dateCell, lines: dateLines }]);
+  growth += fillSame([cellFor("작업 장소", m.place), cellFor("작업 내용", m.work)]);
+  growth += fillSame([cellFor("진행자", m.leader), cellFor("참석 인원", m.headcount ? `${m.headcount} 명` : "")]);
+
+  // ---- 위험요인 · 대책 표: 위험요인은 둘째 칸, 대책은 셋째 칸. 첫째 칸(번호)과 마지막 칸(확인)은 그대로 둔다.
+  const rows = (Array.isArray(m.risks) ? m.risks : (m.hazards || []).map((h) => ({ hazard: h, measure: "" })))
+    .map((r) => ({ hazard: linesOf(r && r.hazard), measure: linesOf(r && r.measure) }))
+    .filter((r) => r.hazard.length || r.measure.length)
+    .slice(0, TBM_MAX_RISK_ROWS);
+  let trs = kids(risks, "tr").slice(1);
+  if (!trs.length || rowCells(trs[0]).length < 4) throw new Error("양식의 위험요인 표 구조가 예상과 다릅니다.");
+  while (trs.length < rows.length) {
+    const copy = appendRowCopy(risks, trs[trs.length - 1]);
+    const no = Array.from(copy.getElementsByTagNameNS(NS_W, "t"))[0];
+    if (no && /^\d+$/.test(no.textContent.trim())) no.textContent = String(trs.length + 1);
+    trs = kids(risks, "tr").slice(1);
+    report.addedRiskRows += 1;
+    growth += 1;
+  }
+  rows.forEach((row, i) => {
+    const cells = rowCells(trs[i]);
+    const h = fillFitted(cells[1], row.hazard, TBM_SIZES);
+    const c = row.measure.length ? fillFitted(cells[2], row.measure, TBM_SIZES) : 0;
+    if (row.hazard.length) report.hazards += 1;
+    if (row.measure.length) report.measures += 1;
+    growth += row.hazard.length || row.measure.length ? Math.max(row.hazard.length ? h : 0, c) : 0;
+  });
+
+  // ---- 점검 항목: 말한 항목의 네모(□)를 체크한 네모(☑)로
+  report.ticked = tickChecks(pack.doc, m.checks);
+
+  // ---- 교육·전달 사항 표: 한 줄에 하나씩
+  const notes = (Array.isArray(m.notes) ? m.notes : []).map((n) => linesOf(n)).filter((l) => l.length).slice(0, TBM_MAX_NOTE_ROWS);
+  if (notes.length) {
+    const eduTable = tables.find((t) => {
+      const first = firstRowTexts(t);
+      return first.length === 1 && first[0] === "내용";
+    });
+    if (!eduTable) throw missingTable("교육·전달 사항");
+    let erows = kids(eduTable, "tr").slice(1);
+    if (!erows.length) throw new Error("양식의 교육·전달 사항 표 구조가 예상과 다릅니다.");
+    while (erows.length < notes.length) {
+      appendRowCopy(eduTable, erows[erows.length - 1]);
+      erows = kids(eduTable, "tr").slice(1);
+      report.addedNoteRows += 1;
+      growth += 1;
+    }
+    notes.forEach((lines, i) => {
+      growth += fillFitted(rowCells(erows[i])[0], lines, TBM_SIZES);
+    });
+    report.notes = notes.length;
   }
 
-  const trs = kids(risks, "tr").slice(1);
-  const hazards = (model.hazards || []).slice(0, trs.length);
-  hazards.forEach((text, i) => {
-    const cells = rowCells(trs[i]);
-    if (cells.length < 3) throw new Error("양식의 위험요인 표 구조가 예상과 다릅니다.");
-    const lines = linesOf(text);
-    if (lines.length) growth += fillFitted(cells[1], lines, TBM_SIZES);
-  });
-  const spaced = growth > 0 ? shrinkSpacerBeforeNotes(pack.doc) : false;
-  return { bytes: saveDocx(pack), report: { hazards: hazards.length, grownLines: growth, spacerRemoved: spaced } };
+  report.grownLines = growth;
+  report.spacerRemoved = growth > 0 ? shrinkSpacerBeforeNotes(pack.doc) : false;
+  report.attendeeKept = keepAttendeeTogether(pack.doc);
+  return { bytes: saveDocx(pack), report };
 }

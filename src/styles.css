@@ -4304,6 +4304,599 @@ textarea.input {
   }
 }
 
+/* ---- TBM 일지: 회의 녹음으로 칸 채우기(5. 서류 작성) ---- */
+.pw-table-tbm tbody th {
+  width: 96px;
+}
+
+.pw-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.pw-check input {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.pw-tbm-risk {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.pw-tbm-risk + .pw-tbm-risk {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line);
+}
+
+.pw-tbm-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--ink-soft);
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.pw-tbm-measure {
+  color: var(--ink-soft);
+}
+
+.tbm-meet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--surface-alt);
+  /* 예문·안내는 한국어라 낱말 가운데서 줄이 끊기지 않게 한다 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 16px 미만이면 아이폰에서 입력할 때 화면이 확대된다 */
+.tbm-meet .input {
+  font-size: 16px;
+}
+
+.tbm-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.tbm-sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+.tbm-guide {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--blueprint);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+
+.tbm-guide-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tbm-guide-title {
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.tbm-guide-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tbm-guide-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.tbm-guide-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.tbm-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 999px;
+  background: var(--blueprint);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.tbm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tbm-chip {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: var(--blueprint-deep);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.tbm-eg {
+  margin: 3px 0 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+
+.tbm-tip {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-faint);
+}
+
+.tbm-rec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tbm-rec-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.tbm-rec-btn {
+  gap: 9px;
+  min-height: 48px;
+  padding: 12px 22px;
+  font-size: 15px;
+}
+
+.tbm-stop-sq {
+  width: 13px;
+  height: 13px;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.tbm-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--fail);
+  font-variant-numeric: tabular-nums;
+}
+
+.tbm-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--fail);
+  animation: tbmBlink 1.1s ease-in-out infinite;
+}
+
+@keyframes tbmBlink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tbm-dot {
+    animation: none;
+  }
+}
+
+.tbm-hint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+.tbm-live {
+  max-height: 190px;
+  min-height: 96px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.tbm-interim,
+.tbm-live-wait {
+  color: var(--ink-faint);
+}
+
+.tbm-meter {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+
+.tbm-status {
+  min-height: 18px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.tbm-status:empty {
+  display: none;
+}
+
+.tbm-alert {
+  padding: 8px 12px;
+  border-radius: var(--radius-s);
+  background: var(--pending-bg);
+  color: var(--pending);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.tbm-text-block,
+.tbm-notes,
+.tbm-risks,
+.tbm-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tbm-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tbm-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.tbm-count {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.tbm-text {
+  min-height: 130px;
+  line-height: 1.6;
+}
+
+.tbm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tbm-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 9px 12px;
+  border: 1px solid #fcd34d;
+  border-radius: var(--radius-s);
+  background: var(--pending-bg);
+  color: #78350f;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.tbm-confirm-btns {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.tbm-local {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+.tbm-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+
+.tbm-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tbm-edit-title {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.tbm-edit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tbm-missing {
+  padding: 10px 12px;
+  border: 1px solid #fcd34d;
+  border-left: 5px solid var(--pending);
+  border-radius: var(--radius-s);
+  background: var(--pending-bg);
+  color: #78350f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.tbm-missing-title {
+  font-weight: 800;
+}
+
+.tbm-missing-lead {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+}
+
+.tbm-missing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tbm-missing-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+
+.tbm-missing-note {
+  font-size: 12px;
+  color: var(--pending);
+}
+
+.tbm-missing-eg {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.tbm-okbox {
+  padding: 8px 12px;
+  border-radius: var(--radius-s);
+  background: var(--pass-bg);
+  color: var(--pass);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.tbm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.tbm-f {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tbm-f-wide {
+  grid-column: 1 / -1;
+}
+
+.tbm-f > label,
+.tbm-risk-cells label > span {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.tbm-f-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tbm-f-box .input {
+  min-width: 0;
+}
+
+.tbm-f-suffix {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.tbm-time {
+  gap: 6px;
+}
+
+.tbm-time .input {
+  flex: 1;
+}
+
+.tbm-risk {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface-alt);
+}
+
+.tbm-risk-cells {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.tbm-risk-cells label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tbm-risk-cells textarea {
+  min-height: 62px;
+  resize: vertical;
+}
+
+.tbm-risk-del {
+  flex-shrink: 0;
+}
+
+.tbm-risks > .btn {
+  align-self: flex-start;
+}
+
+.tbm-empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.tbm-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  font-size: 13px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.tbm-check input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+}
+
+.tbm-check.is-on {
+  border-color: var(--pass);
+  background: var(--pass-bg);
+}
+
+.tbm-tipline,
+.tbm-warnline {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.tbm-tipline {
+  color: var(--ink-faint);
+}
+
+.tbm-warnline {
+  color: var(--pending);
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .tbm-meet {
+    padding: 12px;
+  }
+  .tbm-rec-btn {
+    flex: 1 1 100%;
+  }
+  .tbm-grid,
+  .tbm-risk-cells {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tbm-risk {
+    flex-wrap: wrap;
+  }
+  .tbm-risk-cells {
+    flex-basis: calc(100% - 36px);
+  }
+  .tbm-risk-del {
+    margin-left: auto;
+  }
+}
+
 /* ---- 서류 미리보기: 내려받을 서류를 종이 모양으로 화면에 그려 보여 주는 전체 화면 창(5. 서류 작성) ---- */
 .pwv-overlay {
   position: fixed;
