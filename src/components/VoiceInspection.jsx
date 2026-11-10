@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon, EmptyState } from "./UI.jsx";
 import { useLanguage } from "../LanguageContext.jsx";
 import { formatDateTime, getCategory, itemsForCategory } from "../data.js";
@@ -27,6 +27,9 @@ import { checkWorkLogInfo, workLogExample } from "../workLogInfo.js";
 import { WorkLogGuide, WorkLogMissing } from "./WorkLogGuide.jsx";
 import { canRecordAudio, canShareMicWithRecognition, startVoiceCapture, primeVoiceAudio, audioNoteKey } from "../voiceAudio.js";
 import { SpeakerLine, VoiceAudioPlayer, VoiceRecordMeta } from "./VoiceAudio.jsx";
+import TbmMeeting from "./TbmMeeting.jsx";
+import { hasUnsavedTbmDraft } from "../paperwork/tbmDraft.js";
+import { dayKeyOf } from "../paperwork/dayTools.js";
 
 // "음성 검측" (시안 index.html의 기능). 두 곳에서 쓴다.
 //  1) 하도급사 전용 "음성 검측" 탭: 공종(관리자 '표준 공종' 탭의 분류 + 그 아래 세부 공종)을 고르고 위치(동·층·부재)를 정한 뒤 마이크로 말한다.
@@ -34,6 +37,8 @@ import { SpeakerLine, VoiceAudioPlayer, VoiceRecordMeta } from "./VoiceAudio.jsx
 //  3) 공종별 QR 스캔 화면(tradeQr 속성을 줄 때): 공종은 QR이 정해 주고, 위치는 고르지 않는다. "101동 502호 도배 완료"처럼 동·호실과 작업을 함께 말하면 말한 글에서 동·층·호실을 읽어
 //     그 호실의 보고로 저장한다(spokenUnit.js resolveSpokenAddress). 동·층·호실을 분명하게 말하지 않았으면 저장하지 않고 이유와 말하는 방법을 알려 준다.
 //     '완료'라고 말한 항목은 보고와 함께 그 호실의 '음성 완료'에도 기록해, 골구도에 완료로 보인다(api.js unitVoiceDone).
+//  4) 공종별 QR 화면에는 마이크 위에 '작업 보고 | TBM 회의' 전환이 있다(tbm 속성). 'TBM 회의'를 고르면 같은 큰 마이크 버튼 모양으로 약 5분 길이의 회의를 녹음해 TBM 일지의 칸으로 나누고,
+//     사람이 확인·고친 뒤 서버에 저장한다(TbmMeeting.jsx). 저장한 회의는 사무실 서류 탭에서 그 날의 TBM 일지를 채운다. 녹음하거나 저장하는 동안은 전환이 잠긴다.
 // 말하면 → 음성 인식 → 인식된 글자를 바로 화면에 보여 주고 → 현장 은어를 표준 용어로 바꿔(관리자 "용어 DB" 탭의 표대로) → 공종별 요약 문장을 만들어 → 저장한다.
 // 관리자가 '용어 DB에 있는 단어만 남기기'를 켜 두었으면(기본) 바꾼 문장에는 표에 있는 단어만 남고 나머지 말은 빠진다("나라시 시마이 했어요" → "고르기 마무리").
 // 음성이 잘못 들려 표에 없는 말이 되었을 때("나라씨 씨마이")는 '비슷한 용어 찾기'(기본 켜짐)가 소리(자모)를 견주는 레벤슈타인 거리로 표의 가장 비슷한 단어를 골라 그 단어로 남긴다(fuzzyTerms.js).
@@ -231,7 +236,8 @@ function ProgressNote({ progress, unitLabel, place, t, golgu = false }) {
 //        tradeQr: 공종별 QR(?trade=)로 들어왔을 때의 공종(frame·finish·mep). 주면 공종이 이 공종으로 고정되고, 위치(동·층·호실)는 말한 글에서 읽는다. 이름은 직접 적는다(선택).
 //                 이때 buildings는 현장의 모든 동이다(말한 동을 찾는 데 쓴다).
 //        compact: 좁은 한 줄 칸(모바일 모드)에 맞춰 호실 QR 화면과 같은 한 줄 배치로 보여 준다.
-export default function VoiceInspection({ buildings, allBuildings = null, userName, notify, unit = null, checklistItems = [], initialTrade = "", tradeQr = "", compact = false }) {
+//        tbm: 공종별 QR 화면에서 true를 주면 마이크 위에 '작업 보고 | TBM 회의' 전환을 보여 준다(TBM 회의 녹음은 이 화면에서만 쓴다).
+export default function VoiceInspection({ buildings, allBuildings = null, userName, notify, unit = null, checklistItems = [], initialTrade = "", tradeQr = "", compact = false, tbm = false }) {
   const { t } = useLanguage();
   const unitMode = !!unit;
   const placeMode = !unitMode && VOICE_TRADES.some((x) => x.id === tradeQr); // 공종별 QR 화면: 위치는 말한 글에서 읽는다
@@ -268,6 +274,15 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   const [reports, setReports] = useState([]);
   const [feedState, setFeedState] = useState("loading"); // loading | ready | error
   const [visible, setVisible] = useState(compactFeed ? UNIT_PAGE_SIZE : PAGE_SIZE);
+
+  // 기록 종류: 'report'(작업 보고, 기본) | 'tbm'(TBM 회의 녹음). TBM 회의는 공종별 QR 화면(placeMode)에서 tbm 속성을 줄 때만 쓴다.
+  const tbmOn = placeMode && !!tbm;
+  const [mode, setMode] = useState("report");
+  const [tbmBusy, setTbmBusy] = useState(false); // TBM 회의를 녹음하거나 서버에 저장하는 중이면 기록 종류를 바꾸지 못하게 한다
+  const inTbm = tbmOn && mode === "tbm";
+  // 이 기기에 서버에 저장하지 않은 TBM 회의가 남아 있는지('작업 보고' 화면에서 알린다). 화면 종류가 바뀔 때(TBM 화면에서 돌아올 때)마다 그 자리에서 다시 확인한다 -
+  // 상태+효과로 두면 돌아온 첫 화면에 지난 값이 잠깐 비쳐서, 저장을 마쳤는데도 안내 띠가 한 번 깜박인다.
+  const tbmPending = useMemo(() => tbmOn && mode === "report" && hasUnsavedTbmDraft(dayKeyOf()), [tbmOn, mode]);
 
   // 선택한 값들로 위치를 계산한다. 저장해 둔 동이 없어졌거나 층이 그 동에 없으면 안전한 값으로 대체한다.
   // 호실 QR 화면에서는 QR이 정한 동·층·호를 그대로 쓴다(층 값이 이상하면 위치를 만들지 않아 녹음이 잠긴다).
@@ -901,16 +916,39 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     </div>
   );
 
+  // '작업 보고 | TBM 회의' 전환 (공종별 QR 화면). 녹음·저장 중에는 잠근다.
+  const modeLocked = busy || tbmBusy;
+  const modeSwitch = tbmOn ? (
+    <>
+      <div className="vl-modes" style={themeStyle} role="group" aria-label={t("voice.mode.label")} data-testid="vl-modes">
+        <button type="button" className={`vl-mode${!inTbm ? " is-active" : ""}`} aria-pressed={!inTbm} disabled={modeLocked} onClick={() => setMode("report")} data-testid="vl-mode-report">
+          {t("voice.mode.report")}
+        </button>
+        <button type="button" className={`vl-mode${inTbm ? " is-active" : ""}`} aria-pressed={inTbm} disabled={modeLocked} onClick={() => setMode("tbm")} data-testid="vl-mode-tbm">
+          {t("voice.mode.tbm")}
+        </button>
+      </div>
+      {tbmBusy && inTbm && (
+        <p className="vl-unit-desc" role="status" data-testid="vl-mode-busy">
+          {t("voice.mode.busy")}
+        </p>
+      )}
+    </>
+  ) : null;
+
   return (
     <div className={`vl-page${unitMode || placeMode ? " vl-page--unit" : ""}${compact ? " vl-page--compact" : ""}`} data-testid="vl-page">
       <section className="card card-pad">
         {placeMode && (
           <div className="vl-unit-head">
             <div className="section-title">{t("nav.voice")}</div>
-            <p className="vl-unit-desc">{t("voice.place.desc")}</p>
-            <p className="vl-unit-desc vl-unit-hint" data-testid="vl-place-hint">
-              {t("voice.place.hint", { example })}
-            </p>
+            {modeSwitch}
+            {!inTbm && <p className="vl-unit-desc">{t("voice.place.desc")}</p>}
+            {!inTbm && (
+              <p className="vl-unit-desc vl-unit-hint" data-testid="vl-place-hint">
+                {t("voice.place.hint", { example })}
+              </p>
+            )}
           </div>
         )}
         {unitMode && (
@@ -973,6 +1011,18 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
         )}
       </section>
 
+      {tbmOn && !inTbm && tbmPending && (
+        <div className="vl-note vl-tbm-pending" role="status" data-testid="vl-tbm-pending">
+          <span>{t("voice.tbm.pending")}</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setMode("tbm")} disabled={modeLocked} data-testid="vl-tbm-pending-go">
+            {t("voice.tbm.pendingGo")}
+          </button>
+        </div>
+      )}
+
+      {inTbm && <TbmMeeting trade={trade} themeStyle={themeStyle} tradeId={tradeId} author={authorName.trim()} nameSlot={nameField} onBusyChange={setTbmBusy} notify={notify} />}
+
+      {!inTbm && (
       <div className="vl-grid">
         <section className="card vl-recorder" style={themeStyle} data-testid="vl-recorder" data-trade={trade.id}>
           <header className="vl-rec-head">
@@ -1340,6 +1390,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
           )}
         </section>
       </div>
+      )}
     </div>
   );
 }

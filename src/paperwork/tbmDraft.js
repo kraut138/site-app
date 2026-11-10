@@ -1,5 +1,7 @@
-// TBM 회의 녹음 초안(받아 적은 글 + 칸에 넣을 값)을 날짜별로 이 기기의 브라우저에만 남긴다. 서버로 보내지 않는다.
-// 회의를 녹음하다 화면을 닫거나 다른 탭에 다녀와도 받아 적은 글과 고친 칸이 그대로 있게 하려는 것이다.
+// TBM 회의 녹음 초안(받아 적은 글 + 칸에 넣을 값)을 날짜별로 이 기기의 브라우저에 임시로 남긴다.
+// 회의를 녹음하다 화면을 닫거나 다른 화면에 다녀와도 받아 적은 글과 고친 칸이 그대로 있게 하려는 것이다.
+// 서버(현장 서버)에는 사람이 '서버에 저장'을 눌렀을 때만 올라간다(tbmMeetingDoc.js · api.js saveTbmMeeting). 초안에는 그 저장의 흔적을 함께 적어 둔다:
+//   meetingId(서버 문서 번호 - 다시 저장해도 같은 문서에 쓰려고), createdMs(처음 저장하려 한 때), savedAt(마지막으로 서버에 저장한 때), savedSig(그때 저장한 내용의 짧은 값 - 지금 내용과 다르면 '저장 안 한 변경'이다)
 // 저장소를 못 쓰는 브라우저(개인정보 보호 모드 등)에서는 저장 없이 화면을 보는 동안만 기억한다. 어떤 값이 와도 던지지 않는다.
 import { cleanTbmFields, emptyTbmFields, CHECK_KEYS, TBM_RISK_MAX, TBM_TEXT_MAX, TBM_LIMITS } from "./tbmSummary.js";
 import { isDayKey } from "./dayTools.js";
@@ -28,10 +30,16 @@ export function fieldsForEdit(f) {
 export const emptyEditFields = () => fieldsForEdit(emptyTbmFields());
 
 export function emptyDraft() {
-  return { v: 1, text: "", fields: emptyEditFields(), summarized: false, edited: false, sumHash: "", useDigest: false, at: 0 };
+  return { v: 1, text: "", fields: emptyEditFields(), summarized: false, edited: false, sumHash: "", meetingId: "", createdMs: 0, savedAt: 0, savedSig: "", at: 0 };
 }
 
 const str = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
+const posNum = (v) => (Number.isFinite(v) && v > 0 ? v : 0);
+
+// 서버 문서 번호(Firestore가 만든 20자 안팎의 글자·숫자). 경로 글자(/)나 공백이 있으면 안 된다.
+export function isMeetingId(id) {
+  return typeof id === "string" && /^[A-Za-z0-9_-]{8,40}$/.test(id);
+}
 
 // 저장해 둔 값(또는 아무 값)을 화면이 쓸 수 있는 모양으로 바로잡는다. 모르는 칸은 버리고, 없는 칸은 빈 값으로 채운다.
 export function normalizeFields(raw) {
@@ -62,7 +70,10 @@ export function normalizeDraft(raw) {
     summarized: raw.summarized === true,
     edited: raw.edited === true,
     sumHash: str(raw.sumHash, 16),
-    useDigest: raw.useDigest === true, // 회의를 녹음했을 때 남는 위험요인 줄을 그 날 음성 기록으로 채울지(기본: 채우지 않는다)
+    meetingId: isMeetingId(raw.meetingId) ? raw.meetingId : "",
+    createdMs: posNum(raw.createdMs),
+    savedAt: posNum(raw.savedAt),
+    savedSig: str(raw.savedSig, 24),
     at: Number.isFinite(raw.at) ? raw.at : 0,
   };
 }
@@ -80,6 +91,18 @@ export function isEmptyDraft(d) {
   const x = normalizeDraft(d);
   const f = x.fields;
   return !x.text.trim() && !x.summarized && !(f.site || f.leader || f.headcount || f.place || f.work || f.notes.trim()) && !f.risks.some((r) => r.hazard || r.measure) && !CHECK_KEYS.some((k) => f.checks[k]);
+}
+
+// 서버에 저장하는 내용(받아 적은 글 + 칸 값)의 짧은 값. 저장할 때 이 값을 savedSig에 적어 두고, 지금 값과 다르면 저장하지 않은 변경이 있는 것이다.
+export function draftSig(d) {
+  const x = normalizeDraft(d);
+  return hashText(JSON.stringify([x.text, x.fields]));
+}
+
+// 내용이 있는데 서버에 아직 저장하지 않았거나, 저장한 뒤에 고친 초안인가
+export function isUnsavedDraft(d) {
+  const x = normalizeDraft(d);
+  return !isEmptyDraft(x) && x.savedSig !== draftSig(x);
 }
 
 const draftKey = (dayKey) => `${DRAFT_PREFIX}${dayKey}`;
@@ -102,6 +125,11 @@ export function loadTbmDraft(dayKey, storage) {
   } catch {
     return emptyDraft();
   }
+}
+
+// 그 날 이 기기에 서버에 저장하지 않은 회의 초안이 있는가(화면에서 '저장하지 않은 회의가 있어요'를 알릴 때)
+export function hasUnsavedTbmDraft(dayKey, storage) {
+  return isUnsavedDraft(loadTbmDraft(dayKey, storage));
 }
 
 // 저장했으면 true. 빈 초안이면 저장소에서 지운다.

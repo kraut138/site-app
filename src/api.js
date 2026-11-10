@@ -23,6 +23,9 @@ import { convertVoiceTextSpaced } from "./spacing.js";
 import { cleanImportEntries, planGlossaryImport, applyGlossaryImport } from "./glossaryImport.js";
 import { analysisText, SPEAKER_LIMITS } from "./speakerIntro.js";
 import { SAMPLE_LIMITS, SAMPLE_MESSAGES, cleanSampleName, newSampleId, sanitizeSamples, sanitizeSegments, splitIntoChunks, joinChunks } from "./audioSamples.js";
+import { TBM_MEETING_COLLECTION, MEETING_LIMITS, buildMeetingPayload, readMeetingDoc, isMeetingId } from "./paperwork/tbmMeetingDoc.js";
+import { normalizeFields } from "./paperwork/tbmDraft.js";
+import { isDayKey } from "./paperwork/dayTools.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -763,6 +766,50 @@ export async function setVoiceReportProgressOff(id, off, by) {
     : { progressOff: false, progressOffBy: "", progressOffAt: "" };
   await withTimeout(updateDoc(ref, data), VOICE_SAVE_TIMEOUT_MS, "voice/timeout");
   return data;
+}
+
+// ---------------- TBM 회의 (공종별 QR 화면에서 녹음해 저장 → 서류 탭이 그 날의 회의를 골라 일지를 만든다) ----------------
+// tbmMeetings/{id}: 문서의 모양은 paperwork/tbmMeetingDoc.js가 정한다. 한 날에 여러 건일 수 있다(공종·반마다 따로 회의를 하므로).
+// 휴대폰에서 녹음한 회의를 사무실 PC의 서류 탭에서 쓰려면 서버에 있어야 해서 따로 저장한다. 받아 적은 글과 칸 값만 올라가고 녹음한 소리는 올리지 않는다.
+// 문서 id를 미리 정해 두고 setDoc으로 쓰므로, 연결이 불안해 다시 보내거나 고쳐서 다시 저장해도 같은 문서에 쓸 뿐이라 중복되지 않는다.
+// (firestore.rules가 모든 문서를 열어 두는 지금 규칙에서는 따로 고칠 것이 없다. 규칙을 컬렉션별로 좁혀 두었다면 tbmMeetings도 열어야 한다.)
+const TBM_SAVE_TIMEOUT_MS = 15000;
+const TBM_READ_TIMEOUT_MS = 20000;
+
+export function newTbmMeetingId() {
+  return doc(collection(db, TBM_MEETING_COLLECTION)).id;
+}
+
+// 회의를 저장한다(처음이면 새 문서, 같은 id로 다시 부르면 그 문서를 새 내용으로 바꾼다). 값이 틀리면 서버에 쓰기 전에 던진다.
+export async function saveTbmMeeting(data) {
+  const payload = buildMeetingPayload(data);
+  await withTimeout(setDoc(doc(db, TBM_MEETING_COLLECTION, data.id), payload), TBM_SAVE_TIMEOUT_MS, "tbm/timeout");
+  return readMeetingDoc(data.id, payload);
+}
+
+// 한 날(dayKey "2026-11-11")에 저장된 회의를 오래된 것부터 가져온다. dayKey 하나의 같음 조건뿐이라 색인이 필요 없다.
+export async function fetchTbmMeetings(dayKey) {
+  if (!isDayKey(dayKey)) throw new Error("날짜 형식이 올바르지 않습니다.");
+  const q = query(collection(db, TBM_MEETING_COLLECTION), where("dayKey", "==", dayKey), limit(MEETING_LIMITS.day));
+  const snap = await withTimeout(getDocs(q), TBM_READ_TIMEOUT_MS, "tbm/timeout");
+  return snap.docs
+    .map((d) => readMeetingDoc(d.id, d.data()))
+    .filter(Boolean)
+    .sort((a, b) => a.timestamp - b.timestamp);
+}
+
+// 서류 탭에서 칸 값을 고쳐 저장한다(받아 적은 글은 그대로). 문서가 없으면(지워졌으면) 실패한다.
+export async function updateTbmMeetingFields(id, fields) {
+  if (!isMeetingId(id)) throw new Error("회의 번호가 올바르지 않습니다.");
+  const patch = { fields: normalizeFields(fields), edited: true, updatedAt: nowIso(), updatedFrom: "office" };
+  await withTimeout(updateDoc(doc(db, TBM_MEETING_COLLECTION, id), patch), TBM_SAVE_TIMEOUT_MS, "tbm/timeout");
+  return patch;
+}
+
+export async function deleteTbmMeeting(id) {
+  if (!isMeetingId(id)) throw new Error("회의 번호가 올바르지 않습니다.");
+  await withTimeout(deleteDoc(doc(db, TBM_MEETING_COLLECTION, id)), TBM_SAVE_TIMEOUT_MS, "tbm/timeout");
+  return { ok: true };
 }
 
 // ---------------- 골구도용 '음성 완료' (호실마다 모아 둔 값) ----------------

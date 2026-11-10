@@ -12,7 +12,8 @@ import * as api from "../api.js";
  * 공종별 QR(?trade=frame|finish|mep)을 스캔했을 때 열리는 독립된 모바일 화면(로그인·사이드바 없음).
  * 공종은 QR이 정해 주고, 위치는 고르지 않는다. "101동 502호 도배 완료"처럼 동·호실과 작업을 함께 말하면
  * 말한 글에서 동·층·호실을 읽어 그 호실의 보고로 저장하고, '완료'라고 말한 항목은 골구도와 서류 작성에 쓰인다(VoiceInspection의 tradeQr 모드).
- * 이 화면에는 동 목록과 표준 공종 항목만 읽어 온다(검측·NCR 같은 다른 데이터는 읽지 않는다).
+ * 마이크 위의 '작업 보고 | TBM 회의' 전환으로 같은 화면에서 약 5분 길이의 TBM(작업 전 안전점검회의)을 녹음해 서버에 저장할 수 있다(VoiceInspection의 tbm 속성 · TbmMeeting.jsx).
+ * 이 화면에는 동 목록과 표준 공종 항목만 읽어 온다(검측·NCR 같은 다른 데이터는 읽지 않는다). TBM 회의는 저장할 때만 서버에 쓴다.
  * 스캔하는 사람이 외국인 근로자일 수 있어 화면 위쪽에서 언어를 바로 고를 수 있다(QrLanguage.jsx).
  */
 
@@ -92,7 +93,7 @@ function Body({ tradeId, lang, onChangeLang }) {
             {t("qr.trade.unknown")}
           </div>
         )}
-        {status === "ready" && !unknownTrade && <VoiceInspection buildings={site.buildings} checklistItems={site.checklistItems} tradeQr={tradeId} notify={notify} />}
+        {status === "ready" && !unknownTrade && <VoiceInspection buildings={site.buildings} checklistItems={site.checklistItems} tradeQr={tradeId} tbm notify={notify} />}
       </div>
 
       <Toast message={toast} onDone={() => setToast("")} />

@@ -67,6 +67,7 @@ function tbmTags(m) {
 // digest: 하루 요약(digestReports.js), meeting: 회의 녹음을 요약해 사람이 고친 칸 값(tbmSummary.js의 cleanTbmFields 모양, 없으면 null)
 // opts.useDigest(기본 false): 회의를 녹음했을 때, 회의에서 채우고 남은 위험요인 줄을 그 날 음성 기록의 위험요인으로도 채울지
 //   (회의를 녹음하지 않았으면 예전처럼 음성 기록의 위험요인으로 채운다 - 이 값과 상관없다)
+// opts.tag: 같은 날 회의가 여러 건일 때 파일 이름을 서로 다르게 하려고 덧붙이는 글("마감공사_0703" → TBM일지_20261103_마감공사_0703.docx)
 // 칸마다: 회의에서 읽은(또는 사람이 쓴) 값이 있으면 그 값, 없으면 음성 기록에서 읽은 값, 그것도 없으면 빈 칸(양식 그대로).
 export function tbmModel(digest, dayKey, meeting = null, opts = {}) {
   const date = dayParts(dayKey);
@@ -100,6 +101,7 @@ export function tbmModel(digest, dayKey, meeting = null, opts = {}) {
     notes: mt ? mt.notes : [],
   };
   const tags = mt ? tbmTags(m) : { filled: TBM_FILLED, blank: TBM_BLANK };
+  const fileTag = opts && opts.tag ? safeName(opts.tag) : "";
   return {
     date,
     dateLabel: dotDate(dayKey),
@@ -110,7 +112,7 @@ export function tbmModel(digest, dayKey, meeting = null, opts = {}) {
     digestHazardsLeft: useDigest && free === 0 ? digestHazards.length : 0, // 회의 내용으로 위험요인 줄이 이미 차서 넣지 못한 음성 기록 위험요인 수(넣지 않기로 한 경우는 0)
     filled: tags.filled,
     blank: tags.blank,
-    fileName: `TBM일지_${compactDate(dayKey)}.docx`,
+    fileName: `TBM일지_${compactDate(dayKey)}${fileTag ? `_${fileTag}` : ""}.docx`,
   };
 }
 
