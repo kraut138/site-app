@@ -4,6 +4,7 @@ import { useLanguage } from "../LanguageContext.jsx";
 import { formatDuration } from "../qr.js";
 import { loadVoiceAudio } from "../voiceAudio.js";
 import { speakerOf } from "../speakerIntro.js";
+import { companyOfReport, describeCompanyTrades, getCompanies } from "../companies.js";
 
 // 음성 기록 카드 아래에 붙는 두 가지: ① 말한 사람(말한 글 맨 앞의 "OOO 소속 OOO"에서 읽은 소속·이름) ② 실제로 녹음된 소리 듣기.
 // 음성 검측 화면의 목록·방금 저장한 결과, 관리자 화면(호실 정보·음성요청 내역·대시보드 피드)이 함께 쓴다.
@@ -31,6 +32,28 @@ export function SpeakerLine({ speaker, prefix = "vl" }) {
       {speaker.company && (
         <span className="vl-speaker-co" data-testid={`${prefix}-speaker-company`}>
           · {speaker.company}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// 말한 업체 한 줄: "업체  한빛도배 · 담당 공종 마감공사(도배·바닥마감)". 등록한 업체와 이어진 기록이면 그 업체의 담당 공종도 함께 보여 준다.
+export function CompanyLine({ company, prefix = "vl" }) {
+  const { t } = useLanguage();
+  if (!company || !company.name) return null;
+  const registered = company.id ? getCompanies().find((c) => c.id === company.id) : null;
+  const trades = registered ? describeCompanyTrades(registered, (id) => t(`category.${id}.name`)) : "";
+  return (
+    <div className="vl-speaker vl-company" data-testid={`${prefix}-company`}>
+      <Icon.Building width="14" height="14" />
+      <span className="vl-speaker-label">{t("voice.company.label")}</span>
+      <strong className="vl-speaker-name" data-testid={`${prefix}-company-name`}>
+        {company.name}
+      </strong>
+      {trades && (
+        <span className="vl-speaker-co" data-testid={`${prefix}-company-trades`}>
+          · {t("voice.company.trades")} {trades}
         </span>
       )}
     </div>
@@ -85,15 +108,17 @@ export function VoiceAudioPlayer({ reportId, sec = 0, prefix = "vl" }) {
   );
 }
 
-// 음성 기록 하나의 "말한 사람 + 녹음 듣기" 줄. 둘 다 없으면 아무것도 그리지 않는다.
+// 음성 기록 하나의 "말한 사람 + 업체 + 녹음 듣기" 줄. 모두 없으면 아무것도 그리지 않는다.
 export function VoiceRecordMeta({ report, prefix = "vl" }) {
   if (!report) return null;
   const speaker = speakerOf(report);
+  const company = companyOfReport(report); // 저장할 때 이어 둔 업체, 없는 예전 기록은 말한 글에서 읽은 업체
   const hasAudio = report.hasAudio === true && !!report.id;
-  if (!speaker && !hasAudio) return null;
+  if (!speaker && !company && !hasAudio) return null;
   return (
     <div className="vl-meta" data-testid={`${prefix}-meta`}>
       <SpeakerLine speaker={speaker} prefix={prefix} />
+      <CompanyLine company={company} prefix={prefix} />
       {hasAudio && <VoiceAudioPlayer reportId={report.id} sec={report.audioSec} prefix={prefix} />}
     </div>
   );

@@ -3,6 +3,8 @@ import { CATEGORIES, getCategory, itemsForCategory, unitOptions, findUnitFloorPl
 import { compressImage } from "../api.js";
 import { Icon } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
+import CompanyInline from "./CompanyInline.jsx";
+import { companiesFor, getCompanies } from "../companies.js";
 import { useLanguage } from "../LanguageContext.jsx";
 
 // 마감·설비 공종은 골조공사가 이 호실에서 전부 승인되기 전에는 요청할 수 없다(실제 시공 순서를 반영).
@@ -29,7 +31,7 @@ function unitLockReason(inspections, checklistItems, buildingId, floor, unit, ca
 // 제출되면 공사 확인 요청 내역(감리검측 승인 큐)에 대기 건으로 들어간다.
 // fixedUnit: {buildingId, floor, unit}이 주어지면(QR로 특정 호실에 들어온 경우) 동/호실 선택 UI를 생략하고
 // 그 호실 하나로 고정한다.
-export default function ConfirmationRequestForm({ buildings, checklistItems, inspections, unitFloorPlans, fixedUnit, onClose, onSubmit }) {
+export default function ConfirmationRequestForm({ buildings, checklistItems, inspections, unitFloorPlans, fixedUnit, companies, onClose, onSubmit }) {
   const { t } = useLanguage();
   const LOCK_MESSAGES = { requested: t("req.lockRequested"), "frame-pending": t("req.lockFramePending") };
   const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
@@ -46,6 +48,9 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
   const category = getCategory(categoryId);
   const categoryName = t(`category.${categoryId}.name`);
   const categoryItems = itemsForCategory(checklistItems, categoryId);
+  // 이 공종(고른 세부 공종)의 담당 업체 - 호실 QR 화면처럼 업체 목록을 따로 받지 못한 곳은 불러와 둔 목록을 쓴다
+  const checkedTexts = categoryItems.filter((i) => checkedItemIds.includes(i.id)).map((i) => i.text);
+  const responsible = companiesFor(Array.isArray(companies) ? companies : getCompanies(), categoryId, checkedTexts);
   const selectedBuilding = buildings.find((b) => b.id === buildingId) || null;
   const floorsList = selectedBuilding ? Array.from({ length: selectedBuilding.floors || 1 }, (_, i) => i + 1).reverse() : [];
   const unitsPerFloorList = selectedBuilding ? unitOptions(selectedBuilding.unitsPerFloor) : [];
@@ -277,6 +282,11 @@ export default function ConfirmationRequestForm({ buildings, checklistItems, ins
               <span className="txt">{item.text}</span>
             </label>
           ))}
+          {responsible.length > 0 && (
+            <div className="co-block" data-testid="req-companies">
+              <CompanyInline list={responsible} all testId="req-companies-line" />
+            </div>
+          )}
         </div>
 
         <div className="field">

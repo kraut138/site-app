@@ -1279,6 +1279,62 @@ textarea.input {
   overflow-wrap: anywhere;
 }
 
+/* ---- 하도급 반장 모바일 모드(TradeVoiceScreen): 공종별 QR 화면과 같은 화면이고, QR이 공종을 정해 주던 자리에 공종 칩이 들어간다 ---- */
+.tv-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 100px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
+}
+
+.tv-chip:hover:not(:disabled) {
+  background: var(--vl-tint);
+}
+
+.tv-chip:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.tv-chip.is-active {
+  background: var(--vl-tint);
+  border-color: var(--vl);
+}
+
+.tv-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tv-chip:focus-visible {
+  outline: 2px solid var(--vl);
+  outline-offset: 2px;
+}
+
+.tv-chip-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--vl);
+  flex-shrink: 0;
+}
+
 /* ============ 표준 공종 - 드래그로 순서 바꾸기 ============ */
 .checklist-drag-row {
   display: flex;
@@ -5648,4 +5704,320 @@ textarea.input {
   margin: 8px 0 0;
   font-size: 12px;
   color: var(--ink-soft);
+}
+
+/* ============ 업체 · 담당 공종 (관리자 등록 화면 · 검측/NCR/표준 공종에 보이는 담당 업체) ============ */
+.co-intro,
+.co-form,
+.co-list-card {
+  margin-bottom: 16px;
+}
+
+.co-help {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.co-help-example {
+  margin-bottom: 0;
+  padding: 9px 12px;
+  border-radius: var(--radius-s);
+  background: var(--surface-alt);
+  font-size: 12.5px;
+}
+
+.co-fields {
+  margin-bottom: 4px;
+}
+
+.co-trades-title {
+  margin: 4px 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.co-trades {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.co-trade {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: 9px 12px;
+  background: var(--surface);
+}
+
+.co-trade.is-on {
+  border-color: var(--line-blue-soft);
+  background: #f8fbff;
+}
+
+.co-trade-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.co-trade-head input,
+.co-mode input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--blueprint);
+}
+
+.co-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.co-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.co-trade-body {
+  margin: 8px 0 2px 24px;
+}
+
+.co-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: 13px;
+}
+
+.co-mode label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.co-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.co-item {
+  padding: 5px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  word-break: keep-all;
+  text-align: left;
+}
+
+.co-item.is-on {
+  border-color: var(--blueprint);
+  background: var(--blueprint);
+  color: #fff;
+}
+
+.co-item.is-gone {
+  border-style: dashed;
+}
+
+.co-warn,
+.co-error {
+  margin-top: 12px;
+  padding: 9px 12px;
+  border-radius: var(--radius-s);
+  font-size: 12.5px;
+  line-height: 1.55;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.co-warn {
+  background: var(--pending-bg);
+  color: var(--pending);
+}
+
+.co-error {
+  background: var(--fail-bg);
+  color: var(--fail);
+  font-weight: 600;
+}
+
+.co-form-foot {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.co-empty {
+  padding: 14px 4px;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.co-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 2px;
+  border-top: 1px solid var(--line);
+}
+
+.co-row:first-child {
+  border-top: none;
+}
+
+.co-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.co-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  font-size: 14.5px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.co-alias {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+
+.co-row-trades {
+  margin-top: 2px;
+  font-size: 12.8px;
+  color: var(--ink-soft);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.co-row-trades.is-none {
+  color: var(--ink-faint);
+}
+
+.co-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.co-confirm {
+  font-size: 12px;
+  color: var(--fail);
+  font-weight: 700;
+}
+
+/* 검측 · NCR · 표준 공종 화면에 보이는 담당 업체 한 줄 */
+.co-inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.co-inline-label {
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--surface-alt);
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.co-inline-names {
+  font-weight: 700;
+  color: var(--ink);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.co-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.co-block .co-link {
+  margin-left: auto;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: var(--blueprint);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.co-block .co-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .co-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .co-actions {
+    align-self: flex-end;
+  }
+  .co-trade-body {
+    margin-left: 0;
+  }
+  .co-form .input {
+    font-size: 16px; /* 16px 미만이면 아이폰에서 입력할 때 화면이 확대된다 */
+  }
+}
+
+/* 서류 작성: 등록하지 않은 업체 안내 */
+.pw-co-hint {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-s);
+  background: var(--pending-bg);
+  color: var(--pending);
+  font-size: 12.5px;
+  line-height: 1.55;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.pw-co-name {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--blueprint-deep);
+  overflow-wrap: anywhere;
 }

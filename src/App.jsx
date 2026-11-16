@@ -3,7 +3,7 @@ import PlatformShell from "./platform/PlatformShell.jsx";
 import PortalDashboard from "./platform/PortalDashboard.jsx";
 import QrGenerator from "./platform/QrGenerator.jsx";
 import OperationsHub from "./components/OperationsHub.jsx";
-import VoiceInspection from "./components/VoiceInspection.jsx";
+import TradeVoiceScreen from "./components/TradeVoiceScreen.jsx";
 import QrBoardScreen from "./components/QrBoardScreen.jsx";
 import Glossary from "./components/Glossary.jsx";
 import VoiceRequestsBoard from "./components/VoiceRequestsBoard.jsx";
@@ -74,6 +74,7 @@ export default function App() {
   const [checklistItems, setChecklistItems] = useState([]);
   const [unitFloorPlans, setUnitFloorPlans] = useState([]);
   const [siteSettings, setSiteSettings] = useState({});
+  const [companies, setCompanies] = useState([]); // 관리자가 등록한 업체와 담당 공종(meta/companies)
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [toast, setToast] = useState("");
@@ -140,6 +141,7 @@ export default function App() {
         setChecklistItems(data.checklistItems || []);
         setUnitFloorPlans(data.unitFloorPlans || []);
         setSiteSettings(data.siteSettings || {});
+        setCompanies(data.companies || []);
       })
       .catch((err) => alive && setLoadError(err.message))
       .finally(() => alive && setLoading(false));
@@ -168,6 +170,12 @@ export default function App() {
     const updated = await api.updateSiteSettings(data);
     setSiteSettings(updated);
     return updated;
+  }
+
+  async function handleSaveCompanies(list) {
+    const saved = await api.saveCompanies(list);
+    setCompanies(saved);
+    return saved;
   }
 
   async function handleCreateUnitFloorPlan(data) {
@@ -368,6 +376,8 @@ export default function App() {
               ncrs={ncrs}
               checklistItems={checklistItems}
               unitFloorPlans={unitFloorPlans}
+              companies={companies}
+              onSaveCompanies={handleSaveCompanies}
               onCreateConfirmationRequest={handleCreateInspection}
               onUpdateInspectionStatus={handleUpdateInspectionStatus}
               onBatchUpdateInspectionStatus={handleBatchUpdateInspectionStatus}
@@ -379,13 +389,13 @@ export default function App() {
               notify={notify}
             />
           )}
+          {/* 하도급 반장 모바일 모드의 음성 보고: 공종별 QR을 스캔했을 때와 같은 화면(작업 보고 · TBM 회의). QR 대신 공종을 직접 고른다. */}
           {activeView === "voice" && (
-            <VoiceInspection
-              compact
+            <TradeVoiceScreen
               buildings={buildings}
-              userName={(userProfile && (userProfile.name || userProfile.email)) || ""}
-              notify={notify}
               checklistItems={checklistItems}
+              authorDefault={(userProfile && (userProfile.name || userProfile.email)) || ""}
+              notify={notify}
             />
           )}
           {activeView === "voicerequests" && voiceSub === "glossary" && (
@@ -393,7 +403,7 @@ export default function App() {
           )}
           {activeView === "voicerequests" && voiceSub !== "glossary" && <VoiceRequestsBoard buildings={buildings} notify={notify} />}
           {activeView === "paperwork" && paperSub === "voicelock" && <VoiceLockMonitor notify={notify} />}
-          {activeView === "paperwork" && paperSub !== "voicelock" && <Paperwork notify={notify} checklistItems={checklistItems} />}
+          {activeView === "paperwork" && paperSub !== "voicelock" && <Paperwork notify={notify} checklistItems={checklistItems} companies={companies} />}
           {activeView === "unitinfo" && (
             <UnitInfo
               buildings={buildings}

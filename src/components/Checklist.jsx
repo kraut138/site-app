@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { CATEGORIES, ROLES, isAdminRole, itemsForCategory, DEFAULT_ITEMS_BY_CATEGORY } from "../data.js";
 import { Icon } from "./UI.jsx";
+import CompanyInline from "./CompanyInline.jsx";
+import { companiesFor, companiesForItem, companiesForWholeTrade } from "../companies.js";
 import { useLanguage } from "../LanguageContext.jsx";
 
 // 안전/환경 공종은 이 탭에서 편집하지 않는다(처음 만들어진 기본 항목을 그대로 쓴다)
 const VISIBLE_CATEGORIES = CATEGORIES.filter((c) => c.id !== "safety");
 
-export default function Checklist({ role, items, onCreateItem, onDeleteItem, onResetCategory, onReorderItems, notify }) {
+export default function Checklist({ role, items, companies = [], onOpenCompanies, onCreateItem, onDeleteItem, onResetCategory, onReorderItems, notify }) {
   const { t } = useLanguage();
   const [openId, setOpenId] = useState(VISIBLE_CATEGORIES[0].id);
   const [newText, setNewText] = useState("");
@@ -124,6 +126,11 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
               </div>
               <div style={{ fontSize: 15.5, fontWeight: 700 }}>{t(`category.${c.id}.name`)}</div>
               <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>{t(`category.${c.id}.description`)}</div>
+              {companiesFor(companies, c.id).length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <CompanyInline list={companiesFor(companies, c.id)} testId={`checklist-card-companies-${c.id}`} />
+                </div>
+              )}
             </button>
           );
         })}
@@ -156,6 +163,16 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
                 )}
               </div>
             </div>
+            {(companiesForWholeTrade(companies, c.id).length > 0 || (canEdit && onOpenCompanies)) && (
+              <div className="co-block" data-testid="checklist-companies">
+                <CompanyInline list={companiesForWholeTrade(companies, c.id)} all testId="checklist-whole-companies" />
+                {canEdit && onOpenCompanies && (
+                  <button type="button" className="co-link" onClick={onOpenCompanies} data-testid="checklist-manage-companies">
+                    {t("company.manage")}
+                  </button>
+                )}
+              </div>
+            )}
             {catItems.length === 0 ? (
               <div style={{ fontSize: 12.5, color: "var(--ink-faint)", padding: "10px 4px" }}>{t("checklist.empty")}</div>
             ) : (
@@ -178,7 +195,15 @@ export default function Checklist({ role, items, onCreateItem, onDeleteItem, onR
                     <span className="mono" style={{ fontSize: 11.5, color: "var(--ink-faint)", width: 22, flexShrink: 0 }}>
                       {String(i + 1).padStart(2, "0")}
                     </span>
-                    <span style={{ fontSize: 13.5, flex: 1 }}>{item.text}</span>
+                    <span style={{ fontSize: 13.5, flex: 1 }}>
+                      {item.text}
+                      {companiesForItem(companies, c.id, item.text).length > 0 && (
+                        <>
+                          {" "}
+                          <CompanyInline list={companiesForItem(companies, c.id, item.text)} testId="checklist-item-companies" />
+                        </>
+                      )}
+                    </span>
                     {canEdit && (
                       <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
                         <button

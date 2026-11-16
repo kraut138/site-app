@@ -277,7 +277,7 @@ function keepAttendeeTogether(doc) {
 
 // ---------------------------------------------------------------- 작업일보
 
-// model: { date: "2026. 11. 3. (화)", rows: [{ trade, place, content: ["줄", ...] }] }
+// model: { date: "2026. 11. 3. (화)", rows: [{ trade, company(선택 - 등록한 업체 이름을 말한 기록이면 공종 칸 둘째 줄에 "(업체명)"으로 적는다), place, content: ["줄", ...] }] }
 // 반환: { bytes, report: { rows, addedRows, omitted } }
 export function fillWorkLog(templateBytes, model) {
   const pack = openDocx(templateBytes);
@@ -313,7 +313,7 @@ export function fillWorkLog(templateBytes, model) {
   }
   rows.forEach((row, i) => {
     const cells = rowCells(trs[i + 1]);
-    const values = [row.trade, row.place, row.content];
+    const values = [[row.trade, row.company ? `(${row.company})` : ""], row.place, row.content]; // 앞뒤의 빈 줄은 linesOf가 버린다
     values.forEach((value, c) => {
       const lines = linesOf(value);
       if (lines.length) setCellLines(cells[c], lines, WORKLOG_SIZE);

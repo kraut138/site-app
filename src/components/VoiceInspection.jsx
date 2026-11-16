@@ -23,21 +23,24 @@ import { getGlossaryTerms, getGlossaryOnlyDb, getGlossaryFuzzy, getGlossaryPendi
 import { analyzeReport, hasEffect, doneItemIdsOf } from "../unitProgress.js";
 import { resolveSpokenPlace, resolveSpokenAddress, spokenExample, spokenExampleParts, spokenUnitLabel, exampleWorkOf } from "../spokenUnit.js";
 import { parseSpeakerIntro } from "../speakerIntro.js";
+import { getCompanies, readSpokenCompany, tradeLinkOf } from "../companies.js";
 import { checkWorkLogInfo, workLogExample } from "../workLogInfo.js";
 import { WorkLogGuide, WorkLogMissing } from "./WorkLogGuide.jsx";
 import { canRecordAudio, canShareMicWithRecognition, startVoiceCapture, primeVoiceAudio, audioNoteKey } from "../voiceAudio.js";
-import { SpeakerLine, VoiceAudioPlayer, VoiceRecordMeta } from "./VoiceAudio.jsx";
+import { SpeakerLine, CompanyLine, VoiceAudioPlayer, VoiceRecordMeta } from "./VoiceAudio.jsx";
 import TbmMeeting from "./TbmMeeting.jsx";
 import { hasUnsavedTbmDraft } from "../paperwork/tbmDraft.js";
 import { dayKeyOf } from "../paperwork/dayTools.js";
 
-// "음성 검측" (시안 index.html의 기능). 두 곳에서 쓴다.
-//  1) 하도급사 전용 "음성 검측" 탭: 공종(관리자 '표준 공종' 탭의 분류 + 그 아래 세부 공종)을 고르고 위치(동·층·부재)를 정한 뒤 마이크로 말한다.
-//  2) 호실 QR 스캔 화면(unit 속성을 줄 때): 위치(동·층·호)는 QR이 이미 정해 주므로 고르지 않고, 로그인이 없으니 이름은 직접 적는다(선택).
-//  3) 공종별 QR 스캔 화면(tradeQr 속성을 줄 때): 공종은 QR이 정해 주고, 위치는 고르지 않는다. "101동 502호 도배 완료"처럼 동·호실과 작업을 함께 말하면 말한 글에서 동·층·호실을 읽어
+// "음성 검측" (시안 index.html의 기능). 세 곳에서 쓴다.
+//  1) 공종별 QR 스캔 화면(tradeQr 속성을 줄 때)과 '하도급 반장 모바일 모드'의 음성 보고 탭(TradeVoiceScreen.jsx - 공종을 직접 골라 같은 tradeQr 모드로 연다):
+//     공종은 QR(또는 모바일 모드의 공종 고르기)이 정해 주고, 위치는 고르지 않는다. "101동 502호 도배 완료"처럼 동·호실과 작업을 함께 말하면 말한 글에서 동·층·호실을 읽어
 //     그 호실의 보고로 저장한다(spokenUnit.js resolveSpokenAddress). 동·층·호실을 분명하게 말하지 않았으면 저장하지 않고 이유와 말하는 방법을 알려 준다.
 //     '완료'라고 말한 항목은 보고와 함께 그 호실의 '음성 완료'에도 기록해, 골구도에 완료로 보인다(api.js unitVoiceDone).
-//  4) 공종별 QR 화면에는 마이크 위에 '작업 보고 | TBM 회의' 전환이 있다(tbm 속성). 'TBM 회의'를 고르면 같은 큰 마이크 버튼 모양으로 약 5분 길이의 회의를 녹음해 TBM 일지의 칸으로 나누고,
+//  2) 호실 QR 스캔 화면(unit 속성을 줄 때): 위치(동·층·호)는 QR이 이미 정해 주므로 고르지 않고, 로그인이 없으니 이름은 직접 적는다(선택).
+//  3) (지금은 어느 화면도 쓰지 않는다) 예전 하도급사 "음성 검측" 탭: 공종(관리자 '표준 공종' 탭의 분류 + 그 아래 세부 공종)을 고르고 위치(동·층·부재)를 정한 뒤 마이크로 말하던 방식.
+//     모바일 모드가 공종별 QR 화면과 같은 방식으로 바뀌어서 앱에서는 열리지 않지만, 코드는 그대로 남아 있다.
+//  4) 공종별 QR 화면과 모바일 모드에는 마이크 위에 '작업 보고 | TBM 회의' 전환이 있다(tbm 속성). 'TBM 회의'를 고르면 같은 큰 마이크 버튼 모양으로 약 5분 길이의 회의를 녹음해 TBM 일지의 칸으로 나누고,
 //     사람이 확인·고친 뒤 서버에 저장한다(TbmMeeting.jsx). 저장한 회의는 사무실 서류 탭에서 그 날의 TBM 일지를 채운다. 녹음하거나 저장하는 동안은 전환이 잠긴다.
 // 말하면 → 음성 인식 → 인식된 글자를 바로 화면에 보여 주고 → 현장 은어를 표준 용어로 바꿔(관리자 "용어 DB" 탭의 표대로) → 공종별 요약 문장을 만들어 → 저장한다.
 // 관리자가 '용어 DB에 있는 단어만 남기기'를 켜 두었으면(기본) 바꾼 문장에는 표에 있는 단어만 남고 나머지 말은 빠진다("나라시 시마이 했어요" → "고르기 마무리").
@@ -49,6 +52,8 @@ import { dayKeyOf } from "../paperwork/dayTools.js";
 // 음성 인식이 안 되는 기기(앱 안의 브라우저 등)를 위해 직접 입력으로도 같은 과정을 거치게 했다.
 // 말한 글 맨 앞(또는 끝)에 "OOO(협력업체) 소속 OOO(이름)"을 말하면 그 소속·이름을 읽어 음성 기록 아래에 "말한 사람"으로 보여 준다(speakerIntro.js).
 // 소개 말은 은어 변환·호실 읽기·진행도 계산에서는 빼고(회사 이름이 작업 내용으로 읽히지 않게), 말한 그대로의 글(rawText)에는 남긴다. 소개 말만 하고 작업 내용이 없으면 저장하지 않고 안내한다.
+// 관리자가 "업체·담당 공종"에 등록한 업체 이름을 말하면("한빛도배 소속 …" 또는 이름만, 조금 다르게 알아들어도 가장 비슷한 업체) 그 업체의 담당 공종과 이어 보고에 company·companyId로 남긴다(companies.js).
+// 업체 이름도 소개 말처럼 분석에서는 빼고, 말한 작업이 없으면 그 업체가 이 공종에서 따로 맡은 세부 공종을 세부 공종 칸에 적는다(진행도·'완료' 표시에는 쓰지 않는다). 업체가 이 공종을 맡은 것으로 등록되어 있지 않으면 QR의 공종으로 저장하고 결과 상자에서 알린다.
 // 말하는 동안 마이크로 소리도 함께 녹음해(voiceAudio.js) 글 기록을 저장한 뒤 따로 저장한다 - 그래서 음성 기록에서 실제 말한 소리를 다시 들을 수 있다.
 // 소리는 곁들이는 것이라, 녹음이 안 되거나 비어 있어도 글 기록은 그대로 저장되고 이유만 알려 준다. 일부 휴대폰은 음성 인식과 녹음을 함께 못 하므로 기기마다 끌 수 있다(기본 켜짐).
 // PC의 Chrome·Edge(135 이상)는 음성 인식이 마이크 소리(트랙)를 넘겨받을 수 있어서, 마이크를 한 번만 열고 그 소리를 인식과 녹음이 함께 쓴다(shareMic · voiceAudio.js canShareMicWithRecognition).
@@ -236,8 +241,12 @@ function ProgressNote({ progress, unitLabel, place, t, golgu = false }) {
 //        tradeQr: 공종별 QR(?trade=)로 들어왔을 때의 공종(frame·finish·mep). 주면 공종이 이 공종으로 고정되고, 위치(동·층·호실)는 말한 글에서 읽는다. 이름은 직접 적는다(선택).
 //                 이때 buildings는 현장의 모든 동이다(말한 동을 찾는 데 쓴다).
 //        compact: 좁은 한 줄 칸(모바일 모드)에 맞춰 호실 QR 화면과 같은 한 줄 배치로 보여 준다.
-//        tbm: 공종별 QR 화면에서 true를 주면 마이크 위에 '작업 보고 | TBM 회의' 전환을 보여 준다(TBM 회의 녹음은 이 화면에서만 쓴다).
-export default function VoiceInspection({ buildings, allBuildings = null, userName, notify, unit = null, checklistItems = [], initialTrade = "", tradeQr = "", compact = false, tbm = false }) {
+//        tbm: 공종별 QR 화면(tradeQr)에서 true를 주면 마이크 위에 '작업 보고 | TBM 회의' 전환을 보여 준다(TBM 회의 녹음은 이 화면에서만 쓴다).
+//        authorDefault: 로그인한 계정으로 들어온 화면(하도급 반장 모바일 모드, tradeQr와 함께)에서 이름 칸에 미리 넣어 둘 계정 이름. 주면 이 기기에 적어 둔 이름(QR 화면들이 함께 쓰는 값)을 읽지도 덮어쓰지도 않는다 -
+//                       다른 계정으로 로그인해도 앞 사람 이름이 따라오지 않게 한다. 이름 칸은 그대로 고칠 수 있다(이 화면을 보는 동안만 바뀐다). 안 주면 QR 화면처럼 이 기기에 적어 둔 이름을 쓴다.
+//        placeDescKey: tradeQr 화면 위쪽의 안내 문구 번역 키. 기본은 QR 화면 문구('공종이 정해진 QR이에요…')이고, QR을 스캔하지 않은 모바일 모드는 QR 이야기가 없는 문구를 준다.
+//        onBusyChange: (busy) => void - 말을 듣거나 저장하거나 TBM 회의를 녹음·저장하는 중이면 true로 알린다(바깥에서 공종 바꾸기 같은 것을 잠그는 데 쓴다).
+export default function VoiceInspection({ buildings, allBuildings = null, userName, notify, unit = null, checklistItems = [], initialTrade = "", tradeQr = "", compact = false, tbm = false, authorDefault = null, placeDescKey = "voice.place.desc", onBusyChange = null }) {
   const { t } = useLanguage();
   const unitMode = !!unit;
   const placeMode = !unitMode && VOICE_TRADES.some((x) => x.id === tradeQr); // 공종별 QR 화면: 위치는 말한 글에서 읽는다
@@ -256,7 +265,9 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   const [buildingId, setBuildingId] = useState(() => (buildings.some((b) => b.id === initial.buildingId) ? initial.buildingId : ""));
   const [floor, setFloor] = useState(() => (Number.isInteger(initial.floor) && initial.floor !== 0 ? initial.floor : 1));
   const [elem, setElem] = useState(() => (typeof initial.elem === "string" ? initial.elem.slice(0, VOICE_LIMITS.elem) : ""));
-  const [authorName, setAuthorName] = useState(() => (unitMode || placeMode ? readAuthor().slice(0, QR_LIMITS.authorMax) : ""));
+  // 로그인한 계정으로 들어온 화면이면 계정 이름이 기본 이름이다(authorDefault). 그때는 이 기기에 적어 둔 이름을 읽지도 쓰지도 않는다.
+  const accountAuthor = placeMode && typeof authorDefault === "string" ? authorDefault.trim().slice(0, QR_LIMITS.authorMax) : null;
+  const [authorName, setAuthorName] = useState(() => (unitMode || placeMode ? (accountAuthor !== null ? accountAuthor : readAuthor()).slice(0, QR_LIMITS.authorMax) : ""));
 
   const [supported] = useState(() => !!getSpeechRecognition());
   const [status, setStatus] = useState("idle"); // idle | listening | stopping | saving
@@ -304,6 +315,17 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   // 다만 이 화면에서 사용자가 고칠 수 없는 경우(등록된 동이 없음, 잘못된 호실 QR)에는 그대로 잠근다.
   const canType = unitMode ? canRecord : placeMode ? buildings.length > 0 : !!building;
   const busy = status !== "idle";
+  // 말을 듣거나 저장하는 중, 또는 TBM 회의를 녹음·저장하는 중이면 바깥에 알린다(모바일 모드의 공종 고르기를 그동안 잠근다). 화면이 사라질 때는 '아님'으로 되돌려 둔다.
+  const reportBusy = busy || tbmBusy;
+  useEffect(() => {
+    if (onBusyChange) onBusyChange(reportBusy);
+  }, [reportBusy, onBusyChange]);
+  useEffect(
+    () => () => {
+      if (onBusyChange) onBusyChange(false);
+    },
+    [onBusyChange]
+  );
 
   // 음성 인식 이벤트 처리기는 한 번만 만들어 두므로, 최신 값은 ref로 읽는다.
   // elemFilter: 호실 화면에서는 같은 층의 보고 중 이 호실 것만 목록에 보이게 거르는 기준.
@@ -373,8 +395,8 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   }, [placeMode, unitMode, tradeId, tradeItem, building, activeFloor, elem]);
 
   useEffect(() => {
-    if (unitMode || placeMode) writeAuthor(authorName.trim());
-  }, [unitMode, placeMode, authorName]);
+    if ((unitMode || placeMode) && accountAuthor === null) writeAuthor(authorName.trim());
+  }, [unitMode, placeMode, authorName, accountAuthor]);
 
   // 말을 끝냈다고 눌렀는데 브라우저가 끝났다는 신호를 끝내 보내지 않는 경우에도 화면이 멈춰 있지 않도록 안전장치를 둔다.
   useEffect(() => {
@@ -558,15 +580,22 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     }
     // 말한 글 맨 앞(또는 끝)의 "OOO 소속 OOO"에서 말한 사람을 읽고, 소개 말을 뗀 글로 분석한다(말한 그대로의 글은 rawText에 그대로 남는다).
     const intro = parseSpeakerIntro(rawText);
-    if (intro.found && !intro.rest) {
-      // 소개 말만 하고 작업 내용이 없으면 저장하지 않는다(내용 없는 기록이 쌓이지 않게). 말한 글은 입력칸에 남겨 이어서 쓸 수 있게 한다.
+    // 등록한 업체 이름을 말했으면 그 업체를 읽고, 업체 이름 말도 분석에서 뺀다(업체 이름 속 "도배"가 작업 내용으로 읽히지 않게). 읽다가 오류가 나도 저장을 막지 않는다.
+    let said = { company: null, how: "", rest: intro.found ? intro.rest : rawText };
+    try {
+      said = readSpokenCompany(rawText, intro, getCompanies());
+    } catch {
+      said = { company: null, how: "", rest: intro.found ? intro.rest : rawText };
+    }
+    if ((intro.found || said.company) && !said.rest) {
+      // 소개 말(또는 업체 이름)만 하고 작업 내용이 없으면 저장하지 않는다(내용 없는 기록이 쌓이지 않게). 말한 글은 입력칸에 남겨 이어서 쓸 수 있게 한다.
       setStatus("idle");
       setMessage({ kind: "error", key: "voice.speaker.only" });
       setShowText(true);
       setTextValue(rawText);
       return;
     }
-    const heard = { body: intro.found ? intro.rest : rawText, speaker: intro.found ? { name: intro.name, company: intro.company } : null, audioJob };
+    const heard = { body: said.rest, speaker: intro.found ? { name: intro.name, company: intro.company } : null, company: said.company, audioJob };
     const pending = getGlossaryPending();
     if (!pending) {
       makeReport(cur, rawText, via, heard);
@@ -626,7 +655,8 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     const doneIds = progress && progress.resolved.ok ? doneItemIdsOf(progress.analysis, cur.checklistItems) : [];
     // 세부 공종은 말한 작업 중 이 공종에 속한 항목의 이름이다(서류 작성이 "마감공사 · 도배"처럼 작업 이름을 적는 데 쓴다)
     const ownItems = progress ? progress.analysis.items.filter((i) => i.categoryId === cur.tradeId).map((i) => i.text) : [];
-    const tradeItem = ownItems.join("·").slice(0, VOICE_LIMITS.tradeItem);
+    const co = linkCompany(cur, heard, ownItems.join("·").slice(0, VOICE_LIMITS.tradeItem)); // 말한 작업이 없으면 말한 업체가 이 공종에서 맡은 세부 공종
+    const tradeItem = co.tradeItem;
     sendReport(
       {
         id: api.newVoiceReportId(),
@@ -643,6 +673,8 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
         normalized: fixed.normalized,
         dbText: fixed.dbText,
         ...speakerFields(heard.speaker),
+        ...co.fields, // 말한 글에서 읽은 등록한 업체(없으면 없다)
+        ...co.view,
         parts: fixed.parts,
         replacedCount: fixed.replacedCount,
         fuzzy: fixed.fuzzy,
@@ -659,6 +691,18 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
   // 말한 사람이 있으면 보고에 함께 저장할 필드(없으면 아무것도 넣지 않는다)
   function speakerFields(speaker) {
     return speaker && speaker.name ? { speakerName: speaker.name, speakerCompany: speaker.company || "" } : {};
+  }
+
+  // 말한 업체와 이 보고의 공종을 잇는다. 돌려주는 값: tradeItem(보고에 적을 세부 공종), fields(보고에 저장할 업체 필드 - 업체를 못 읽었으면 비어 있다),
+  // view(결과 상자에 알릴 일 - 저장하지 않는다: companyNote "derived"=말한 작업이 없어 업체가 맡은 세부 공종을 적었다, "mismatch"=이 공종을 맡은 업체로 등록되어 있지 않다)
+  function linkCompany(cur, heard, spokenItem) {
+    const company = heard.company || null;
+    const link = tradeLinkOf(company, cur.tradeId, spokenItem);
+    return {
+      tradeItem: link.item.slice(0, VOICE_LIMITS.tradeItem),
+      fields: company ? { company: company.name, companyId: company.id } : {},
+      view: company ? { companyNote: link.derived ? "derived" : link.mismatch ? "mismatch" : "" } : {},
+    };
   }
 
   // heard: { body(소개 말을 뗀 분석용 글), speaker({ name, company } | null), audioJob(소리 녹음 결과 약속 | null) }
@@ -699,11 +743,12 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
     } catch {
       progress = null;
     }
+    const co = linkCompany(cur, heard, cur.tradeItem); // 고른 세부 공종이 없으면 말한 업체가 이 공종에서 맡은 세부 공종
     sendReport(
       {
         id: api.newVoiceReportId(),
         trade: cur.tradeId,
-        tradeItem: cur.tradeItem,
+        tradeItem: co.tradeItem,
         author: cur.userName,
         buildingId: loc.building.id,
         buildingName: loc.building.name,
@@ -716,10 +761,12 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
         normalized: fixed.normalized, // 은어만 바꾼 전체 문장 - 진행도 계산이 읽는다
         dbText: fixed.dbText, // 용어 DB 단어만 남긴 글(그 방식이 꺼져 있으면 null이라 저장하지 않는다)
         ...speakerFields(heard.speaker), // 말한 글 맨 앞에서 읽은 말한 사람(소개 말이 없었으면 없다)
+        ...co.fields, // 말한 글에서 읽은 등록한 업체(없으면 없다)
+        ...co.view,
         parts: fixed.parts, // 화면에서 바뀐 부분을 강조하는 데만 쓴다(저장하지 않는다)
         replacedCount: fixed.replacedCount,
         fuzzy: fixed.fuzzy, // 비슷한 소리로 찾아 바꾼 말들 - 결과 상자에 알려 주는 용도(저장하지 않는다)
-        summary: buildSummary(cur.tradeId, fixed.shown, cur.tradeItem),
+        summary: buildSummary(cur.tradeId, fixed.shown, co.tradeItem),
         progress, // 호실 진행도에 반영된 내용(저장하지 않는다)
         // 이 호실에서 '완료'라고 말한 항목 - 보고와 함께 모아 두어 골구도에 완료로 보이게 한다(호실을 확인하지 못했으면 모으지 않는다)
         done:
@@ -943,7 +990,7 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
           <div className="vl-unit-head">
             <div className="section-title">{t("nav.voice")}</div>
             {modeSwitch}
-            {!inTbm && <p className="vl-unit-desc">{t("voice.place.desc")}</p>}
+            {!inTbm && <p className="vl-unit-desc">{t(placeDescKey)}</p>}
             {!inTbm && (
               <p className="vl-unit-desc vl-unit-hint" data-testid="vl-place-hint">
                 {t("voice.place.hint", { example })}
@@ -1169,9 +1216,20 @@ export default function VoiceInspection({ buildings, allBuildings = null, userNa
                 <div className="vl-result-raw" data-testid="vl-raw">
                   "{result.rawText}"
                 </div>
-                {result.speakerName && (
+                {(result.speakerName || result.company) && (
                   <div className="vl-meta" data-testid="vl-result-meta">
-                    <SpeakerLine speaker={{ name: result.speakerName, company: result.speakerCompany }} prefix="vl-result" />
+                    {result.speakerName && <SpeakerLine speaker={{ name: result.speakerName, company: result.speakerCompany }} prefix="vl-result" />}
+                    {result.company && <CompanyLine company={{ id: result.companyId, name: result.company }} prefix="vl-result" />}
+                  </div>
+                )}
+                {result.companyNote === "derived" && (
+                  <div className="vl-progress-msg" data-testid="vl-company-derived">
+                    {t("voice.company.derived", { company: result.company, items: result.tradeItem })}
+                  </div>
+                )}
+                {result.companyNote === "mismatch" && (
+                  <div className="vl-progress-msg is-warn" data-testid="vl-company-mismatch">
+                    {t("voice.company.mismatch", { company: result.company, trade: t(tradeLabelKey(result.trade)) })}
                   </div>
                 )}
                 {(result.replacedCount > 0 || (typeof result.dbText === "string" && result.dbText !== "" && result.dbText !== result.rawText)) && (

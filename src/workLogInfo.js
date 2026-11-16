@@ -5,11 +5,13 @@
 //
 // '빠졌다'고 잘못 알리는 것이 못 찾고 넘어가는 것보다 말하는 사람을 더 귀찮게 하므로, 찾을 때는 너그럽게 읽는다.
 //   업체명        "OO건설 소속 홍길동입니다"(speakerIntro.js가 읽는 소개 말) → "대한건설 소속"처럼 소속 앞의 말 → "(주)대한", "대한건설"처럼 회사 이름 끝말이 붙은 낱말 → "대한 업체는 …"
+//                 → 관리자가 "업체·담당 공종"에 등록한 업체 이름("한빛도배"처럼 끝말이 없어도 된다 - companies.js)
 //   금일 작업인원 "5명", "다섯 명", "십이 명", "5인", "작업인원 5"처럼 사람 수를 말한 것
 //   작업내용      소개 말·사람 수·동/호/층 번호·군말("작업 완료했어요")을 걷어 낸 뒤에도 뜻 있는 낱말이 남아 있는 것("도배", "철근 배근")
 //   위치          여기서 읽지 않는다. 호실 QR과 '음성 검측' 탭은 화면이 위치를 정하고, 공종별 QR은 spokenUnit.js가 말한 동·호실을 읽는다(못 읽으면 그쪽에서 따로 알린다).
 
 import { parseSpeakerIntro } from "./speakerIntro.js";
+import { getCompanies, findCompanyInText } from "./companies.js";
 import { koreanNumber } from "./progressText.js";
 
 // 화면(예문 카드)에 보여 주는 순서
@@ -177,15 +179,28 @@ function hasWorkContent(text) {
 
 // ---------------- 살펴보기 ----------------
 // 돌려주는 값: { company: { ok, name }, headcount: { ok, count }, work: { ok }, missing: ["company"|"headcount"|"work"의 빠진 것들(CHECKED_PARTS 순서)] }
-export function checkWorkLogInfo(rawText) {
+export function checkWorkLogInfo(rawText, companies = getCompanies()) {
   const text = String(rawText == null ? "" : rawText).normalize("NFC").trim(); // 붙여 넣은 글의 자모 분리(NFD)도 같게 읽는다
   const intro = parseSpeakerIntro(text);
   const fromIntro = intro.found && intro.company ? intro.company : "";
-  const company = fromIntro || findCompany(text);
+  let company = fromIntro || findCompany(text);
   const people = readHeadcount(text);
   // 작업 내용은 소개 말(소속·이름)·업체 이름·사람 수 말을 걷어 낸 글에서 찾는다
   let body = intro.found ? intro.rest : text;
   if (company && !fromIntro) body = body.split(company).join(" ");
+  if (!company && Array.isArray(companies) && companies.length > 0) {
+    // 등록한 업체 이름을 말했으면 업체명을 말한 것이다(그 이름 속 글자 "한빛도배"의 "도배"는 작업 내용으로 세지 않는다)
+    let hit = null;
+    try {
+      hit = findCompanyInText(body, companies);
+    } catch {
+      hit = null;
+    }
+    if (hit) {
+      company = hit.company.name;
+      body = hit.rest;
+    }
+  }
   const work = hasWorkContent(readHeadcount(body).cleaned);
   const ok = { company: !!company, headcount: people.ok, work };
   return {

@@ -22,6 +22,7 @@ import { FUZZY_LEVELS, normalizeFuzzy } from "./fuzzyTerms.js";
 import { convertVoiceTextSpaced } from "./spacing.js";
 import { cleanImportEntries, planGlossaryImport, applyGlossaryImport } from "./glossaryImport.js";
 import { analysisText, SPEAKER_LIMITS } from "./speakerIntro.js";
+import { COMPANY_LIMITS, sanitizeCompanies, registerCompanies } from "./companies.js";
 import { SAMPLE_LIMITS, SAMPLE_MESSAGES, cleanSampleName, newSampleId, sanitizeSamples, sanitizeSegments, splitIntoChunks, joinChunks } from "./audioSamples.js";
 import { TBM_MEETING_COLLECTION, MEETING_LIMITS, buildMeetingPayload, readMeetingDoc, isMeetingId } from "./paperwork/tbmMeetingDoc.js";
 import { normalizeFields } from "./paperwork/tbmDraft.js";
@@ -122,10 +123,28 @@ export async function saveCustomTrades(trades) {
   return registerCustomTrades(clean);
 }
 
+// meta/companies: { companies: [{ id, name, aliases, trades: [{ id, items }] }], updatedAt } - "6. 검측·NCR·표준 공종 → 업체·담당 공종"에서 등록한 업체와 담당 공종.
+// 읽으면 바로 companies.js에 등록해 음성 보고·서류 모음이 말한 업체 이름을 읽을 때 쓰게 한다. 읽지 못하면(문서 없음·통신 문제) 빈 목록으로 두고 막지 않는다.
+export async function fetchCompanies() {
+  try {
+    const snap = await getDoc(doc(db, "meta", "companies"));
+    return registerCompanies(snap.exists() ? (snap.data() || {}).companies : []);
+  } catch {
+    return registerCompanies([]);
+  }
+}
+
+// 업체 목록 전체를 저장하고 등록한다. 돌려주는 값: 저장된(정리된) 목록
+export async function saveCompanies(companies) {
+  const clean = sanitizeCompanies(companies);
+  await setDoc(doc(db, "meta", "companies"), { companies: clean, updatedAt: nowIso() });
+  return registerCompanies(clean);
+}
+
 export async function fetchBootstrap() {
   await ensureSeeded();
   await fetchCustomTrades();
-  const [buildingsSnap, inspectionsSnap, ncrsSnap, unitNotesSnap, checklistItemsSnap, workersSnap, siteSettingsSnap, unitFloorPlansSnap] = await Promise.all([
+  const [buildingsSnap, inspectionsSnap, ncrsSnap, unitNotesSnap, checklistItemsSnap, workersSnap, siteSettingsSnap, unitFloorPlansSnap, companies] = await Promise.all([
     getDocs(collection(db, "buildings")),
     getDocs(collection(db, "inspections")),
     getDocs(collection(db, "ncrs")),
@@ -134,6 +153,7 @@ export async function fetchBootstrap() {
     getDocs(collection(db, "workers")),
     getDoc(doc(db, "meta", "siteSettings")),
     getDocs(collection(db, "unitFloorPlans")),
+    fetchCompanies(), // 실패해도 빈 목록으로 돌려주므로 다른 읽기를 막지 않는다
   ]);
   return {
     buildings: snapToArray(buildingsSnap),
@@ -144,6 +164,7 @@ export async function fetchBootstrap() {
     workers: snapToArray(workersSnap),
     siteSettings: siteSettingsSnap.exists() ? siteSettingsSnap.data() : {},
     unitFloorPlans: snapToArray(unitFloorPlansSnap),
+    companies,
   };
 }
 
@@ -151,14 +172,15 @@ export async function fetchBootstrap() {
 // (검측·NCR·특이사항처럼 이 화면에 필요 없는 컬렉션은 읽지 않아 스캔할 때마다 드는 읽기 수가 적다)
 export async function fetchSiteCore() {
   await fetchCustomTrades();
-  const readBoth = () => Promise.all([getDocs(collection(db, "buildings")), getDocs(collection(db, "checklistItems"))]);
-  let [buildingsSnap, checklistItemsSnap] = await readBoth();
+  // 말한 업체 이름을 읽는 데 쓰는 업체 목록(문서 하나). 실패해도 빈 목록으로 돌려주므로 다른 읽기를 막지 않는다.
+  const readBoth = () => Promise.all([getDocs(collection(db, "buildings")), getDocs(collection(db, "checklistItems")), fetchCompanies()]);
+  let [buildingsSnap, checklistItemsSnap, companies] = await readBoth();
   if (buildingsSnap.empty || checklistItemsSnap.empty) {
     // 처음 쓰는 현장이면 기본 동·표준 공종을 채운 뒤 다시 읽는다(보통은 한 번만 읽는다 - 스캔할 때마다 드는 읽기 수를 줄이려는 것).
     await ensureSeeded();
-    [buildingsSnap, checklistItemsSnap] = await readBoth();
+    [buildingsSnap, checklistItemsSnap, companies] = await readBoth();
   }
-  return { buildings: snapToArray(buildingsSnap), checklistItems: snapToArray(checklistItemsSnap) };
+  return { buildings: snapToArray(buildingsSnap), checklistItems: snapToArray(checklistItemsSnap), companies };
 }
 
 // ---------------- buildings ----------------
@@ -659,6 +681,13 @@ export async function createVoiceReport(data) {
     ...(typeof data.fromUnit === "string" && data.fromUnit.trim() ? { fromUnit: data.fromUnit.trim().slice(0, 60) } : {}),
     ...(typeof data.speakerName === "string" && data.speakerName.trim()
       ? { speakerName: data.speakerName.trim().slice(0, SPEAKER_LIMITS.name), speakerCompany: String(data.speakerCompany || "").trim().slice(0, SPEAKER_LIMITS.company) }
+      : {}),
+    // 말한 글에서 읽은, 등록한 업체(없으면 아무것도 넣지 않는다). 서류 작성이 공종 칸에 업체를 적는 데 쓴다.
+    ...(typeof data.company === "string" && data.company.trim()
+      ? {
+          company: data.company.trim().slice(0, COMPANY_LIMITS.name),
+          ...(typeof data.companyId === "string" && data.companyId.trim() ? { companyId: data.companyId.trim().slice(0, 40) } : {}),
+        }
       : {}),
     summary: String(data.summary || ""),
     via: data.via === "text" ? "text" : "voice",

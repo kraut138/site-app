@@ -3,9 +3,17 @@ import { getCategory, formatDateTime, findUnitFloorPlan, ROLES, isAdminRole, NCR
 import { compressImage } from "../api.js";
 import { Icon, StatusBadge, CategoryTag, Modal } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
+import CompanyInline from "./CompanyInline.jsx";
+import { companiesOfInspection } from "../companies.js";
 import { useLanguage } from "../LanguageContext.jsx";
 
-export default function NCR({ role, buildings, ncrs, unitFloorPlans, onUpdateStatus, notify }) {
+// NCR을 맡은 업체들: NCR을 낸 검측 요청이 확인한 세부 공종으로 좁힌다(검측 요청을 못 찾으면 그 공종을 맡은 업체 모두).
+function companiesOfNcr(companies, ncr, inspections, checklistItems) {
+  const insp = (Array.isArray(inspections) ? inspections : []).find((i) => i.id === ncr.inspectionId);
+  return companiesOfInspection(companies, insp || { categoryId: ncr.categoryId }, checklistItems);
+}
+
+export default function NCR({ role, buildings, ncrs, inspections = [], checklistItems = [], companies = [], unitFloorPlans, onUpdateStatus, notify }) {
   const { t } = useLanguage();
   const [selectedId, setSelectedId] = useState(null);
   const selected = ncrs.find((n) => n.id === selectedId) || null;
@@ -30,6 +38,7 @@ export default function NCR({ role, buildings, ncrs, unitFloorPlans, onUpdateSta
                 {items.map((ncr) => {
                   const cat = getCategory(ncr.categoryId);
                   const building = buildings.find((b) => b.id === ncr.buildingId);
+                  const responsible = companiesOfNcr(companies, ncr, inspections, checklistItems);
                   return (
                     <button key={ncr.id} className="card" style={{ textAlign: "left", padding: "12px 13px", cursor: "pointer" }} onClick={() => setSelectedId(ncr.id)}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -41,6 +50,11 @@ export default function NCR({ role, buildings, ncrs, unitFloorPlans, onUpdateSta
                       <div style={{ fontSize: 12.5, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
                         {ncr.description}
                       </div>
+                      {responsible.length > 0 && (
+                        <div style={{ marginTop: 7 }}>
+                          <CompanyInline list={responsible} testId="ncr-card-companies" />
+                        </div>
+                      )}
                       <div style={{ fontSize: 10.5, color: "var(--ink-faint)", marginTop: 7 }}>{formatDateTime(ncr.createdAt)}</div>
                     </button>
                   );
@@ -57,6 +71,7 @@ export default function NCR({ role, buildings, ncrs, unitFloorPlans, onUpdateSta
           building={buildings.find((b) => b.id === selected.buildingId)}
           role={role}
           unitFloorPlans={unitFloorPlans}
+          companies={companiesOfNcr(companies, selected, inspections, checklistItems)}
           onClose={() => setSelectedId(null)}
           onAdvance={async (status, extra) => {
             await onUpdateStatus(selected.id, { status, ...extra });
@@ -68,7 +83,7 @@ export default function NCR({ role, buildings, ncrs, unitFloorPlans, onUpdateSta
   );
 }
 
-export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdvance }) {
+export function NCRDetail({ ncr, building, role, unitFloorPlans, companies = [], onClose, onAdvance }) {
   const { t } = useLanguage();
   const category = getCategory(ncr.categoryId);
   const [comment, setComment] = useState("");
@@ -120,6 +135,14 @@ export function NCRDetail({ ncr, building, role, unitFloorPlans, onClose, onAdva
           <div style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>{ncr.description}</div>
           <div className="eyebrow" style={{ marginBottom: 6 }}>{t("ncr.assignee")}</div>
           <div style={{ fontSize: 12.8, color: "var(--ink-soft)" }}>{ncr.assignedTo}</div>
+          {companies.length > 0 && (
+            <>
+              <div className="eyebrow" style={{ margin: "12px 0 6px" }}>{t("company.label")}</div>
+              <div style={{ fontSize: 12.8, color: "var(--ink-soft)" }} data-testid="ncr-detail-companies">
+                {companies.map((c) => c.name).join(", ")}
+              </div>
+            </>
+          )}
         </div>
         <div>
           <div className="eyebrow" style={{ marginBottom: 8 }}>{t("insp.drawingLocation")}</div>

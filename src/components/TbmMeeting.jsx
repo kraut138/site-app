@@ -6,6 +6,7 @@ import * as api from "../api.js";
 import { getSpeechRecognition } from "../voice.js";
 import { createLongRecognizer, appendTranscript, clockHM, longSpeechErrorText, longSpeechStopText, LONG_SPEECH_LIMITS } from "../longSpeech.js";
 import { summarizeTbm, hasTbmFields, TBM_EXAMPLE, TBM_EXAMPLE_TEXT, TBM_TEXT_MAX } from "../paperwork/tbmSummary.js";
+import { getCompanies, linkTbmCompany } from "../companies.js";
 import { fieldsForEdit, hashText, emptyDraft, loadTbmDraft, saveTbmDraft, clearTbmDraft, purgeOldTbmDrafts, isEmptyDraft, isUnsavedDraft, draftSig } from "../paperwork/tbmDraft.js";
 import { dayKeyOf, longDate, hhmm } from "../paperwork/dayTools.js";
 
@@ -43,6 +44,21 @@ export function saveErrorText(e) {
 //   tradeId      회의에 적어 둘 공종 id   author  화면에 적은 이름(선택)   nameSlot  이름 입력 칸(작업 보고 화면과 같은 칸)
 //   onBusyChange(true|false)  녹음하거나 저장하는 동안은 부모가 '작업 보고'로 바꾸는 것을 막는다
 //   notify(msg)  화면 아래 알림
+// 받아 적은 글을 요약하고, 관리자가 등록한 업체를 말했으면 그 업체와 잇는다: 진행자에 말한 업체 이름을 등록한 이름으로 바로잡고,
+// 작업 내용을 못 찾았으면 그 업체가 이 QR의 공종에서 맡은 세부 공종(공종 전체를 맡았으면 공종 이름)을 작업 내용에 넣는다(companies.js linkTbmCompany).
+// 반환: summarizeTbm의 결과 + companyNote(알려 줄 글, 업체를 읽지 못했으면 ""). 업체를 잇다가 오류가 나도 요약은 그대로 쓴다.
+function summarizeLinked(text, opts, tradeId) {
+  const r = summarizeTbm(text, opts);
+  try {
+    const linked = linkTbmCompany(r.fields, text, tradeId, getCompanies());
+    if (!linked.company) return { ...r, companyNote: "" };
+    const note = linked.note ? `작업 내용을 못 찾아 ‘${linked.note.company}’이(가) 맡은 공종(${linked.note.work})을 넣었어요.` : `업체 ‘${linked.company.name}’을(를) 찾았어요.`;
+    return { ...r, fields: linked.fields, companyNote: note };
+  } catch {
+    return { ...r, companyNote: "" };
+  }
+}
+
 export default function TbmMeeting({ trade, themeStyle, tradeId, author = "", nameSlot = null, onBusyChange, notify }) {
   const supported = useMemo(() => !!getSpeechRecognition(), []);
   const dayKey = useMemo(() => dayKeyOf(), []); // 이 화면을 연 날 = 회의를 한 날
@@ -134,10 +150,11 @@ export default function TbmMeeting({ trade, themeStyle, tradeId, author = "", na
         notes.push("직접 고친 칸이 있어서 칸은 그대로 두었어요. 새로 받아 적은 글로 다시 채우려면 '다시 요약'을 눌러 주세요.");
         updateDraft({ text: combined, fields: { ...d.fields, from, to } });
       } else {
-        const r = summarizeTbm(combined, { from, to });
+        const r = summarizeLinked(combined, { from, to }, latest.current.tradeId);
         updateDraft({ text: combined, fields: fieldsForEdit(r.fields), summarized: true, edited: false, sumHash: hashText(combined) });
         setEditKey((k) => k + 1);
         notes.push("받아 적은 글을 읽어 칸을 채웠어요. 아래에서 확인하고 고친 뒤 맨 아래 '서버에 저장'을 눌러 주세요.");
+        if (r.companyNote) notes.push(r.companyNote);
       }
     }
     setInfo(notes.join(" "));
@@ -228,11 +245,15 @@ export default function TbmMeeting({ trade, themeStyle, tradeId, author = "", na
   // ---------------------------------------------------------------- 요약 · 고치기
   const doSummary = () => {
     const d = draftRef.current;
-    const r = summarizeTbm(d.text, { from: d.fields.from, to: d.fields.to });
+    const r = summarizeLinked(d.text, { from: d.fields.from, to: d.fields.to }, latest.current.tradeId);
     updateDraft({ fields: fieldsForEdit(r.fields), summarized: true, edited: false, sumHash: hashText(d.text) });
     setEditKey((k) => k + 1);
     setConfirm("");
-    setInfo(r.stats.sentences === 0 ? "읽을 글이 없어요." : "받아 적은 글을 읽어 칸을 채웠어요. 아래에서 확인하고 고친 뒤 맨 아래 '서버에 저장'을 눌러 주세요.");
+    setInfo(
+      r.stats.sentences === 0
+        ? "읽을 글이 없어요."
+        : `받아 적은 글을 읽어 칸을 채웠어요. 아래에서 확인하고 고친 뒤 맨 아래 '서버에 저장'을 눌러 주세요.${r.companyNote ? ` ${r.companyNote}` : ""}`
+    );
   };
   const askSummary = () => {
     if (draft.edited) setConfirm("resummary");

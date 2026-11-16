@@ -3,6 +3,8 @@ import { CATEGORIES, getCategory, itemsForCategory, findItemText, formatDateTime
 import { Icon, StatusBadge, CategoryTag, Modal, EmptyState, Stamp } from "./UI.jsx";
 import DrawingPin from "./DrawingPin.jsx";
 import ConfirmationRequestForm from "./ConfirmationRequestForm.jsx";
+import CompanyInline from "./CompanyInline.jsx";
+import { companiesFor, companiesForItem, companiesOfInspection } from "../companies.js";
 import { useLanguage } from "../LanguageContext.jsx";
 
 const TAB_KEYS = [
@@ -18,6 +20,7 @@ export default function Inspections({
   inspections,
   checklistItems,
   unitFloorPlans,
+  companies = [],
   onCreateConfirmationRequest,
   onUpdateStatus,
   onBatchUpdateStatus,
@@ -128,6 +131,7 @@ export default function Inspections({
     const cat = getCategory(insp.categoryId);
     const building = buildings.find((b) => b.id === insp.buildingId);
     const isPending = insp.status === "대기";
+    const rowCompanies = companiesOfInspection(companies, insp, checklistItems);
     return (
       <div className="list-row ig-request-row" key={insp.id} onClick={() => setSelectedId(insp.id)}>
         {canBatch && isPending && (
@@ -146,7 +150,15 @@ export default function Inspections({
           <div className="title">
             {cat ? t(`category.${cat.id}.name`) : "-"} · {t("insp.itemsChecked", { count: insp.checkedItemIds.length })}
           </div>
-          <div className="meta">{insp.requestedBy} · {formatDateTime(insp.createdAt)}</div>
+          <div className="meta">
+            {insp.requestedBy} · {formatDateTime(insp.createdAt)}
+            {rowCompanies.length > 0 && (
+              <>
+                {" · "}
+                <CompanyInline list={rowCompanies} testId="insp-row-companies" />
+              </>
+            )}
+          </div>
         </div>
         <StatusBadge status={insp.status} />
         <Icon.ChevronRight width="16" height="16" style={{ color: "var(--ink-faint)" }} />
@@ -229,6 +241,7 @@ export default function Inspections({
             checklistItems={checklistItems}
             inspections={inspections}
             unitFloorPlans={unitFloorPlans}
+            companies={companies}
             onClose={() => setShowRequestForm(false)}
             onSubmit={async (data) => {
               const created = await onCreateConfirmationRequest(data);
@@ -274,6 +287,7 @@ export default function Inspections({
                   <Icon.ChevronRight width="15" height="15" className={`ig-chevron${catOpen ? " open" : ""}`} />
                   <span style={{ width: 9, height: 9, borderRadius: 3, background: category.color, flexShrink: 0 }} />
                   <span className="ig-category-name">{t(`category.${category.id}.name`)}</span>
+                  <CompanyInline list={companiesFor(companies, category.id)} testId={`insp-cat-companies-${category.id}`} />
                   <span className="eyebrow">{total}{t("common.case")}</span>
                 </button>
                 {catOpen && (
@@ -285,6 +299,7 @@ export default function Inspections({
                           <button type="button" className="ig-item-head" onClick={() => toggleItemOpen(item.id)}>
                             <Icon.ChevronRight width="13" height="13" className={`ig-chevron${itemOpen ? " open" : ""}`} />
                             <span className="ig-item-name">{item.text}</span>
+                            <CompanyInline list={companiesForItem(companies, category.id, item.text)} testId="insp-item-companies" />
                             <span className="eyebrow">{requests.length}{t("common.case")}</span>
                           </button>
                           {itemOpen && (
@@ -320,6 +335,7 @@ export default function Inspections({
           role={role}
           checklistItems={checklistItems}
           unitFloorPlans={unitFloorPlans}
+          companies={companies}
           onClose={() => setSelectedId(null)}
           onDecide={async (status, comment) => {
             const res = await onUpdateStatus(selected.id, { status, comment, approver: "감리단 담당자" });
@@ -332,9 +348,10 @@ export default function Inspections({
   );
 }
 
-function InspectionDetail({ insp, building, role, checklistItems, unitFloorPlans, onClose, onDecide }) {
+function InspectionDetail({ insp, building, role, checklistItems, unitFloorPlans, companies = [], onClose, onDecide }) {
   const { t } = useLanguage();
   const category = getCategory(insp.categoryId);
+  const responsible = companiesOfInspection(companies, insp, checklistItems);
   const [comment, setComment] = useState("");
   const [showReject, setShowReject] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -392,6 +409,14 @@ function InspectionDetail({ insp, building, role, checklistItems, unitFloorPlans
           <div style={{ fontSize: 12.8, color: "var(--ink-soft)" }}>
             {insp.requestedBy} · {formatDateTime(insp.createdAt)}
           </div>
+          {responsible.length > 0 && (
+            <>
+              <div className="eyebrow" style={{ margin: "12px 0 6px" }}>{t("company.label")}</div>
+              <div style={{ fontSize: 12.8, color: "var(--ink-soft)" }} data-testid="insp-detail-companies">
+                {responsible.map((c) => c.name).join(", ")}
+              </div>
+            </>
+          )}
         </div>
         <div>
           <div className="eyebrow" style={{ marginBottom: 8 }}>{t("insp.drawingLocation")}</div>

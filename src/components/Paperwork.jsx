@@ -13,6 +13,7 @@ import { sameFields } from "../paperwork/tbmMeetingDoc.js";
 import { normalizeFields } from "../paperwork/tbmDraft.js";
 import { CHECK_KEYS } from "../paperwork/tbmSummary.js";
 import { tradeName } from "../voice.js";
+import { unregisteredCompanies } from "../companies.js";
 
 // "5. 서류 작성" - 하루치 음성 기록(voiceReports)을 읽어 작업일보·TBM 일지(워드)와 검측요청서(한글)의 양식 파일을 자동으로 채워 내려받게 한다.
 // 기록에서 알 수 없는 칸(현장명·날씨·출역 인원·서명 등)은 값을 만들지 않고 양식의 빈 칸 그대로 둔다. 어떻게 채우는지는 src/paperwork/ 에 있다.
@@ -96,7 +97,7 @@ function Blank({ children }) {
   return children ? children : <span className="pw-blank">(공란)</span>;
 }
 
-export default function Paperwork({ notify, checklistItems = [] }) {
+export default function Paperwork({ notify, checklistItems = [], companies = [] }) {
   const [dayKey, setDayKey] = useState(() => dayKeyOf());
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [reports, setReports] = useState([]);
@@ -176,7 +177,10 @@ export default function Paperwork({ notify, checklistItems = [] }) {
     };
   }, [dayKey, mTick, notify]);
 
-  const digest = useMemo(() => digestDay(reports, { checklistItems }), [reports, checklistItems]);
+  // 등록한 업체 이름을 말한 기록은 그 업체와 이어져 서류의 공종 칸에 업체 이름이 함께 적힌다(companies.js). 등록 업체가 없으면 예전과 똑같다.
+  const digest = useMemo(() => digestDay(reports, { checklistItems, companies }), [reports, checklistItems, companies]);
+  // 소속으로 말했지만 등록하지 않은 업체(많이 말한 순) - 등록하면 서류에 업체명이 적힌다는 안내용
+  const unregistered = useMemo(() => unregisteredCompanies(reports, companies), [reports, companies]);
   const workLog = useMemo(() => workLogModel(digest, dayKey), [digest, dayKey]);
   const picked = useMemo(() => meetings.find((m) => m.id === pickedId) || null, [meetings, pickedId]);
   const dirty = !!work && !sameFields(work.fields, work.base);
@@ -388,6 +392,12 @@ export default function Paperwork({ notify, checklistItems = [] }) {
               ? `${longDate(dayKey)} · 음성 기록 ${digest.total}건${tbm.place ? ` · ${tbm.place}` : ""}`
               : `${longDate(dayKey)} · 이 날 남긴 음성 기록이 없어요`)}
         </div>
+        {status === "ready" && unregistered.length > 0 && (
+          <div className="pw-co-hint" data-testid="pw-co-hint">
+            등록하지 않은 업체: <strong>{unregistered.slice(0, 5).map((u) => u.name).join(", ")}</strong>
+            {unregistered.length > 5 ? ` 외 ${unregistered.length - 5}곳` : ""} — ‘6. 검측·NCR·표준 공종’의 ‘업체·담당 공종’에 등록하면 서류의 공종 칸에 업체명이 함께 적혀요.
+          </div>
+        )}
         <div className="pw-note">
           서류는 위 날짜에 남긴 음성 기록(순화한 내용)을 바탕으로 채워요. 기록에서 알 수 없는 칸은 만들어 내지 않고 비워 두니, 현장명·날씨·출역 인원·서명 같은 칸은 내려받은 뒤 직접 적어 주세요.
         </div>
@@ -436,6 +446,11 @@ export default function Paperwork({ notify, checklistItems = [] }) {
                     <tr key={i}>
                       <td>
                         <Blank>{r.trade}</Blank>
+                        {r.company && (
+                          <div className="pw-co-name" data-testid="pw-worklog-company">
+                            ({r.company})
+                          </div>
+                        )}
                       </td>
                       <td>
                         <Blank>{r.place}</Blank>

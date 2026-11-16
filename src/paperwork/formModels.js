@@ -31,6 +31,7 @@ export function workLogModel(digest, dayKey) {
     date: dotDateWithDay(dayKey),
     rows: digest.groups.map((g) => ({
       trade: g.work,
+      ...(g.company ? { company: g.company } : {}), // 등록한 업체 이름을 말한 기록이면 공종 칸에 업체 이름을 함께 적는다(docxFill.js)
       place: placeWithPart(g),
       content: describeStatements(g.statements),
     })),
@@ -95,7 +96,7 @@ export function tbmModel(digest, dayKey, meeting = null, opts = {}) {
     from: mt ? mt.from : "",
     to: mt ? mt.to : "",
     place: (mt && mt.place) || digestPlace,
-    work: (mt && mt.work) || digest.workNames.join(", "),
+    work: (mt && mt.work) || (Array.isArray(digest.workLabels) ? digest.workLabels : digest.workNames).join(", "),
     risks,
     checks: mt ? mt.checks : empty.checks,
     notes: mt ? mt.notes : [],
@@ -125,12 +126,12 @@ export function inspectionModels(digest, dayKey) {
   dayParts(dayKey);
   const used = new Set();
   return digest.groups.map((g) => {
-    const position = [placeLabel(g), g.work].filter(Boolean).join(" / ");
+    const position = [placeLabel(g), g.company && g.work ? `${g.work} (${g.company})` : g.work].filter(Boolean).join(" / ");
     const part = [floorText(g.floor), [joinUnits(g.units), ...g.structural].filter(Boolean).join(", ")].filter(Boolean).join(" ");
     const lines = describeStatements(g.statements);
     // 문장이 둘까지는 한 줄씩, 더 많으면 쉼표로 이어서 칸(두 줄)에 최대한 많이 담는다
     const matters = lines.length <= 2 ? lines.join("\n") : lines.join(", ");
-    let name = `검측요청서_${compactDate(dayKey)}_${safeName([g.building, floorText(g.floor)].join(""))}_${safeName(g.item || g.tradeLabel)}`;
+    let name = `검측요청서_${compactDate(dayKey)}_${safeName([g.building, floorText(g.floor)].join(""))}_${safeName(g.item || g.tradeLabel)}${g.company ? `_${safeName(g.company)}` : ""}`;
     name = name.replace(/_+$/g, "");
     let fileName = `${name}.hwp`;
     for (let n = 2; used.has(fileName); n += 1) fileName = `${name}_${n}.hwp`;

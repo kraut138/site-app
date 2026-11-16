@@ -1,7 +1,10 @@
 // 하루치 음성 기록을 서류 세 가지가 함께 쓰는 "하루 요약"으로 모은다.
-//   entries : 기록 하나하나(시간순)   groups : 같은 동·층·공종·세부 공종끼리 묶은 것   places : 일한 동·층   hazards : 위험 낱말이 들어 있는 기록
-// 순수 함수(화면·저장소와 무관)라 Node에서 그대로 시험한다.
+//   entries : 기록 하나하나(시간순)   groups : 같은 동·층·공종·세부 공종·업체끼리 묶은 것   places : 일한 동·층   hazards : 위험 낱말이 들어 있는 기록
+// 업체: 관리자가 등록한 업체 이름을 말한 기록은 그 업체와 이어져(companies.js companyOfReport) 같은 업체의 기록끼리 묶이고, 서류의 공종 칸에 업체 이름이 함께 적힌다.
+//       등록한 업체가 없으면(또는 업체를 말하지 않았으면) 예전과 똑같이 묶인다.
+// 순수 함수(화면·저장소와 무관)라 Node에서 그대로 시험한다. options.companies로 등록한 업체 목록을 넘기지 않으면 불러와 둔 목록(getCompanies)을 쓴다.
 import { VOICE_TRADES, tradeName } from "../voice.js";
+import { companyKey, companyOfReport, getCompanies } from "../companies.js";
 import { stampOf } from "./dayTools.js";
 import { oneLine, sameKey, statementOf, progressStatement, placeOf, buildingNumber, unitsAndElem, hazardText, floorText, joinUnits } from "./textRules.js";
 import { convertedText } from "../voice.js";
@@ -11,10 +14,11 @@ function tradeRank(id) {
   return i < 0 ? VOICE_TRADES.length : i;
 }
 
-function toEntry(report, checklistItems) {
+function toEntry(report, checklistItems, companies) {
   const { building, floor } = placeOf(report);
   const { units, structural } = unitsAndElem(report, floor);
   const trade = String(report.trade || "");
+  const co = companyOfReport(report, companies);
   return {
     id: String(report.id || ""),
     ts: stampOf(report),
@@ -23,6 +27,7 @@ function toEntry(report, checklistItems) {
     trade,
     tradeLabel: tradeName(trade),
     item: oneLine(report.tradeItem),
+    company: co ? co.name : "",
     // 용어 DB 단어가 없는 말은 표준 공종 항목으로 읽은 "도배 완료" 같은 글로 적는다(공종별 QR로 말한 "101동 502호 도배 완료" 등)
     statement: statementOf(report, oneLine(convertedText(report)) ? "" : progressStatement(report, checklistItems)),
     units,
@@ -46,7 +51,7 @@ function byBuilding(a, b) {
 function groupEntries(entries) {
   const map = new Map();
   for (const e of entries) {
-    const key = [e.building, e.floor === null ? "" : e.floor, e.trade, e.item].join("|");
+    const key = [e.building, e.floor === null ? "" : e.floor, e.trade, e.item, ...(e.company ? [companyKey(e.company)] : [])].join("|");
     let g = map.get(key);
     if (!g) {
       g = {
@@ -56,6 +61,7 @@ function groupEntries(entries) {
         trade: e.trade,
         tradeLabel: e.tradeLabel,
         item: e.item,
+        company: e.company,
         work: [e.tradeLabel, e.item].filter(Boolean).join(" · "),
         units: [],
         structural: [],
@@ -92,7 +98,7 @@ function groupEntries(entries) {
     if (fa !== fb) return fa - fb;
     const byT = tradeRank(a.trade) - tradeRank(b.trade);
     if (byT !== 0) return byT;
-    return a.item.localeCompare(b.item, "ko");
+    return a.item.localeCompare(b.item, "ko") || a.company.localeCompare(b.company, "ko");
   });
   return list;
 }
@@ -124,12 +130,14 @@ function hazardsOf(entries) {
 }
 
 // reports: 하루치 음성 기록(voiceReports 문서들, id 포함). options.checklistItems: 표준 공종 항목(말한 작업을 "도배 완료"처럼 읽는 데 쓴다, 없으면 읽지 않는다)
-// 반환: { total, entries, groups, places, workNames, hazards }
+// options.companies: 등록한 업체 목록(없으면 불러와 둔 목록)
+// 반환: { total, entries, groups, places, workNames, workLabels(업체를 괄호로 붙인 작업 이름 - TBM 일지의 작업 내용용), companies(그 날 기록에 나온 업체 이름들), hazards }
 export function digestDay(reports, options = {}) {
   const list = (Array.isArray(reports) ? reports : []).filter((r) => r && typeof r === "object");
   const items = options && Array.isArray(options.checklistItems) ? options.checklistItems : [];
+  const companies = options && Array.isArray(options.companies) ? options.companies : getCompanies();
   const entries = list
-    .map((r) => toEntry(r, items))
+    .map((r) => toEntry(r, items, companies))
     .sort((a, b) => {
       const ta = Number.isFinite(a.ts) ? a.ts : 0;
       const tb = Number.isFinite(b.ts) ? b.ts : 0;
@@ -137,9 +145,14 @@ export function digestDay(reports, options = {}) {
     });
   const groups = groupEntries(entries);
   const workNames = [];
+  const workLabels = [];
+  const companyNames = [];
   for (const g of groups) {
     const name = g.item || g.tradeLabel;
     if (name && !workNames.includes(name)) workNames.push(name);
+    const label = name && g.company ? `${name}(${g.company})` : name;
+    if (label && !workLabels.includes(label)) workLabels.push(label);
+    if (g.company && !companyNames.includes(g.company)) companyNames.push(g.company);
   }
-  return { total: entries.length, entries, groups, places: placesOf(entries), workNames, hazards: hazardsOf(entries) };
+  return { total: entries.length, entries, groups, places: placesOf(entries), workNames, workLabels, companies: companyNames, hazards: hazardsOf(entries) };
 }
