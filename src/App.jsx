@@ -401,7 +401,7 @@ export default function App() {
           {activeView === "voicerequests" && voiceSub === "glossary" && (
             <Glossary adminName={(userProfile && (userProfile.name || userProfile.email)) || ""} notify={notify} />
           )}
-          {activeView === "voicerequests" && voiceSub !== "glossary" && <VoiceRequestsBoard buildings={buildings} notify={notify} />}
+          {activeView === "voicerequests" && voiceSub !== "glossary" && <VoiceRequestsBoard buildings={buildings} notify={notify} adminName={(userProfile && (userProfile.name || userProfile.email)) || ""} />}
           {activeView === "paperwork" && paperSub === "voicelock" && <VoiceLockMonitor notify={notify} />}
           {activeView === "paperwork" && paperSub !== "voicelock" && <Paperwork notify={notify} checklistItems={checklistItems} companies={companies} />}
           {activeView === "unitinfo" && (

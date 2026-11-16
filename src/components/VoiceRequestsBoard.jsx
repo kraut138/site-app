@@ -14,7 +14,10 @@ import * as api from "../api.js";
 
 const LOAD_COUNT = 4000; // 최근 기록부터 최대 이만큼 읽어 전부(사실상 전체) 모은다
 
-export default function VoiceRequestsBoard({ buildings, notify }) {
+// 승인·반려를 하지 않은 보고는 모두 '승인 대기'다(approval 필드가 없는 예전 기록 포함).
+const isPending = (r) => r.approval !== "approved" && r.approval !== "rejected";
+
+export default function VoiceRequestsBoard({ buildings, notify, adminName = "" }) {
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [reports, setReports] = useState([]);
   const [selectedKey, setSelectedKey] = useState(null);
@@ -59,9 +62,11 @@ export default function VoiceRequestsBoard({ buildings, notify }) {
             floor: resolved.floor,
             unit: resolved.unit,
             records: [],
+            pending: 0,
           });
         }
         map.get(key).records.push(r);
+        if (isPending(r)) map.get(key).pending += 1;
       } else {
         unresolved.push(r);
       }
@@ -77,10 +82,11 @@ export default function VoiceRequestsBoard({ buildings, notify }) {
     const byBuilding = new Map();
     list.forEach((g) => {
       const name = g.buildingName || "동 미확인";
-      if (!byBuilding.has(name)) byBuilding.set(name, { name, units: [], count: 0 });
+      if (!byBuilding.has(name)) byBuilding.set(name, { name, units: [], count: 0, pending: 0 });
       const b = byBuilding.get(name);
       b.units.push(g);
       b.count += g.records.length;
+      b.pending += g.pending;
     });
     const buildingList = Array.from(byBuilding.values()).sort((a, b) => a.name.localeCompare(b.name, "ko", { numeric: true }));
     unresolved.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
@@ -146,7 +152,10 @@ export default function VoiceRequestsBoard({ buildings, notify }) {
                     <Icon.Pin width="13" height="13" />
                     {g.floor}층 {g.unit}호
                   </span>
-                  <span className="vr-cell-count">{g.records.length}건</span>
+                  <span className="vr-cell-foot">
+                    <span className="vr-cell-count">{g.records.length}건</span>
+                    {g.pending > 0 && <span className="vr-cell-pending">· 승인 대기중</span>}
+                  </span>
                 </button>
               ))}
             </>
@@ -165,8 +174,11 @@ export default function VoiceRequestsBoard({ buildings, notify }) {
                   <Icon.Pin width="13" height="13" />
                   {b.name}
                 </span>
-                <span className="vr-cell-count">
-                  {b.units.length}개 호실 · {b.count}건
+                <span className="vr-cell-foot">
+                  <span className="vr-cell-count">
+                    {b.units.length}개 호실 · {b.count}건
+                  </span>
+                  {b.pending > 0 && <span className="vr-cell-pending">· 승인 대기중</span>}
                 </span>
               </button>
             ))
@@ -181,7 +193,10 @@ export default function VoiceRequestsBoard({ buildings, notify }) {
                 <Icon.Pin width="13" height="13" />
                 호실 미확인
               </span>
-              <span className="vr-cell-count">{groups.unresolved.length}건</span>
+              <span className="vr-cell-foot">
+                <span className="vr-cell-count">{groups.unresolved.length}건</span>
+                {groups.unresolved.some(isPending) && <span className="vr-cell-pending">· 승인 대기중</span>}
+              </span>
             </button>
           )}
         </div>
@@ -206,7 +221,7 @@ export default function VoiceRequestsBoard({ buildings, notify }) {
           )}
           <div className="vr-detail-list">
             {(showUnresolved ? groups.unresolved : selectedGroup.records).map((r) => (
-              <VoiceRequestCard key={r.id} report={r} />
+              <VoiceRequestCard key={r.id} report={r} adminName={adminName} notify={notify} />
             ))}
           </div>
         </div>
@@ -215,8 +230,22 @@ export default function VoiceRequestsBoard({ buildings, notify }) {
   );
 }
 
-function VoiceRequestCard({ report }) {
+function VoiceRequestCard({ report, adminName = "", notify }) {
   const r = report;
+  const [busy, setBusy] = useState(false);
+  const approval = r.approval === "approved" || r.approval === "rejected" ? r.approval : "";
+  // 승인·반려를 저장한다. 실시간 구독이 곧 바뀐 값을 가져와 화면과 목록의 '승인 대기중' 표시가 함께 바뀐다. status "" = 승인 대기로 되돌림.
+  async function decide(status) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api.setVoiceReportApproval(r.id, status, adminName);
+    } catch {
+      if (notify) notify("승인·반려를 저장하지 못했습니다. 연결을 확인하고 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  }
   const trade = findTrade(r.trade);
   return (
     <article className="vl-card" style={{ "--vl": trade ? trade.color : "var(--line-strong)" }}>
@@ -240,6 +269,29 @@ function VoiceRequestCard({ report }) {
       )}
       {r.summary && <div className="vl-card-summary">{r.summary}</div>}
       <VoiceRecordMeta report={r} prefix="vr" />
+      <footer className="vr-approve" data-testid={`vr-approve-${r.id}`}>
+        {approval ? (
+          <>
+            <span className={`vr-approve-state is-${approval}`}>
+              {approval === "approved" ? "승인됨" : "반려됨"}
+              {r.approvalBy ? ` · ${r.approvalBy}` : ""}
+              {r.approvalAt ? ` · ${formatDateTime(r.approvalAt)}` : ""}
+            </span>
+            <button type="button" className="vr-approve-undo" disabled={busy} onClick={() => decide("")}>
+              취소
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="vr-approve-btn is-approve" disabled={busy} onClick={() => decide("approved")} data-testid="vr-approve">
+              승인
+            </button>
+            <button type="button" className="vr-approve-btn is-reject" disabled={busy} onClick={() => decide("rejected")} data-testid="vr-reject">
+              반려
+            </button>
+          </>
+        )}
+      </footer>
     </article>
   );
 }

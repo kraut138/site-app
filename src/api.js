@@ -787,6 +787,18 @@ export function subscribeRecentVoiceReports(count, onData, onError) {
   );
 }
 
+// "4. 공사 확인 음성요청 내역"에서 관리자가 음성요청을 승인·반려한다. status: "approved"(승인) | "rejected"(반려) | ""(승인 대기로 되돌림).
+// 필드가 없는 보고(승인·반려 기능 이전에 쌓인 기록 포함)는 모두 '승인 대기'로 본다. 보고의 글·요약·진행도 반영은 바꾸지 않는다.
+export async function setVoiceReportApproval(id, status, by) {
+  const ref = doc(db, "voiceReports", String(id));
+  const st = status === "approved" || status === "rejected" ? status : "";
+  const data = st
+    ? { approval: st, approvalBy: String(by || "").trim().slice(0, 60), approvalAt: nowIso() }
+    : { approval: "", approvalBy: "", approvalAt: "" };
+  await withTimeout(updateDoc(ref, data), VOICE_SAVE_TIMEOUT_MS, "voice/timeout");
+  return data;
+}
+
 // 관리자가 잘못 인식된 보고를 호실 진행도에서 빼거나(off=true) 다시 넣는다(off=false). 보고 자체(글·요약)는 그대로 남는다.
 export async function setVoiceReportProgressOff(id, off, by) {
   const ref = doc(db, "voiceReports", String(id));

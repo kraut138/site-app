@@ -4062,7 +4062,7 @@ textarea.input {
 
 .vr-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 10px;
 }
 
@@ -4119,6 +4119,76 @@ textarea.input {
   font-size: 12px;
   color: var(--blueprint);
   font-weight: 700;
+}
+
+.vr-cell-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 8px;
+  width: 100%;
+}
+
+/* 승인 대기 중인 요청이 있는 칸의 우측 아래 표시 */
+.vr-cell-pending {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: #d97706; /* 노란색 계열(amber-600) - 흰 칸에서 읽히는 진하기 */
+}
+
+/* 요청 카드 우측 아래 승인·반려 */
+.vr-approve {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.vr-approve-btn {
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.vr-approve-btn.is-approve,
+.vr-approve-state.is-approved {
+  color: #16a34a; /* 초록 */
+}
+
+.vr-approve-btn.is-reject,
+.vr-approve-state.is-rejected {
+  color: #dc2626; /* 빨강 */
+}
+
+.vr-approve-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.vr-approve-btn:disabled,
+.vr-approve-undo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vr-approve-state {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.vr-approve-undo {
+  padding: 2px 6px;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  color: var(--ink-faint);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .vr-detail {
